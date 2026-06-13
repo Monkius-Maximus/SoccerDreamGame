@@ -1,0 +1,16 @@
+<!--
+  SoccerSim.Core: the engine-agnostic simulation core.
+  Plain Microsoft.NET.Sdk library with ZERO Godot or third-party dependencies so
+  it stays headless-testable and reusable by a future multiplayer server.
+  IMPORTANT: this library lives OUTSIDE the Godot project directory (game/) so the
+  Godot.NET.Sdk file globbing never compiles these files twice.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SoccerSim.Core</RootNamespace>
+    <AssemblyName>SoccerSim.Core</AssemblyName>
+  </PropertyGroup>
+
+</Project>

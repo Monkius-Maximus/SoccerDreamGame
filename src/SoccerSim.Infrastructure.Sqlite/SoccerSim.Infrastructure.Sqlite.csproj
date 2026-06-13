@@ -1,0 +1,32 @@
+<!--
+  SoccerSim.Infrastructure.Sqlite: the SQLite implementation of the persistence
+  ports defined in SoccerSim.Core. This is the ONLY project that references a
+  database engine, so swapping to Postgres/Turso later means adding a sibling
+  infrastructure project, not touching Core or the Godot layer.
+
+  The canonical .sql migrations live in /sql and are embedded here (linked, not
+  copied) so MigrationRunner can apply them at runtime from a single source.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SoccerSim.Infrastructure.Sqlite</RootNamespace>
+    <AssemblyName>SoccerSim.Infrastructure.Sqlite</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Bundles the native e_sqlite3 engine; no manual provider init needed on desktop. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.28" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SoccerSim.Core\SoccerSim.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Single source of truth: embed the top-level migrations as resources. -->
+    <EmbeddedResource Include="..\..\sql\*.sql" Link="Sql\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

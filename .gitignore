@@ -1,0 +1,32 @@
+# ---- .NET ----
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+project.lock.json
+artifacts/
+
+# ---- Godot 4 ----
+# Godot 4 stores its import cache and generated files here.
+.godot/
+# Exported builds.
+/exports/
+export_presets.cfg
+# Godot also generates a .mono / mono folder for older versions.
+.mono/
+data_*/
+
+# ---- Runtime databases (the game writes saves to user://) ----
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ---- OS / editor noise ----
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
