@@ -1,0 +1,20 @@
+<!--
+  The Godot game project. This is the only project that uses Godot.NET.Sdk and the
+  only one that opens in the Godot editor. It references the engine-agnostic core and
+  the SQLite infrastructure as plain project references (they live OUTSIDE this folder
+  so Godot's file globbing never double-compiles them).
+-->
+<Project Sdk="Godot.NET.Sdk/4.6.3">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>SoccerDreamGame</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\SoccerSim.Core\SoccerSim.Core.csproj" />
+    <ProjectReference Include="..\src\SoccerSim.Infrastructure.Sqlite\SoccerSim.Infrastructure.Sqlite.csproj" />
+  </ItemGroup>
+
+</Project>

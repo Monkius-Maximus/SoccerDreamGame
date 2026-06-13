@@ -1,0 +1,31 @@
+; Engine configuration file.
+; Generated/maintained by hand for the initial scaffold; the Godot editor will
+; expand this on first open. config_version=5 is the Godot 4.x format.
+
+config_version=5
+
+[application]
+
+config/name="Soccer Dream Game"
+config/description="2D Soccer Life Simulator — separated match engine and life simulation."
+run/main_scene="res://scenes/main_menu/MainMenu.tscn"
+config/features=PackedStringArray("4.6", "C#", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[dotnet]
+
+project/assembly_name="SoccerDreamGame"
+
+[autoload]
+
+; GameBootstrap MUST be first: it is the composition root the others read from.
+GameBootstrap="*res://autoload/GameBootstrap.cs"
+TimeManagerNode="*res://autoload/TimeManagerNode.cs"
+EventBus="*res://autoload/EventBusNode.cs"
+SaveService="*res://autoload/SaveServiceNode.cs"
+
+[rendering]
+
+; GL Compatibility is the safe, wide-support renderer for a 2D / 16-bit-styled game.
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
