@@ -66,20 +66,24 @@ public abstract class EloResolverBase : ILeagueResolver
 }
 
 /// <summary>
-/// Tier 1 (active human league): full detail. In production this delegates to the
-/// minute-by-minute match engine; the scaffold uses the shared Elo math as the
-/// placeholder engine while still emitting per-player ratings and tracking form daily.
+/// Tier 1 (active human league): full detail. Delegates to the minute-by-minute
+/// <see cref="MatchEngine"/>, which simulates each minute from team strength and player
+/// attributes and emits the per-player ratings that drive daily form. (Tier 2/3 keep the
+/// cheaper shared <see cref="EloResolverBase"/> math.)
 /// </summary>
-public sealed class Tier1MatchResolver : EloResolverBase
+public sealed class Tier1MatchResolver : ILeagueResolver
 {
-    public Tier1MatchResolver(IRandom rng) : base(rng) { }
+    private readonly MatchEngine _engine;
 
-    public override SimulationTier Tier => SimulationTier.ActiveHuman;
+    public Tier1MatchResolver(IRandom rng) : this(new MatchEngine(rng)) { }
 
-    protected override IReadOnlyDictionary<int, double> BuildRatings(MatchContext context, int homeGoals, int awayGoals)
-        => RatingHelper.RateSquads(context, homeGoals, awayGoals);
+    public Tier1MatchResolver(MatchEngine engine) => _engine = engine;
 
-    public override void UpdateForm(MatchContext context, MatchResult result)
+    public SimulationTier Tier => SimulationTier.ActiveHuman;
+
+    public MatchResult Resolve(MatchContext context) => _engine.Simulate(context);
+
+    public void UpdateForm(MatchContext context, MatchResult result)
     {
         // Tier 1 tracks form daily; the gateway persists it from result.PlayerRatings.
     }
