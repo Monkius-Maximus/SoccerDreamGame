@@ -198,7 +198,9 @@ ran), so no day is processed twice.
 
 - `dotnet test tests/SoccerSim.Core.Tests` exercises the clock multipliers, task skip,
   the calendar advance, the trait-weighted roll, the High-event **interrupt → resume**
-  cycle, the Tier 1/2/3 resolvers, and an end-to-end SQLite migration + LOD write.
+  cycle, the Tier 1/2/3 resolvers, the Tier 1 **minute-by-minute `MatchEngine`**
+  (determinism, scoreline/scorer invariants, attribute-weighted finishing), and an
+  end-to-end SQLite migration + LOD write.
 - `dotnet build SoccerDreamGame.sln` builds all four projects.
 - Opening `game/` in the Godot 4.6 (.NET) editor and running creates `user://save.db`,
   applies migrations, and prints the bootstrap/autoload log lines.

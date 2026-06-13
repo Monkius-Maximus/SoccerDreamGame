@@ -22,6 +22,9 @@ public partial class GameBootstrap : Node
 
     public ISimulationLODManager Lod { get; private set; } = null!;
 
+    /// <summary>On-demand simulation of the player's rendered fixture (Tier 1 match scene).</summary>
+    public IMatchPresenter Match { get; private set; } = null!;
+
     private readonly SeededRandom _rng = new();
     private SqliteConnection? _connection;
 
@@ -32,7 +35,9 @@ public partial class GameBootstrap : Node
         // user:// resolves to a writable per-user directory on every desktop platform.
         string databasePath = ProjectSettings.GlobalizePath("user://save.db");
         var factory = SqliteConnectionFactory.ForFile(databasePath);
-        new MigrationRunner(factory).Migrate();
+        // Dev: apply the seed migration too so a fresh save has a world (teams, players,
+        // and a Tier 1 fixture) to simulate. Recorded once, so it is a no-op thereafter.
+        new MigrationRunner(factory).Migrate(includeSeeds: true);
         _connection = factory.Open();
 
         var gateway = new SqliteFixtureGateway(_connection);
@@ -44,6 +49,7 @@ public partial class GameBootstrap : Node
             new Tier2EloResolver(_rng),
             new Tier3MathResolver(_rng),
         });
+        Match = new MatchPresentationService(gateway, new MatchEngine(_rng));
         Time = new TimeManager(new GameClock(new DateTime(2026, 8, 1)), Events, Lod, BuildRollContext);
 
         GD.Print("[GameBootstrap] Core initialised. Save database: ", databasePath);

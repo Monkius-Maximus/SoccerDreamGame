@@ -29,8 +29,20 @@ public sealed record MatchResult(
     IReadOnlyList<ScorerLine> Scorers,
     IReadOnlyDictionary<int, double> PlayerRatings);
 
-/// <summary>Minimal team data a resolver needs — no rendering assets (GDD §7).</summary>
-public sealed record TeamSnapshot(int TeamId, int Elo, IReadOnlyList<int> SquadPlayerIds);
+/// <summary>One player's static attributes for the minute-by-minute engine (no rendering assets).</summary>
+public sealed record PlayerSnapshot(int PlayerId, PlayerAttributes Attributes);
+
+/// <summary>
+/// Minimal team data a resolver needs — no rendering assets (GDD §7). <see cref="Players"/>
+/// is optional: the Tier 1 engine uses per-player attributes when present (weighting
+/// finishers, nudging ratings) and falls back to <see cref="SquadPlayerIds"/> otherwise,
+/// which keeps the cheap Tier 2/3 snapshots free of attribute loads.
+/// </summary>
+public sealed record TeamSnapshot(int TeamId, int Elo, IReadOnlyList<int> SquadPlayerIds)
+{
+    /// <summary>Per-player attributes for full Tier 1 simulation; empty for Elo-only tiers.</summary>
+    public IReadOnlyList<PlayerSnapshot> Players { get; init; } = [];
+}
 
 /// <summary>Everything a resolver needs to play one match, free of persistence concerns.</summary>
 public sealed record MatchContext(Match Match, TeamSnapshot Home, TeamSnapshot Away);
@@ -59,4 +71,10 @@ public interface IFixtureGateway
     MatchContext? GetMatchContext(int matchId);
 
     void SaveResult(MatchContext context, MatchResult result);
+
+    /// <summary>Id of the earliest unplayed fixture in the tier, or <c>null</c> if none remain.</summary>
+    int? GetNextUnplayedMatchId(SimulationTier tier);
+
+    /// <summary>Team/player display names for a match, for the rendered scene; <c>null</c> if the match is missing.</summary>
+    MatchDisplayInfo? GetMatchDisplayInfo(int matchId);
 }

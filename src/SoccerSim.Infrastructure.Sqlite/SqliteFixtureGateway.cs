@@ -44,10 +44,13 @@ public sealed class SqliteFixtureGateway : IFixtureGateway
                 matchIds.Add(reader.GetInt32(0));
         }
 
+        // Only Tier 1 runs the attribute-driven minute engine; Tier 2/3 stay Elo-only,
+        // so we avoid loading per-player attributes for those cheap background snapshots.
+        bool includeAttributes = tier == SimulationTier.ActiveHuman;
         var contexts = new List<MatchContext>(matchIds.Count);
         foreach (int matchId in matchIds)
         {
-            MatchContext? context = GetMatchContext(matchId);
+            MatchContext? context = BuildContext(matchId, includeAttributes);
             if (context is not null)
                 contexts.Add(context);
         }
@@ -55,7 +58,11 @@ public sealed class SqliteFixtureGateway : IFixtureGateway
         return contexts;
     }
 
-    public MatchContext? GetMatchContext(int matchId)
+    // On-demand lookups (e.g. the player's own rendered fixture) always load full
+    // per-player attributes so the Tier 1 minute engine runs at full fidelity.
+    public MatchContext? GetMatchContext(int matchId) => BuildContext(matchId, includeAttributes: true);
+
+    private MatchContext? BuildContext(int matchId, bool includeAttributes)
     {
         Match? match = LoadMatch(matchId);
         if (match is null)
@@ -63,8 +70,41 @@ public sealed class SqliteFixtureGateway : IFixtureGateway
 
         return new MatchContext(
             match,
-            LoadTeamSnapshot(match.HomeTeamId),
-            LoadTeamSnapshot(match.AwayTeamId));
+            LoadTeamSnapshot(match.HomeTeamId, includeAttributes),
+            LoadTeamSnapshot(match.AwayTeamId, includeAttributes));
+    }
+
+    public int? GetNextUnplayedMatchId(SimulationTier tier)
+    {
+        using SqliteCommand command = _connection.CreateCommand();
+        command.CommandText =
+            @"SELECT m.Id
+              FROM Matches m
+              JOIN Leagues l ON l.Id = m.LeagueId
+              WHERE l.Tier = $tier AND m.Played = 0
+              ORDER BY m.KickoffDate
+              LIMIT 1;";
+        command.Parameters.AddWithValue("$tier", (int)tier);
+        object? value = command.ExecuteScalar();
+        return value is null or DBNull ? null : Convert.ToInt32(value);
+    }
+
+    public MatchDisplayInfo? GetMatchDisplayInfo(int matchId)
+    {
+        Match? match = LoadMatch(matchId);
+        if (match is null)
+            return null;
+
+        var playerNames = new Dictionary<int, string>();
+        LoadPlayerNames(match.HomeTeamId, playerNames);
+        LoadPlayerNames(match.AwayTeamId, playerNames);
+
+        return new MatchDisplayInfo(
+            match.HomeTeamId,
+            LoadTeamName(match.HomeTeamId),
+            match.AwayTeamId,
+            LoadTeamName(match.AwayTeamId),
+            playerNames);
     }
 
     public void SaveResult(MatchContext context, MatchResult result)
@@ -130,28 +170,66 @@ public sealed class SqliteFixtureGateway : IFixtureGateway
         };
     }
 
-    private TeamSnapshot LoadTeamSnapshot(int teamId)
+    private TeamSnapshot LoadTeamSnapshot(int teamId, bool includeAttributes)
     {
-        int elo;
-        using (SqliteCommand command = _connection.CreateCommand())
-        {
-            command.CommandText = "SELECT EloRating FROM Teams WHERE Id = $id;";
-            command.Parameters.AddWithValue("$id", teamId);
-            object? value = command.ExecuteScalar();
-            elo = value is null ? 1500 : Convert.ToInt32(value);
-        }
+        int elo = LoadElo(teamId);
 
         var squad = new List<int>();
+        List<PlayerSnapshot>? players = includeAttributes ? new List<PlayerSnapshot>() : null;
+
         using (SqliteCommand command = _connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id FROM Players WHERE TeamId = $tid ORDER BY Id;";
+            command.CommandText = includeAttributes
+                ? "SELECT Id, Pace, Stamina, Strength, Passing, Shooting, Tackling, Vision FROM Players WHERE TeamId = $tid ORDER BY Id;"
+                : "SELECT Id FROM Players WHERE TeamId = $tid ORDER BY Id;";
             command.Parameters.AddWithValue("$tid", teamId);
             using SqliteDataReader reader = command.ExecuteReader();
             while (reader.Read())
-                squad.Add(reader.GetInt32(0));
+            {
+                int playerId = reader.GetInt32(0);
+                squad.Add(playerId);
+                players?.Add(new PlayerSnapshot(playerId, new PlayerAttributes(
+                    reader.GetInt32(1),
+                    reader.GetInt32(2),
+                    reader.GetInt32(3),
+                    reader.GetInt32(4),
+                    reader.GetInt32(5),
+                    reader.GetInt32(6),
+                    reader.GetInt32(7))));
+            }
         }
 
-        return new TeamSnapshot(teamId, elo, squad);
+        return players is null
+            ? new TeamSnapshot(teamId, elo, squad)
+            : new TeamSnapshot(teamId, elo, squad) { Players = players };
+    }
+
+    private int LoadElo(int teamId)
+    {
+        using SqliteCommand command = _connection.CreateCommand();
+        command.CommandText = "SELECT EloRating FROM Teams WHERE Id = $id;";
+        command.Parameters.AddWithValue("$id", teamId);
+        object? value = command.ExecuteScalar();
+        return value is null ? 1500 : Convert.ToInt32(value);
+    }
+
+    private string LoadTeamName(int teamId)
+    {
+        using SqliteCommand command = _connection.CreateCommand();
+        command.CommandText = "SELECT Name FROM Teams WHERE Id = $id;";
+        command.Parameters.AddWithValue("$id", teamId);
+        object? value = command.ExecuteScalar();
+        return value is null or DBNull ? $"Team {teamId}" : (string)value;
+    }
+
+    private void LoadPlayerNames(int teamId, Dictionary<int, string> into)
+    {
+        using SqliteCommand command = _connection.CreateCommand();
+        command.CommandText = "SELECT Id, FirstName, LastName FROM Players WHERE TeamId = $tid ORDER BY Id;";
+        command.Parameters.AddWithValue("$tid", teamId);
+        using SqliteDataReader reader = command.ExecuteReader();
+        while (reader.Read())
+            into[reader.GetInt32(0)] = $"{reader.GetString(1)} {reader.GetString(2)}";
     }
 
     private void UpdateStanding(int seasonId, int teamId, int goalsFor, int goalsAgainst)
