@@ -71,4 +71,10 @@ public interface IFixtureGateway
     MatchContext? GetMatchContext(int matchId);
 
     void SaveResult(MatchContext context, MatchResult result);
+
+    /// <summary>Id of the earliest unplayed fixture in the tier, or <c>null</c> if none remain.</summary>
+    int? GetNextUnplayedMatchId(SimulationTier tier);
+
+    /// <summary>Team/player display names for a match, for the rendered scene; <c>null</c> if the match is missing.</summary>
+    MatchDisplayInfo? GetMatchDisplayInfo(int matchId);
 }

@@ -74,6 +74,39 @@ public sealed class SqliteFixtureGateway : IFixtureGateway
             LoadTeamSnapshot(match.AwayTeamId, includeAttributes));
     }
 
+    public int? GetNextUnplayedMatchId(SimulationTier tier)
+    {
+        using SqliteCommand command = _connection.CreateCommand();
+        command.CommandText =
+            @"SELECT m.Id
+              FROM Matches m
+              JOIN Leagues l ON l.Id = m.LeagueId
+              WHERE l.Tier = $tier AND m.Played = 0
+              ORDER BY m.KickoffDate
+              LIMIT 1;";
+        command.Parameters.AddWithValue("$tier", (int)tier);
+        object? value = command.ExecuteScalar();
+        return value is null or DBNull ? null : Convert.ToInt32(value);
+    }
+
+    public MatchDisplayInfo? GetMatchDisplayInfo(int matchId)
+    {
+        Match? match = LoadMatch(matchId);
+        if (match is null)
+            return null;
+
+        var playerNames = new Dictionary<int, string>();
+        LoadPlayerNames(match.HomeTeamId, playerNames);
+        LoadPlayerNames(match.AwayTeamId, playerNames);
+
+        return new MatchDisplayInfo(
+            match.HomeTeamId,
+            LoadTeamName(match.HomeTeamId),
+            match.AwayTeamId,
+            LoadTeamName(match.AwayTeamId),
+            playerNames);
+    }
+
     public void SaveResult(MatchContext context, MatchResult result)
     {
         using (SqliteCommand update = _connection.CreateCommand())
@@ -178,6 +211,25 @@ public sealed class SqliteFixtureGateway : IFixtureGateway
         command.Parameters.AddWithValue("$id", teamId);
         object? value = command.ExecuteScalar();
         return value is null ? 1500 : Convert.ToInt32(value);
+    }
+
+    private string LoadTeamName(int teamId)
+    {
+        using SqliteCommand command = _connection.CreateCommand();
+        command.CommandText = "SELECT Name FROM Teams WHERE Id = $id;";
+        command.Parameters.AddWithValue("$id", teamId);
+        object? value = command.ExecuteScalar();
+        return value is null or DBNull ? $"Team {teamId}" : (string)value;
+    }
+
+    private void LoadPlayerNames(int teamId, Dictionary<int, string> into)
+    {
+        using SqliteCommand command = _connection.CreateCommand();
+        command.CommandText = "SELECT Id, FirstName, LastName FROM Players WHERE TeamId = $tid ORDER BY Id;";
+        command.Parameters.AddWithValue("$tid", teamId);
+        using SqliteDataReader reader = command.ExecuteReader();
+        while (reader.Read())
+            into[reader.GetInt32(0)] = $"{reader.GetString(1)} {reader.GetString(2)}";
     }
 
     private void UpdateStanding(int seasonId, int teamId, int goalsFor, int goalsAgainst)

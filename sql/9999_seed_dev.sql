@@ -37,6 +37,18 @@ INSERT INTO Players (Id, FirstName, LastName, TeamId, Pace, Stamina, Strength, P
     (3, 'Ravi',  'Kapoor',  3, 17, 14, 12, 16, 15, 9,  17),
     (4, 'Tom',   'Fielder', 5, 11, 13, 14, 10, 9,  13, 9);
 
+-- Extra Tier 1 squad members so both active-league teams can field a side and the
+-- rendered match has named scorers (Riverside = team 1, Hilltop = team 2).
+INSERT INTO Players (Id, FirstName, LastName, TeamId, Pace, Stamina, Strength, Passing, Shooting, Tackling, Vision) VALUES
+    (5,  'Mateo',   'Bianchi',   1, 13, 14, 12, 15, 14, 11, 14),
+    (6,  'Kwame',   'Osei',      1, 15, 13, 16, 11, 10, 15, 10),
+    (7,  'Lucas',   'Berg',      1, 12, 15, 13, 14, 13, 12, 13),
+    (8,  'Hiroshi', 'Tanaka',    2, 14, 14, 12, 15, 13, 12, 15),
+    (9,  'Owen',    'Pryce',     2, 16, 13, 14, 12, 15, 10, 12),
+    (10, 'Bruno',   'Ramirez',   2, 13, 15, 15, 13, 12, 14, 11),
+    (11, 'Sami',    'Haidar',    2, 15, 14, 13, 14, 14, 11, 13),
+    (12, 'Noah',    'Whitfield', 2, 12, 16, 14, 13, 11, 15, 12);
+
 INSERT INTO PlayerTraitAssignments (PlayerId, TraitId) VALUES
     (1, 1), (1, 3),
     (2, 2),
@@ -53,3 +65,9 @@ INSERT INTO HousingItems (Id, Key, Name, Cost, StatKey, YieldMultiplier) VALUES
     (1, 'basic_bed',       'Basic Bed',           0,    'stamina_recovery', 1.0),
     (2, 'orthopedic_bed',  'Orthopedic Bed',      40000, 'stamina_recovery', 1.4),
     (3, 'home_gym',        'Home Gym',            75000, 'strength_training', 1.5);
+
+-- Two unplayed Tier 1 fixtures in season 1 so "Play Next Fixture" has a match to render
+-- (and a second one to watch on a repeat run). KickoffDate >= the 2026-08-01 clock start.
+INSERT INTO Matches (Id, SeasonId, LeagueId, HomeTeamId, AwayTeamId, KickoffDate, Played) VALUES
+    (1, 1, 1, 1, 2, '2026-08-08 15:00:00', 0),
+    (2, 1, 1, 2, 1, '2026-08-15 15:00:00', 0);
