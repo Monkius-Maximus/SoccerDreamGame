@@ -34,11 +34,17 @@ public sealed class MatchPresentationService : IMatchPresenter
 {
     private readonly IFixtureGateway _gateway;
     private readonly MatchEngine _engine;
+    private readonly int? _humanTeamId;
 
-    public MatchPresentationService(IFixtureGateway gateway, MatchEngine engine)
+    /// <param name="humanTeamId">
+    /// When set, <see cref="PlayNextFixture"/> picks the human club's next fixture (the same
+    /// fixtures the LOD manager reserves from background resolution). Null = any fixture in the tier.
+    /// </param>
+    public MatchPresentationService(IFixtureGateway gateway, MatchEngine engine, int? humanTeamId = null)
     {
         _gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        _humanTeamId = humanTeamId;
     }
 
     public MatchPresentation Play(int matchId)
@@ -62,7 +68,7 @@ public sealed class MatchPresentationService : IMatchPresenter
 
     public MatchPresentation? PlayNextFixture(SimulationTier tier)
     {
-        int? matchId = _gateway.GetNextUnplayedMatchId(tier);
+        int? matchId = _gateway.GetNextUnplayedMatchId(tier, _humanTeamId);
         return matchId is null ? null : Play(matchId.Value);
     }
 }

@@ -25,6 +25,11 @@ public partial class GameBootstrap : Node
     /// <summary>On-demand simulation of the player's rendered fixture (Tier 1 match scene).</summary>
     public IMatchPresenter Match { get; private set; } = null!;
 
+    // The club the player controls: seeded human player 1 plays for Riverside FC (team 1).
+    // Its fixtures are reserved for the rendered match scene instead of background resolution.
+    // TODO: source this from career/save state once that exists.
+    private const int HumanTeamId = 1;
+
     private readonly SeededRandom _rng = new();
     private SqliteConnection? _connection;
 
@@ -48,8 +53,8 @@ public partial class GameBootstrap : Node
             new Tier1MatchResolver(_rng),
             new Tier2EloResolver(_rng),
             new Tier3MathResolver(_rng),
-        });
-        Match = new MatchPresentationService(gateway, new MatchEngine(_rng));
+        }, HumanTeamId);
+        Match = new MatchPresentationService(gateway, new MatchEngine(_rng), HumanTeamId);
         Time = new TimeManager(new GameClock(new DateTime(2026, 8, 1)), Events, Lod, BuildRollContext);
 
         GD.Print("[GameBootstrap] Core initialised. Save database: ", databasePath);
