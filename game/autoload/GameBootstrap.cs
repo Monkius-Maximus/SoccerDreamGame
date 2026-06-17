@@ -1,5 +1,6 @@
 using Godot;
 using Microsoft.Data.Sqlite;
+using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.Time;
@@ -25,10 +26,12 @@ public partial class GameBootstrap : Node
     /// <summary>On-demand simulation of the player's rendered fixture (Tier 1 match scene).</summary>
     public IMatchPresenter Match { get; private set; } = null!;
 
-    // The club the player controls: seeded human player 1 plays for Riverside FC (team 1).
-    // Its fixtures are reserved for the rendered match scene instead of background resolution.
-    // TODO: source this from career/save state once that exists.
-    private const int HumanTeamId = 1;
+    /// <summary>
+    /// The active career / save-state: who the human controls. Sourced from the database
+    /// at startup. The player's club is the one reserved for the rendered match scene
+    /// instead of background LOD resolution; null only if no career has been created yet.
+    /// </summary>
+    public CareerState? Career { get; private set; }
 
     private readonly SeededRandom _rng = new();
     private SqliteConnection? _connection;
@@ -47,24 +50,29 @@ public partial class GameBootstrap : Node
 
         var gateway = new SqliteFixtureGateway(_connection);
 
+        // Who the human controls — sourced from the persisted career save-state rather than
+        // hardcoded. The reserved-for-rendering club is this player's team.
+        Career = new SqliteCareerService(_connection).GetActiveCareer();
+        int? humanTeamId = Career?.HumanTeamId;
+
         Events = new EventManager(BuildEventDefinitions());
         Lod = new SimulationLODManager(gateway, new ILeagueResolver[]
         {
             new Tier1MatchResolver(_rng),
             new Tier2EloResolver(_rng),
             new Tier3MathResolver(_rng),
-        }, HumanTeamId);
-        Match = new MatchPresentationService(gateway, new MatchEngine(_rng), HumanTeamId);
+        }, humanTeamId);
+        Match = new MatchPresentationService(gateway, new MatchEngine(_rng), humanTeamId);
         Time = new TimeManager(new GameClock(new DateTime(2026, 8, 1)), Events, Lod, BuildRollContext);
 
-        GD.Print("[GameBootstrap] Core initialised. Save database: ", databasePath);
+        string human = Career is null ? "(none)" : $"player {Career.HumanPlayerId}, team {Career.HumanTeamId}";
+        GD.Print($"[GameBootstrap] Core initialised. Save database: {databasePath}. Human: {human}");
     }
 
     public override void _ExitTree() => _connection?.Dispose();
 
     private EventRollContext BuildRollContext(DateTime date) =>
-        // TODO: source the active player's static trait weights from the database.
-        new(1, new Dictionary<string, int>(), 1.0, _rng);
+        new(Career?.HumanPlayerId ?? 1, Career?.TraitWeights ?? new Dictionary<string, int>(), 1.0, _rng);
 
     private static IReadOnlyList<EventDefinition> BuildEventDefinitions() => new[]
     {

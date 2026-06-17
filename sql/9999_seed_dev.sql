@@ -55,6 +55,10 @@ INSERT INTO PlayerTraitAssignments (PlayerId, TraitId) VALUES
     (3, 3),
     (4, 2);
 
+-- The active career for this dev save: the human controls player 1 (Alex Mercer),
+-- who plays for Riverside FC (team 1). Sourced at startup instead of hardcoded.
+INSERT INTO Career (Id, HumanPlayerId) VALUES (1, 1);
+
 INSERT INTO PlayerFinances (PlayerId, Balance, BaseSalaryWeekly) VALUES
     (1, 250000, 35000),
     (2, 180000, 28000),
