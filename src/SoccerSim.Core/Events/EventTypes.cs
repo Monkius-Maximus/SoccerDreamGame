@@ -14,28 +14,16 @@ public enum EventTier
 }
 
 /// <summary>
-/// Seedable randomness abstraction so the EventTrigger loop is deterministically
-/// testable (inject a fixed seed in tests, a time-seeded instance at runtime).
+/// Minimal seedable randomness seam used across the simulation so every consumer is
+/// deterministically testable. The single production implementation is
+/// <see cref="SoccerSim.Core.Random.SplitMix64Random"/> — a cross-platform deterministic PRNG;
+/// the simulation never uses <see cref="System.Random"/>, whose sequence is unspecified.
 /// </summary>
 public interface IRandom
 {
     double NextDouble();
 
     int Next(int maxExclusive);
-}
-
-/// <summary><see cref="System.Random"/>-backed <see cref="IRandom"/>.</summary>
-public sealed class SeededRandom : IRandom
-{
-    private readonly Random _random;
-
-    public SeededRandom() => _random = new Random();
-
-    public SeededRandom(int seed) => _random = new Random(seed);
-
-    public double NextDouble() => _random.NextDouble();
-
-    public int Next(int maxExclusive) => _random.Next(maxExclusive);
 }
 
 /// <summary>A single stat modifier, e.g. <c>("morale", -2)</c>. Applied to FormMood/attributes.</summary>

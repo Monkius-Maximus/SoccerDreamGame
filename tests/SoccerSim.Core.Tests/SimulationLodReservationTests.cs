@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.Time;
 using SoccerSim.Infrastructure.Sqlite;
@@ -36,9 +37,9 @@ public sealed class SimulationLodReservationTests
 
     private static ILeagueResolver[] Resolvers() => new ILeagueResolver[]
     {
-        new Tier1MatchResolver(new SeededRandom(1)),
-        new Tier2EloResolver(new SeededRandom(1)),
-        new Tier3MathResolver(new SeededRandom(1)),
+        new Tier1MatchResolver(new SplitMix64Random(1)),
+        new Tier2EloResolver(new SplitMix64Random(1)),
+        new Tier3MathResolver(new SplitMix64Random(1)),
     };
 
     private static MatchContext Fixture(int matchId, int homeTeamId, int awayTeamId) => new(
@@ -92,7 +93,7 @@ public sealed class SimulationLodReservationTests
             new GameClock(new DateTime(2026, 8, 1)),
             new EventManager(Array.Empty<EventDefinition>()),   // no events → no interrupts
             lod,
-            date => new EventRollContext(1, new Dictionary<string, int>(), 1.0, new SeededRandom(0)));
+            date => new EventRollContext(1, new Dictionary<string, int>(), 1.0, new SplitMix64Random(0)));
 
         time.AdvanceCalendar(new DateTime(2026, 8, 20));   // past both seeded Tier 1 fixtures (8/8, 8/15)
 

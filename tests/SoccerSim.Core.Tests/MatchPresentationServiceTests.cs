@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Infrastructure.Sqlite;
 using Xunit;
@@ -63,7 +64,7 @@ public sealed class MatchPresentationServiceTests
     public void Play_Simulates_Persists_Once_AndReturnsDisplay()
     {
         var gateway = new FakeGateway { Context = SampleContext(played: false), Display = SampleDisplay() };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(1)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
 
         MatchPresentation presentation = service.Play(1);
 
@@ -77,7 +78,7 @@ public sealed class MatchPresentationServiceTests
     public void Play_Throws_AndDoesNotPersist_WhenAlreadyPlayed()
     {
         var gateway = new FakeGateway { Context = SampleContext(played: true), Display = SampleDisplay() };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(1)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
 
         Assert.Throws<InvalidOperationException>(() => service.Play(1));
         Assert.Equal(0, gateway.SaveCount);
@@ -87,7 +88,7 @@ public sealed class MatchPresentationServiceTests
     public void PlayNextFixture_ReturnsNull_WhenNonePending()
     {
         var gateway = new FakeGateway { NextId = null };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(1)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
 
         Assert.Null(service.PlayNextFixture(SimulationTier.ActiveHuman));
         Assert.Equal(0, gateway.SaveCount);
@@ -102,7 +103,7 @@ public sealed class MatchPresentationServiceTests
             Context = SampleContext(played: false),
             Display = SampleDisplay(),
         };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(2)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(2)));
 
         MatchPresentation? presentation = service.PlayNextFixture(SimulationTier.ActiveHuman);
 
@@ -119,7 +120,7 @@ public sealed class MatchPresentationServiceTests
 
         using SqliteConnection connection = factory.Open();
         var gateway = new SqliteFixtureGateway(connection);
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(42)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(42)));
 
         MatchPresentation? presentation = service.PlayNextFixture(SimulationTier.ActiveHuman);
 
@@ -160,7 +161,7 @@ public sealed class MatchPresentationServiceTests
             Context = SampleContext(played: false),
             Display = SampleDisplay(),
         };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(3)), humanTeamId: 7);
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(3)), humanTeamId: 7);
 
         service.PlayNextFixture(SimulationTier.ActiveHuman);
 

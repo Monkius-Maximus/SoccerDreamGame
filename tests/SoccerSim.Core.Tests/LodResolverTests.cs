@@ -1,5 +1,6 @@
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using Xunit;
 
@@ -26,7 +27,7 @@ public sealed class LodResolverTests
     [Fact]
     public void Tier3_Resolves_WithoutRatings()
     {
-        var resolver = new Tier3MathResolver(new SeededRandom(7));
+        var resolver = new Tier3MathResolver(new SplitMix64Random(7));
 
         MatchResult result = resolver.Resolve(SampleContext());
 
@@ -42,15 +43,15 @@ public sealed class LodResolverTests
     {
         MatchContext context = SampleContext();
 
-        Assert.NotEmpty(new Tier1MatchResolver(new SeededRandom(1)).Resolve(context).PlayerRatings);
-        Assert.NotEmpty(new Tier2EloResolver(new SeededRandom(1)).Resolve(context).PlayerRatings);
+        Assert.NotEmpty(new Tier1MatchResolver(new SplitMix64Random(1)).Resolve(context).PlayerRatings);
+        Assert.NotEmpty(new Tier2EloResolver(new SplitMix64Random(1)).Resolve(context).PlayerRatings);
     }
 
     [Fact]
     public void Resolver_Tiers_MatchEnum()
     {
-        Assert.Equal(SimulationTier.ActiveHuman, new Tier1MatchResolver(new SeededRandom(1)).Tier);
-        Assert.Equal(SimulationTier.MajorForeign, new Tier2EloResolver(new SeededRandom(1)).Tier);
-        Assert.Equal(SimulationTier.Minor, new Tier3MathResolver(new SeededRandom(1)).Tier);
+        Assert.Equal(SimulationTier.ActiveHuman, new Tier1MatchResolver(new SplitMix64Random(1)).Tier);
+        Assert.Equal(SimulationTier.MajorForeign, new Tier2EloResolver(new SplitMix64Random(1)).Tier);
+        Assert.Equal(SimulationTier.Minor, new Tier3MathResolver(new SplitMix64Random(1)).Tier);
     }
 }

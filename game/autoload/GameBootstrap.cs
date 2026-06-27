@@ -2,6 +2,7 @@ using Godot;
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.Time;
 using SoccerSim.Infrastructure.Sqlite;
@@ -33,7 +34,17 @@ public partial class GameBootstrap : Node
     /// </summary>
     public CareerState? Career { get; private set; }
 
-    private readonly SeededRandom _rng = new();
+    /// <summary>
+    /// Root world seed. Every simulation stream derives from this, so a given save replays
+    /// identically. TODO: persist this per-career in the save-state instead of a constant.
+    /// </summary>
+    public ulong MasterSeed { get; } = 0xD1CED00D2026UL;
+
+    // One deterministic generator, shared by the background resolvers and the match engine and
+    // derived from the master seed (no System.Random anywhere). Per-fixture isolation is available
+    // via DeterministicRng.CreateStream(MasterSeed, fixtureId, ...) once the LOD threads a seed per match.
+    private IDeterministicRandom _rng = null!;
+    private IFixtureGateway _gateway = null!;
     private SqliteConnection? _connection;
 
     public override void _Ready()
@@ -48,7 +59,8 @@ public partial class GameBootstrap : Node
         new MigrationRunner(factory).Migrate(includeSeeds: true);
         _connection = factory.Open();
 
-        var gateway = new SqliteFixtureGateway(_connection);
+        _rng = DeterministicRng.Create(MasterSeed);
+        _gateway = new SqliteFixtureGateway(_connection);
 
         // Who the human controls — sourced from the persisted career save-state rather than
         // hardcoded. The reserved-for-rendering club is this player's team.
@@ -56,13 +68,13 @@ public partial class GameBootstrap : Node
         int? humanTeamId = Career?.HumanTeamId;
 
         Events = new EventManager(BuildEventDefinitions());
-        Lod = new SimulationLODManager(gateway, new ILeagueResolver[]
+        Lod = new SimulationLODManager(_gateway, new ILeagueResolver[]
         {
             new Tier1MatchResolver(_rng),
             new Tier2EloResolver(_rng),
             new Tier3MathResolver(_rng),
         }, humanTeamId);
-        Match = new MatchPresentationService(gateway, new MatchEngine(_rng), humanTeamId);
+        Match = new MatchPresentationService(_gateway, new MatchEngine(_rng), humanTeamId);
         Time = new TimeManager(new GameClock(new DateTime(2026, 8, 1)), Events, Lod, BuildRollContext);
 
         string human = Career is null ? "(none)" : $"player {Career.HumanPlayerId}, team {Career.HumanTeamId}";
@@ -70,6 +82,25 @@ public partial class GameBootstrap : Node
     }
 
     public override void _ExitTree() => _connection?.Dispose();
+
+    /// <summary>True if a club with this id exists in the world. Used by the match-entry guard.</summary>
+    public bool ClubExists(int clubId)
+    {
+        using SqliteCommand command = _connection!.CreateCommand();
+        command.CommandText = "SELECT EXISTS(SELECT 1 FROM Teams WHERE Id = $id);";
+        command.Parameters.AddWithValue("$id", clubId);
+        return Convert.ToInt64(command.ExecuteScalar()) != 0;
+    }
+
+    /// <summary>
+    /// The human club's next unplayed fixture (the one reserved for the rendered match scene),
+    /// or null if none remain. Lets the menu hand a concrete fixture to <c>GameModeManager.EnterMatch</c>.
+    /// </summary>
+    public SoccerSim.Core.Domain.Match? PeekNextHumanFixture()
+    {
+        int? matchId = _gateway.GetNextUnplayedMatchId(SimulationTier.ActiveHuman, Career?.HumanTeamId);
+        return matchId is int id ? _gateway.GetMatchContext(id)?.Match : null;
+    }
 
     private EventRollContext BuildRollContext(DateTime date) =>
         new(Career?.HumanPlayerId ?? 1, Career?.TraitWeights ?? new Dictionary<string, int>(), 1.0, _rng);

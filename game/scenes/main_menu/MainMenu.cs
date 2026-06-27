@@ -1,4 +1,6 @@
 using Godot;
+using SoccerDreamGame.Autoload;
+using SoccerSim.Core.Domain;
 
 namespace SoccerDreamGame.Scenes;
 
@@ -35,8 +37,29 @@ public partial class MainMenu : Control
         };
         playMatch.Pressed += OnPlayNextFixturePressed;
         box.AddChild(playMatch);
+
+        var advance = new Button
+        {
+            Text = "Advance Calendar",
+            CustomMinimumSize = new Vector2(260, 48),
+        };
+        advance.Pressed += OnAdvanceCalendarPressed;
+        box.AddChild(advance);
     }
 
-    private void OnPlayNextFixturePressed() =>
-        GetTree().ChangeSceneToFile("res://scenes/match/MatchScene.tscn");
+    // Hand the human club's next fixture to the mode manager, which validates it (fail-fast) and
+    // switches into Match mode. All scene/mode changes go through GameModeManager — one way in.
+    private void OnPlayNextFixturePressed()
+    {
+        Match? fixture = GameBootstrap.Instance.PeekNextHumanFixture();
+        if (fixture is null)
+        {
+            GD.Print("[MainMenu] No unplayed fixture available for the human club.");
+            return;
+        }
+
+        GameModeManager.Instance.EnterMatch(fixture);
+    }
+
+    private void OnAdvanceCalendarPressed() => GameModeManager.Instance.EnterCalendar();
 }
