@@ -23,6 +23,8 @@ GameBootstrap="*res://autoload/GameBootstrap.cs"
 TimeManagerNode="*res://autoload/TimeManagerNode.cs"
 EventBus="*res://autoload/EventBusNode.cs"
 SaveService="*res://autoload/SaveServiceNode.cs"
+; GameModeManager owns the active mode + scene lifecycle + time controls (mode state machine).
+GameModeManager="*res://autoload/GameModeManager.cs"
 
 [rendering]
 

@@ -5,11 +5,20 @@ public sealed class SimulationLODManager : ISimulationLODManager
 {
     private readonly IFixtureGateway _gateway;
     private readonly IReadOnlyDictionary<SimulationTier, ILeagueResolver> _resolvers;
+    private readonly int? _humanTeamId;
 
-    public SimulationLODManager(IFixtureGateway gateway, IEnumerable<ILeagueResolver> resolvers)
+    /// <param name="humanTeamId">
+    /// When set, fixtures involving this team are reserved for the rendered match scene and are
+    /// skipped by background resolution (so the player can still watch them). Null resolves everything.
+    /// </param>
+    public SimulationLODManager(
+        IFixtureGateway gateway,
+        IEnumerable<ILeagueResolver> resolvers,
+        int? humanTeamId = null)
     {
         _gateway = gateway;
         _resolvers = resolvers.ToDictionary(r => r.Tier);
+        _humanTeamId = humanTeamId;
     }
 
     public SimulationTier GetTier(int leagueId) => _gateway.GetTier(leagueId);
@@ -41,8 +50,17 @@ public sealed class SimulationLODManager : ISimulationLODManager
             return;
 
         foreach (MatchContext context in _gateway.GetDueMatches(date, tier))
+        {
+            if (IsReservedForHuman(context))
+                continue;   // the player watches this one via the rendered match scene
+
             ResolveAndPersist(context, resolver);
+        }
     }
+
+    private bool IsReservedForHuman(MatchContext context) =>
+        _humanTeamId is int teamId
+        && (context.Match.HomeTeamId == teamId || context.Match.AwayTeamId == teamId);
 
     private MatchResult ResolveAndPersist(MatchContext context, ILeagueResolver resolver)
     {

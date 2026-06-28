@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Infrastructure.Sqlite;
 using Xunit;
@@ -64,7 +65,7 @@ public sealed class SqlitePersistenceTests
         var gateway = new SqliteFixtureGateway(connection);
         var lod = new SimulationLODManager(
             gateway,
-            new ILeagueResolver[] { new Tier3MathResolver(new SeededRandom(3)) });
+            new ILeagueResolver[] { new Tier3MathResolver(new SplitMix64Random(3)) });
 
         lod.OnWeekElapsed(new DateTime(2026, 9, 7));
 

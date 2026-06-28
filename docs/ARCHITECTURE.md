@@ -194,6 +194,38 @@ ran), so no day is processed twice.
 
 ---
 
+## Orchestration: modes, time control & determinism
+
+The "upstairs" orchestration layer decides *which mode runs* and *how randomness is seeded*.
+It follows the same golden rule as the rest of the project — logic in the engine-agnostic core,
+a thin Godot autoload on top.
+
+- **Mode state machine** — [`Modes/ModeStateMachine`](../src/SoccerSim.Core/Modes/ModeStateMachine.cs)
+  is the single authority over the active [`GameMode`](../src/SoccerSim.Core/Modes/GameMode.cs)
+  (`Loading` hub · `Calendar` · `LifeSim` · `Match`). Exactly one mode is active; transitions are an
+  explicit table and any unlisted transition **throws** (fail-fast, no silent snap-back). The Godot
+  autoload [`GameModeManager`](../game/autoload/GameModeManager.cs) wraps it to drive the scene swap
+  (`GetTree().ChangeSceneToFile`) and the orchestration-level time controls — `Pause()`/`Resume()`
+  (`GetTree().Paused`, resetting `Engine.TimeScale` to 1 first to avoid the known pause jitter) and
+  `SetFastForward(scale)` (`Engine.TimeScale`). It is the **one** way scenes change, and runs with
+  `ProcessMode = Always` so it survives the pause. Entering a match runs the pure
+  [`MatchEntryGuard`](../src/SoccerSim.Core/Modes/MatchEntryGuard.cs): a null, already-played, or
+  malformed fixture (missing/duplicate clubs) **throws**.
+
+- **Determinism** — all simulation randomness flows through `IRandom`, whose single production
+  implementation is now [`SplitMix64Random`](../src/SoccerSim.Core/Random/SplitMix64Random.cs): a
+  pure-C# SplitMix64 PRNG that is bit-for-bit reproducible across platforms and .NET versions. The
+  old `System.Random`-backed `SeededRandom` is gone — `System.Random`'s sequence is unspecified, so
+  it cannot back a deterministic save. [`DeterministicRng.CreateStream(masterSeed, …keys)`](../src/SoccerSim.Core/Random/DeterministicRng.cs)
+  derives **isolated** child streams via hash mixing, enabling hierarchical seeding such as
+  `hash(masterSeed, fixtureId, season, round)` so a single match can be re-simulated in isolation.
+  `GameBootstrap` holds the world `MasterSeed` and seeds the shared generator from it.
+
+The per-tier match resolvers already are the match-resolution extension point: the
+[`SimulationLODManager`](../src/SoccerSim.Core/Simulation/SimulationLODManager.cs) routes each
+fixture to exactly one `ILeagueResolver` by tier (Tier 1 minute-by-minute engine · Tier 2 Elo ·
+Tier 3 pure math) and **throws** if a tier has no resolver — one route per tier, no fallback.
+
 ## Verification
 
 - `dotnet test tests/SoccerSim.Core.Tests` exercises the clock multipliers, task skip,

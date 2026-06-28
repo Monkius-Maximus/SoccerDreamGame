@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Infrastructure.Sqlite;
 using Xunit;
@@ -17,6 +18,7 @@ public sealed class MatchPresentationServiceTests
         public MatchDisplayInfo? Display { get; init; }
         public int SaveCount { get; private set; }
         public MatchResult? Saved { get; private set; }
+        public int? CapturedTeamId { get; private set; }
 
         public SimulationTier GetTier(int leagueId) => SimulationTier.ActiveHuman;
 
@@ -31,7 +33,11 @@ public sealed class MatchPresentationServiceTests
             Saved = result;
         }
 
-        public int? GetNextUnplayedMatchId(SimulationTier tier) => NextId;
+        public int? GetNextUnplayedMatchId(SimulationTier tier, int? teamId)
+        {
+            CapturedTeamId = teamId;
+            return NextId;
+        }
 
         public MatchDisplayInfo? GetMatchDisplayInfo(int matchId) => Display;
     }
@@ -58,7 +64,7 @@ public sealed class MatchPresentationServiceTests
     public void Play_Simulates_Persists_Once_AndReturnsDisplay()
     {
         var gateway = new FakeGateway { Context = SampleContext(played: false), Display = SampleDisplay() };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(1)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
 
         MatchPresentation presentation = service.Play(1);
 
@@ -72,7 +78,7 @@ public sealed class MatchPresentationServiceTests
     public void Play_Throws_AndDoesNotPersist_WhenAlreadyPlayed()
     {
         var gateway = new FakeGateway { Context = SampleContext(played: true), Display = SampleDisplay() };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(1)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
 
         Assert.Throws<InvalidOperationException>(() => service.Play(1));
         Assert.Equal(0, gateway.SaveCount);
@@ -82,7 +88,7 @@ public sealed class MatchPresentationServiceTests
     public void PlayNextFixture_ReturnsNull_WhenNonePending()
     {
         var gateway = new FakeGateway { NextId = null };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(1)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
 
         Assert.Null(service.PlayNextFixture(SimulationTier.ActiveHuman));
         Assert.Equal(0, gateway.SaveCount);
@@ -97,7 +103,7 @@ public sealed class MatchPresentationServiceTests
             Context = SampleContext(played: false),
             Display = SampleDisplay(),
         };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(2)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(2)));
 
         MatchPresentation? presentation = service.PlayNextFixture(SimulationTier.ActiveHuman);
 
@@ -114,7 +120,7 @@ public sealed class MatchPresentationServiceTests
 
         using SqliteConnection connection = factory.Open();
         var gateway = new SqliteFixtureGateway(connection);
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SeededRandom(42)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(42)));
 
         MatchPresentation? presentation = service.PlayNextFixture(SimulationTier.ActiveHuman);
 
@@ -144,5 +150,38 @@ public sealed class MatchPresentationServiceTests
             standings.CommandText = "SELECT COUNT(*) FROM Standings WHERE SeasonId = 1;";
             Assert.Equal(2L, (long)standings.ExecuteScalar()!);
         }
+    }
+
+    [Fact]
+    public void PlayNextFixture_Forwards_HumanTeamId_ToGateway()
+    {
+        var gateway = new FakeGateway
+        {
+            NextId = 1,
+            Context = SampleContext(played: false),
+            Display = SampleDisplay(),
+        };
+        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(3)), humanTeamId: 7);
+
+        service.PlayNextFixture(SimulationTier.ActiveHuman);
+
+        Assert.Equal(7, gateway.CapturedTeamId);
+    }
+
+    [Fact]
+    public void GetNextUnplayedMatchId_FiltersByTeam()
+    {
+        var factory = SqliteConnectionFactory.InMemoryShared($"db-{Guid.NewGuid():N}");
+        using SqliteConnection keepAlive = factory.Open();
+        new MigrationRunner(factory).Migrate(includeSeeds: true);
+
+        using SqliteConnection connection = factory.Open();
+        var gateway = new SqliteFixtureGateway(connection);
+
+        // Seed has two Tier 1 fixtures (ids 1 and 2), both between teams 1 and 2; id 1 is earliest.
+        Assert.Equal(1, gateway.GetNextUnplayedMatchId(SimulationTier.ActiveHuman, null));
+        Assert.Equal(1, gateway.GetNextUnplayedMatchId(SimulationTier.ActiveHuman, 1));
+        Assert.Equal(1, gateway.GetNextUnplayedMatchId(SimulationTier.ActiveHuman, 2));
+        Assert.Null(gateway.GetNextUnplayedMatchId(SimulationTier.ActiveHuman, 999));
     }
 }

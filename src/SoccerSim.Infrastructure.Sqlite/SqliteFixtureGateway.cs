@@ -74,7 +74,7 @@ public sealed class SqliteFixtureGateway : IFixtureGateway
             LoadTeamSnapshot(match.AwayTeamId, includeAttributes));
     }
 
-    public int? GetNextUnplayedMatchId(SimulationTier tier)
+    public int? GetNextUnplayedMatchId(SimulationTier tier, int? teamId)
     {
         using SqliteCommand command = _connection.CreateCommand();
         command.CommandText =
@@ -82,9 +82,11 @@ public sealed class SqliteFixtureGateway : IFixtureGateway
               FROM Matches m
               JOIN Leagues l ON l.Id = m.LeagueId
               WHERE l.Tier = $tier AND m.Played = 0
+                AND ($team IS NULL OR m.HomeTeamId = $team OR m.AwayTeamId = $team)
               ORDER BY m.KickoffDate
               LIMIT 1;";
         command.Parameters.AddWithValue("$tier", (int)tier);
+        command.Parameters.AddWithValue("$team", (object?)teamId ?? DBNull.Value);
         object? value = command.ExecuteScalar();
         return value is null or DBNull ? null : Convert.ToInt32(value);
     }

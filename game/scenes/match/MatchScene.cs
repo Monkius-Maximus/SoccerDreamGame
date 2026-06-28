@@ -130,8 +130,7 @@ public partial class MatchScene : Node2D
         Finish();
     }
 
-    private void OnBackPressed() =>
-        GetTree().ChangeSceneToFile("res://scenes/main_menu/MainMenu.tscn");
+    private void OnBackPressed() => GameModeManager.Instance.EnterLoading();
 
     private void UpdateScoreboard()
     {
