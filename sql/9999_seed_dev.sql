@@ -49,6 +49,23 @@ INSERT INTO Players (Id, FirstName, LastName, TeamId, Pace, Stamina, Strength, P
     (11, 'Sami',    'Haidar',    2, 15, 14, 13, 14, 14, 11, 13),
     (12, 'Noah',    'Whitfield', 2, 12, 16, 14, 13, 11, 15, 12);
 
+-- Fill both Tier 1 clubs to a full 11-a-side so the tick engine can field a side: it FAILS FAST
+-- on an incomplete squad. (The first squad member by Id keeps goal until position data exists.)
+-- Riverside = team 1, Hilltop = team 2.
+INSERT INTO Players (Id, FirstName, LastName, TeamId, Pace, Stamina, Strength, Passing, Shooting, Tackling, Vision) VALUES
+    (13, 'Erik',   'Lindqvist',  1, 12, 14, 15, 12, 9,  16, 11),
+    (14, 'Paulo',  'Andrade',    1, 14, 13, 12, 16, 12, 10, 16),
+    (15, 'Yusuf',  'Demir',      1, 16, 14, 11, 13, 13, 9,  14),
+    (16, 'Liam',   'Connolly',   1, 13, 15, 14, 12, 11, 14, 12),
+    (17, 'Andre',  'Rocha',      1, 15, 13, 13, 14, 15, 8,  15),
+    (18, 'Marco',  'Pellegrini', 1, 11, 16, 16, 11, 8,  17, 10),
+    (19, 'Kenji',  'Watanabe',   2, 14, 14, 12, 15, 12, 12, 15),
+    (20, 'Pedro',  'Gomez',      2, 16, 13, 13, 12, 14, 10, 12),
+    (21, 'Sven',   'Johansson',  2, 12, 15, 15, 13, 10, 15, 11),
+    (22, 'Diallo', 'Traore',     2, 17, 14, 14, 11, 13, 11, 12),
+    (23, 'Tomas',  'Novak',      2, 13, 14, 12, 16, 13, 11, 16),
+    (24, 'Aaron',  'Webb',       2, 15, 13, 16, 12, 11, 14, 10);
+
 INSERT INTO PlayerTraitAssignments (PlayerId, TraitId) VALUES
     (1, 1), (1, 3),
     (2, 2),

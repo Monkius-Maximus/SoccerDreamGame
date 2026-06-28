@@ -2,6 +2,7 @@ using Godot;
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.MatchEngine;
 using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.Time;
@@ -70,11 +71,11 @@ public partial class GameBootstrap : Node
         Events = new EventManager(BuildEventDefinitions());
         Lod = new SimulationLODManager(_gateway, new ILeagueResolver[]
         {
-            new Tier1MatchResolver(_rng),
-            new Tier2EloResolver(_rng),
-            new Tier3MathResolver(_rng),
+            new Tier1MatchResolver(_rng),                                  // full deterministic tick engine
+            new StatisticalMatchResolver(SimulationTier.MajorForeign, _rng), // Tier 2: double-Poisson
+            new StatisticalMatchResolver(SimulationTier.Minor, _rng),        // Tier 3: double-Poisson (no form)
         }, humanTeamId);
-        Match = new MatchPresentationService(_gateway, new MatchEngine(_rng), humanTeamId);
+        Match = new MatchPresentationService(_gateway, _rng, humanTeamId);
         Time = new TimeManager(new GameClock(new DateTime(2026, 8, 1)), Events, Lod, BuildRollContext);
 
         string human = Career is null ? "(none)" : $"player {Career.HumanPlayerId}, team {Career.HumanTeamId}";

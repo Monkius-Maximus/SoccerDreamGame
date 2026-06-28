@@ -1,3 +1,6 @@
+using SoccerSim.Core.MatchEngine;
+using SoccerSim.Core.Random;
+
 namespace SoccerSim.Core.Simulation;
 
 /// <summary>
@@ -12,13 +15,15 @@ public sealed record MatchDisplayInfo(
     string AwayTeamName,
     IReadOnlyDictionary<int, string> PlayerNames);
 
-/// <summary>Everything the rendered match scene needs: the full simulation plus display names.</summary>
-public sealed record MatchPresentation(MatchSimulation Simulation, MatchDisplayInfo Display);
+/// <summary>Everything the rendered match scene needs: the engine's playback plus display names.</summary>
+public sealed record MatchPresentation(MatchPlayback Playback, MatchDisplayInfo Display);
 
 /// <summary>
-/// On-demand entry point for the rendered (Tier 1) match: simulates a fixture in full detail,
-/// persists the result exactly once, and returns the timeline + box score + display names for the
-/// match scene to play back. Pure core — all persistence flows through <see cref="IFixtureGateway"/>.
+/// On-demand entry point for the rendered (Tier 1) match. Runs the deterministic tick engine to
+/// completion headlessly, persists the result exactly once, and returns the event stream + box
+/// score + display names for the scene to replay. The rendered and headless paths run the IDENTICAL
+/// engine — rendering is just an observer. Pure core: all persistence flows through
+/// <see cref="IFixtureGateway"/>.
 /// </summary>
 public interface IMatchPresenter
 {
@@ -33,18 +38,24 @@ public interface IMatchPresenter
 public sealed class MatchPresentationService : IMatchPresenter
 {
     private readonly IFixtureGateway _gateway;
-    private readonly MatchEngine _engine;
+    private readonly IDeterministicRandom _rng;
     private readonly int? _humanTeamId;
+    private readonly MatchConditions _conditions;
 
     /// <param name="humanTeamId">
     /// When set, <see cref="PlayNextFixture"/> picks the human club's next fixture (the same
     /// fixtures the LOD manager reserves from background resolution). Null = any fixture in the tier.
     /// </param>
-    public MatchPresentationService(IFixtureGateway gateway, MatchEngine engine, int? humanTeamId = null)
+    public MatchPresentationService(
+        IFixtureGateway gateway,
+        IDeterministicRandom rng,
+        int? humanTeamId = null,
+        MatchConditions? conditions = null)
     {
         _gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
-        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        _rng = rng ?? throw new ArgumentNullException(nameof(rng));
         _humanTeamId = humanTeamId;
+        _conditions = conditions ?? MatchConditions.Default;
     }
 
     public MatchPresentation Play(int matchId)
@@ -57,13 +68,18 @@ public sealed class MatchPresentationService : IMatchPresenter
         if (context.Match.Played)
             throw new InvalidOperationException($"Match {matchId} has already been played.");
 
-        MatchSimulation simulation = _engine.SimulateDetailed(context);
-        _gateway.SaveResult(context, simulation.Result);
+        var simulation = new MatchSimulation(
+            context.Match.Id, context.Home, context.Away, _conditions, _rng,
+            new PlaceholderPlayerBrain(), new NoOpReferee());
+
+        MatchResult result = simulation.RunToCompletion();
+        _gateway.SaveResult(context, result);
 
         MatchDisplayInfo display = _gateway.GetMatchDisplayInfo(matchId)
             ?? throw new InvalidOperationException($"Display info for match {matchId} not found.");
 
-        return new MatchPresentation(simulation, display);
+        var playback = new MatchPlayback(result, simulation.EventStream, simulation.BoxScore());
+        return new MatchPresentation(playback, display);
     }
 
     public MatchPresentation? PlayNextFixture(SimulationTier tier)

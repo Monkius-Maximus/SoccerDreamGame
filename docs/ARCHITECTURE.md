@@ -221,17 +221,36 @@ a thin Godot autoload on top.
   `hash(masterSeed, fixtureId, season, round)` so a single match can be re-simulated in isolation.
   `GameBootstrap` holds the world `MasterSeed` and seeds the shared generator from it.
 
-The per-tier match resolvers already are the match-resolution extension point: the
+The per-tier match resolvers are the match-resolution extension point: the
 [`SimulationLODManager`](../src/SoccerSim.Core/Simulation/SimulationLODManager.cs) routes each
-fixture to exactly one `ILeagueResolver` by tier (Tier 1 minute-by-minute engine · Tier 2 Elo ·
-Tier 3 pure math) and **throws** if a tier has no resolver — one route per tier, no fallback.
+fixture to exactly one `ILeagueResolver` by tier and **throws** if a tier has no resolver — one
+route per tier, no fallback:
+
+- **Tier 1** → [`Tier1MatchResolver`](../src/SoccerSim.Core/MatchEngine/Tier1MatchResolver.cs), which
+  runs the deterministic **tick engine** ([`MatchSimulation`](../src/SoccerSim.Core/MatchEngine/MatchSimulation.cs))
+  to completion. Each fixed tick runs one order — player decisions ([`IPlayerBrain`](../src/SoccerSim.Core/MatchEngine/IPlayerBrain.cs))
+  → physics ([`BallPhysics`](../src/SoccerSim.Core/MatchEngine/BallPhysics.cs): gravity + drag +
+  Magnus + wind + ground bounce) → geometric events (goal / out-of-play via the shared last touch)
+  → referee judgement ([`IReferee`](../src/SoccerSim.Core/MatchEngine/IReferee.cs)) → emission.
+  `Step` is the single advance gate, shared by the headless run and a future rendered observer.
+  `PlaceholderPlayerBrain` + `NoOpReferee` are the stubs the real AI/officiating modules replace
+  without touching the engine.
+- **Tiers 2 & 3** → [`StatisticalMatchResolver`](../src/SoccerSim.Core/MatchEngine/StatisticalMatchResolver.cs):
+  a **double-Poisson** model (λ from Elo-derived attack/defence ratings) sampled with deterministic
+  Knuth [`PoissonSampler`](../src/SoccerSim.Core/MatchEngine/PoissonSampler.cs) — no tick loop. Tier 2
+  produces ratings (weekly form); Tier 3 ignores form.
+
+All three tiers emit the same `MatchResult`, so the orchestration consumes them identically. The
+engine lives in namespace `SoccerSim.Core.MatchEngine` and uses a custom `double`-precision
+`Vector3` (the core takes no Godot dependency); rendering is just an observer of the same engine.
 
 ## Verification
 
 - `dotnet test tests/SoccerSim.Core.Tests` exercises the clock multipliers, task skip,
   the calendar advance, the trait-weighted roll, the High-event **interrupt → resume**
-  cycle, the Tier 1/2/3 resolvers, the Tier 1 **minute-by-minute `MatchEngine`**
-  (determinism, scoreline/scorer invariants, attribute-weighted finishing), and an
+  cycle, the per-tier resolvers, the **ball physics** (side-spin curve, bounce energy loss,
+  determinism), the deterministic **Poisson** sampler (mean ≈ λ), the **tick engine**
+  (identical result + ball trajectory for a seed; fail-fast on an incomplete squad), and an
   end-to-end SQLite migration + LOD write.
 - `dotnet build SoccerDreamGame.sln` builds all four projects.
 - Opening `game/` in the Godot 4.6 (.NET) editor and running creates `user://save.db`,

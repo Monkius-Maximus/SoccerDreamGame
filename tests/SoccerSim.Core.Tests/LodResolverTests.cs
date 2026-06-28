@@ -1,7 +1,7 @@
-using SoccerSim.Core.Domain;
-using SoccerSim.Core.Events;
+using SoccerSim.Core.MatchEngine;
 using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
+using SoccerSim.Core.Domain;
 using Xunit;
 
 namespace SoccerSim.Core.Tests;
@@ -25,9 +25,9 @@ public sealed class LodResolverTests
     }
 
     [Fact]
-    public void Tier3_Resolves_WithoutRatings()
+    public void Tier3_Statistical_Resolves_WithoutRatings()
     {
-        var resolver = new Tier3MathResolver(new SplitMix64Random(7));
+        var resolver = new StatisticalMatchResolver(SimulationTier.Minor, new SplitMix64Random(7));
 
         MatchResult result = resolver.Resolve(SampleContext());
 
@@ -39,19 +39,26 @@ public sealed class LodResolverTests
     }
 
     [Fact]
-    public void Tier1_And_Tier2_Produce_Ratings()
+    public void Tier2_Statistical_Produces_Ratings()
     {
-        MatchContext context = SampleContext();
+        var resolver = new StatisticalMatchResolver(SimulationTier.MajorForeign, new SplitMix64Random(1));
 
-        Assert.NotEmpty(new Tier1MatchResolver(new SplitMix64Random(1)).Resolve(context).PlayerRatings);
-        Assert.NotEmpty(new Tier2EloResolver(new SplitMix64Random(1)).Resolve(context).PlayerRatings);
+        Assert.NotEmpty(resolver.Resolve(SampleContext()).PlayerRatings);
+    }
+
+    [Fact]
+    public void Statistical_Resolver_Rejects_Tier1()
+    {
+        // Tier 1 is the tick engine's job — the statistical path must refuse it (no silent fallback).
+        Assert.Throws<ArgumentException>(
+            () => new StatisticalMatchResolver(SimulationTier.ActiveHuman, new SplitMix64Random(1)));
     }
 
     [Fact]
     public void Resolver_Tiers_MatchEnum()
     {
         Assert.Equal(SimulationTier.ActiveHuman, new Tier1MatchResolver(new SplitMix64Random(1)).Tier);
-        Assert.Equal(SimulationTier.MajorForeign, new Tier2EloResolver(new SplitMix64Random(1)).Tier);
-        Assert.Equal(SimulationTier.Minor, new Tier3MathResolver(new SplitMix64Random(1)).Tier);
+        Assert.Equal(SimulationTier.MajorForeign, new StatisticalMatchResolver(SimulationTier.MajorForeign, new SplitMix64Random(1)).Tier);
+        Assert.Equal(SimulationTier.Minor, new StatisticalMatchResolver(SimulationTier.Minor, new SplitMix64Random(1)).Tier);
     }
 }

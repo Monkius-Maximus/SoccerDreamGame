@@ -1,6 +1,5 @@
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
-using SoccerSim.Core.Events;
 using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Infrastructure.Sqlite;
@@ -42,6 +41,22 @@ public sealed class MatchPresentationServiceTests
         public MatchDisplayInfo? GetMatchDisplayInfo(int matchId) => Display;
     }
 
+    // The tick engine fields 11-a-side and fails fast on an incomplete squad, so contexts carry
+    // full squads with attributes.
+    private static TeamSnapshot Team(int teamId, int elo)
+    {
+        var ids = new List<int>();
+        var players = new List<PlayerSnapshot>();
+        for (int i = 1; i <= 11; i++)
+        {
+            int pid = (teamId * 100) + i;
+            ids.Add(pid);
+            players.Add(new PlayerSnapshot(pid, new PlayerAttributes(12, 13, 12, 13, 12, 12, 12)));
+        }
+
+        return new TeamSnapshot(teamId, elo, ids) { Players = players };
+    }
+
     private static MatchContext SampleContext(bool played) => new(
         new Match
         {
@@ -53,32 +68,32 @@ public sealed class MatchPresentationServiceTests
             KickoffDate = new DateTime(2026, 8, 8),
             Played = played,
         },
-        new TeamSnapshot(1, 1600, new[] { 1, 2, 3 }),
-        new TeamSnapshot(2, 1500, new[] { 4, 5, 6 }));
+        Team(1, 1600),
+        Team(2, 1500));
 
     private static MatchDisplayInfo SampleDisplay() => new(
         1, "Riverside FC", 2, "Hilltop United",
-        new Dictionary<int, string> { [1] = "Alex Mercer", [4] = "Sam Doe" });
+        new Dictionary<int, string> { [101] = "Alex Mercer", [201] = "Sam Doe" });
 
     [Fact]
     public void Play_Simulates_Persists_Once_AndReturnsDisplay()
     {
         var gateway = new FakeGateway { Context = SampleContext(played: false), Display = SampleDisplay() };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
+        var service = new MatchPresentationService(gateway, new SplitMix64Random(1));
 
         MatchPresentation presentation = service.Play(1);
 
         Assert.Equal(1, gateway.SaveCount);
-        Assert.Same(presentation.Simulation.Result, gateway.Saved);   // persisted exactly what it returned
+        Assert.Same(presentation.Playback.Result, gateway.Saved);   // persisted exactly what it returned
         Assert.Equal("Riverside FC", presentation.Display.HomeTeamName);
-        Assert.NotEmpty(presentation.Simulation.Timeline);
+        Assert.NotEmpty(presentation.Playback.Events);              // at least kick-off + full-time
     }
 
     [Fact]
     public void Play_Throws_AndDoesNotPersist_WhenAlreadyPlayed()
     {
         var gateway = new FakeGateway { Context = SampleContext(played: true), Display = SampleDisplay() };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
+        var service = new MatchPresentationService(gateway, new SplitMix64Random(1));
 
         Assert.Throws<InvalidOperationException>(() => service.Play(1));
         Assert.Equal(0, gateway.SaveCount);
@@ -88,7 +103,7 @@ public sealed class MatchPresentationServiceTests
     public void PlayNextFixture_ReturnsNull_WhenNonePending()
     {
         var gateway = new FakeGateway { NextId = null };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
+        var service = new MatchPresentationService(gateway, new SplitMix64Random(1));
 
         Assert.Null(service.PlayNextFixture(SimulationTier.ActiveHuman));
         Assert.Equal(0, gateway.SaveCount);
@@ -103,7 +118,7 @@ public sealed class MatchPresentationServiceTests
             Context = SampleContext(played: false),
             Display = SampleDisplay(),
         };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(2)));
+        var service = new MatchPresentationService(gateway, new SplitMix64Random(2));
 
         MatchPresentation? presentation = service.PlayNextFixture(SimulationTier.ActiveHuman);
 
@@ -120,7 +135,7 @@ public sealed class MatchPresentationServiceTests
 
         using SqliteConnection connection = factory.Open();
         var gateway = new SqliteFixtureGateway(connection);
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(42)));
+        var service = new MatchPresentationService(gateway, new SplitMix64Random(42));
 
         MatchPresentation? presentation = service.PlayNextFixture(SimulationTier.ActiveHuman);
 
@@ -128,7 +143,7 @@ public sealed class MatchPresentationServiceTests
         Assert.Equal("Riverside FC", presentation!.Display.HomeTeamName);
         Assert.Equal("Hilltop United", presentation.Display.AwayTeamName);
 
-        int matchId = presentation.Simulation.Result.MatchId;
+        int matchId = presentation.Playback.Result.MatchId;
 
         using (SqliteCommand played = connection.CreateCommand())
         {
@@ -141,7 +156,7 @@ public sealed class MatchPresentationServiceTests
         {
             goals.CommandText = "SELECT COUNT(*) FROM Goals WHERE MatchId = $id;";
             goals.Parameters.AddWithValue("$id", matchId);
-            Assert.Equal((long)presentation.Simulation.Result.Scorers.Count, (long)goals.ExecuteScalar()!);
+            Assert.Equal((long)presentation.Playback.Result.Scorers.Count, (long)goals.ExecuteScalar()!);
         }
 
         // Both Tier 1 teams now have a season-1 standings row.
@@ -161,7 +176,7 @@ public sealed class MatchPresentationServiceTests
             Context = SampleContext(played: false),
             Display = SampleDisplay(),
         };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(3)), humanTeamId: 7);
+        var service = new MatchPresentationService(gateway, new SplitMix64Random(3), humanTeamId: 7);
 
         service.PlayNextFixture(SimulationTier.ActiveHuman);
 

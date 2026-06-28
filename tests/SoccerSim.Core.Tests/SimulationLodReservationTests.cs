@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.MatchEngine;
 using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.Time;
@@ -35,11 +36,23 @@ public sealed class SimulationLodReservationTests
         public MatchDisplayInfo? GetMatchDisplayInfo(int matchId) => null;
     }
 
+    // Reservation behaviour is what's under test here, not the engine — so Tier 1 uses a trivial
+    // fake resolver (the real tick engine needs full 11-a-side squads and is exercised elsewhere).
+    private sealed class FakeActiveHumanResolver : ILeagueResolver
+    {
+        public SimulationTier Tier => SimulationTier.ActiveHuman;
+
+        public MatchResult Resolve(MatchContext context) =>
+            new(context.Match.Id, 0, 0, Array.Empty<ScorerLine>(), new Dictionary<int, double>());
+
+        public void UpdateForm(MatchContext context, MatchResult result) { }
+    }
+
     private static ILeagueResolver[] Resolvers() => new ILeagueResolver[]
     {
-        new Tier1MatchResolver(new SplitMix64Random(1)),
-        new Tier2EloResolver(new SplitMix64Random(1)),
-        new Tier3MathResolver(new SplitMix64Random(1)),
+        new FakeActiveHumanResolver(),
+        new StatisticalMatchResolver(SimulationTier.MajorForeign, new SplitMix64Random(1)),
+        new StatisticalMatchResolver(SimulationTier.Minor, new SplitMix64Random(1)),
     };
 
     private static MatchContext Fixture(int matchId, int homeTeamId, int awayTeamId) => new(

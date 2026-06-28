@@ -1,15 +1,16 @@
 using Godot;
 using SoccerDreamGame.Autoload;
+using SoccerSim.Core.MatchEngine;
 using SoccerSim.Core.Simulation;
 
 namespace SoccerDreamGame.Scenes;
 
 /// <summary>
-/// The Match scene. For now a broadcast-style "ticker": it asks the core for the next Tier 1
-/// fixture — which the <see cref="MatchEngine"/> simulates in full (minute timeline + box score) —
-/// then plays that timeline out minute-by-minute: scoreboard, a live clock, a scrolling event
-/// feed, and a full-time box score. The side-on sprite engine (GDD §1) will later live on this
-/// Node2D plane beneath the same HUD CanvasLayer.
+/// The Match scene. A broadcast-style "ticker" over the deterministic tick engine: it asks the core
+/// for the next Tier 1 fixture — which <see cref="MatchSimulation"/> runs to completion headlessly,
+/// producing a full event stream + box score — then plays that timeline out minute-by-minute:
+/// scoreboard, a live clock, a scrolling event feed, and a full-time box score. The side-on sprite
+/// engine (GDD §1) will later observe the same <see cref="MatchSimulation.Step"/> on this Node2D plane.
 /// </summary>
 public partial class MatchScene : Node2D
 {
@@ -17,7 +18,7 @@ public partial class MatchScene : Node2D
     [Export] public float SecondsPerSimMinute { get; set; } = 0.4f;
 
     private MatchPresentation? _presentation;
-    private IReadOnlyList<MatchMinuteEvent> _events = Array.Empty<MatchMinuteEvent>();
+    private IReadOnlyList<MatchEvent> _events = Array.Empty<MatchEvent>();
     private int _nextEventIndex;
     private int _finalMinute;
     private double _elapsed;
@@ -50,7 +51,7 @@ public partial class MatchScene : Node2D
             return;
         }
 
-        _events = _presentation.Simulation.Timeline;
+        _events = _presentation.Playback.Events;
         _finalMinute = _events.Count > 0 ? _events[_events.Count - 1].Minute : 0;
         _homeTeamId = _presentation.Display.HomeTeamId;
         UpdateScoreboard();
@@ -83,27 +84,30 @@ public partial class MatchScene : Node2D
         }
     }
 
-    private void ApplyEvent(MatchMinuteEvent e)
+    private void ApplyEvent(MatchEvent e)
     {
-        if (e.Kind == MatchEventKind.Goal && e.TeamId is int scoringTeam)
+        if (e is MatchEvent.GoalScored goal)
         {
-            if (scoringTeam == _homeTeamId)
+            if (goal.TeamId == _homeTeamId)
                 _homeGoals++;
             else
                 _awayGoals++;
             UpdateScoreboard();
         }
 
-        AppendFeedLine(FormatEvent(e));
+        // Only headline moments reach the feed; routine restarts (throw-ins etc.) stay quiet.
+        string? line = FormatEvent(e);
+        if (line is not null)
+            AppendFeedLine(line);
     }
 
-    private string FormatEvent(MatchMinuteEvent e) => e.Kind switch
+    private string? FormatEvent(MatchEvent e) => e switch
     {
-        MatchEventKind.KickOff => "Kick-off",
-        MatchEventKind.HalfTime => $"{e.Minute}'  — Half-time —",
-        MatchEventKind.FullTime => $"{e.Minute}'  — Full-time —",
-        MatchEventKind.Goal => $"{e.Minute}'  ⚽ GOAL!  {PlayerName(e.PlayerId)}  ({TeamName(e.TeamId)})",
-        _ => $"{e.Minute}'  {TeamName(e.TeamId)} — {e.Description}",
+        MatchEvent.KickOff => "Kick-off",
+        MatchEvent.HalfTime h => $"{h.Minute}'  — Half-time —",
+        MatchEvent.FullTime f => $"{f.Minute}'  — Full-time —",
+        MatchEvent.GoalScored g => $"{g.Minute}'  ⚽ GOAL!  {PlayerName(g.ScorerPlayerId)}  ({TeamName(g.TeamId)})",
+        _ => null,
     };
 
     private void Finish()
@@ -115,7 +119,7 @@ public partial class MatchScene : Node2D
         if (_presentation is null)
             return;
 
-        MatchStats s = _presentation.Simulation.Stats;
+        MatchBoxScore s = _presentation.Playback.Stats;
         _statsLabel.Text =
             $"Possession {s.HomePossession}% – {s.AwayPossession}%      " +
             $"Shots {s.HomeShots} – {s.AwayShots}      " +
@@ -146,14 +150,14 @@ public partial class MatchScene : Node2D
             ? name
             : $"#{playerId}";
 
-    private string TeamName(int? teamId)
+    private string TeamName(int teamId)
     {
-        if (_presentation is null || teamId is not int id)
+        if (_presentation is null)
             return "?";
         MatchDisplayInfo d = _presentation.Display;
-        return id == d.HomeTeamId ? d.HomeTeamName
-            : id == d.AwayTeamId ? d.AwayTeamName
-            : $"Team {id}";
+        return teamId == d.HomeTeamId ? d.HomeTeamName
+            : teamId == d.AwayTeamId ? d.AwayTeamName
+            : $"Team {teamId}";
     }
 
     private void AppendFeedLine(string text)
