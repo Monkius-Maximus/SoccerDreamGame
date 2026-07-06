@@ -6,7 +6,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerSim.Core", "src\Socce
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerSim.Infrastructure.Sqlite", "src\SoccerSim.Infrastructure.Sqlite\SoccerSim.Infrastructure.Sqlite.csproj", "{22222222-2222-2222-2222-222222222222}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "game", "game\game.csproj", "{33333333-3333-3333-3333-333333333333}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerDreamGame", "game\SoccerDreamGame.csproj", "{33333333-3333-3333-3333-333333333333}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerSim.Core.Tests", "tests\SoccerSim.Core.Tests\SoccerSim.Core.Tests.csproj", "{44444444-4444-4444-4444-444444444444}"
 EndProject
