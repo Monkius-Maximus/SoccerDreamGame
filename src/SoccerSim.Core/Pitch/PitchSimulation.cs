@@ -314,11 +314,20 @@ public sealed class PitchSimulation
         if (insideGoalMouth)
         {
             TeamSide concedingSide = overHomeLine ? TeamSide.Home : TeamSide.Away;
+
+            // Only a struck shot can be a goal. A loose non-shot that threads the mouth (a stray
+            // deflection/back-pass) is collected by the keeper instead of being an unsaveable
+            // goal with an invalid scorer id. TODO: model own goals explicitly once wanted.
+            if (_shotInFlight is not { } shot)
+            {
+                GiveBallTo(_all.First(r => r.Side == concedingSide && r.Role == PlayerRole.Goalkeeper), PitchEventKind.BallRecovered);
+                return;
+            }
+
             if (TrySave(concedingSide, _pitch.Clamp(position)))
                 return;
 
-            int scorerId = _shotInFlight?.ShooterId ?? -1;
-            _events.Add(new PitchEvent(Tick, PitchEventKind.Goal, scorerId, null, 0.0));
+            _events.Add(new PitchEvent(Tick, PitchEventKind.Goal, shot.ShooterId, null, 0.0));
             if (concedingSide == TeamSide.Away)
                 HomeScore++;
             else

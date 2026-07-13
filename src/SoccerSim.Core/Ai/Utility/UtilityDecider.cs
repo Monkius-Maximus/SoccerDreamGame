@@ -202,7 +202,9 @@ public sealed class UtilityDecider
         foreach (PlayerState player in players)
         {
             double distance = from.DistanceTo(player.Position);
-            if (distance < nearestDistance)
+            // Lowest-PlayerId tie-break, matching every other nearest-player helper in the engine
+            // so equidistant candidates resolve identically regardless of iteration order.
+            if (distance < nearestDistance || (distance == nearestDistance && player.PlayerId < nearest!.PlayerId))
             {
                 nearest = player;
                 nearestDistance = distance;
