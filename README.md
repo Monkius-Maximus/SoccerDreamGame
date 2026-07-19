@@ -48,6 +48,7 @@ would be compiled twice. Keeping it in `src/` avoids that.
 | `game/` | The Godot 4 C# project: autoloads + scenes. |
 | `tests/SoccerSim.Core.Tests/` | Headless xUnit tests proving the core runs without the engine. |
 | `docs/ARCHITECTURE.md` | Design notes + the three required design artifacts (interfaces, schema, EventTrigger pseudo-code). |
+| `docs/GAME_READY_PLAN.md` | Phased plan to make the game presentation-ready on Godot-native systems (display/theme, editor scenes, rendered match, life-sim, export). |
 
 ## Build & run
 
