@@ -226,6 +226,42 @@ The per-tier match resolvers already are the match-resolution extension point: t
 fixture to exactly one `ILeagueResolver` by tier (Tier 1 minute-by-minute engine · Tier 2 Elo ·
 Tier 3 pure math) and **throws** if a tier has no resolver — one route per tier, no fallback.
 
+## Tactics → Behaviour (the player brain)
+
+The on-pitch AI turns **team tactics into individual decisions** per tick. It lives entirely in
+`SoccerSim.Core` (namespaces `Tactics`, `Ai`, `Pitch`) with zero Godot dependencies — steering
+math uses the engine-agnostic [`Vec2`](../src/SoccerSim.Core/Pitch/Vec2.cs) (double-precision,
+deterministic); the game layer converts to `Godot.Vector2` at the rendering boundary.
+
+Two layers, one weight source:
+
+- **Movement** — [`SteeringBehaviors`](../src/SoccerSim.Core/Ai/Steering/SteeringBehaviors.cs)
+  (Reynolds: `Arrive`, `Pursue`, `Interpose`, `Separation`, weighted `Blend`), anchored to the
+  formation slot via [`TacticalAnchor`](../src/SoccerSim.Core/Ai/TacticalAnchor.cs). Runs every tick.
+- **Decision** — [`UtilityDecider`](../src/SoccerSim.Core/Ai/Utility/UtilityDecider.cs): response-curve
+  considerations score a lean action set (short/long pass, shoot, carry, dribble; tackle/contain)
+  for whoever has or contests the ball. Re-evaluated every `TacticalPlayerBrain.UtilityReevaluationTicks`
+  (8 ticks ≈ 7.5 Hz at the 60 Hz tick rate) with a current-action bonus — **hysteresis is mandatory**,
+  otherwise near-tied scores make players twitch. Ties break through `IDeterministicRandom`.
+- **The single modulation point** — [`BehaviourWeights.Derive`](../src/SoccerSim.Core/Ai/BehaviourWeights.cs)
+  combines [`TeamTactics`](../src/SoccerSim.Core/Tactics/TeamTactics.cs) (one 4-4-2
+  [`Formation`](../src/SoccerSim.Core/Tactics/Formation.cs), `Mentality`, normalised
+  `TeamInstructions`), the `PersonalityProfile` stub, and role/duty into the weights BOTH layers
+  consume. Tactics tilt weights; behaviour emerges. Invalid tactics **throw** (fail-fast).
+- **Shared spatial picture** — a zonal [`InfluenceMap`](../src/SoccerSim.Core/Ai/InfluenceMap.cs)
+  (12×8 grid) both layers consult for space/control queries.
+
+[`TacticalPlayerBrain`](../src/SoccerSim.Core/Ai/TacticalPlayerBrain.cs) implements the
+`IPlayerBrain.Decide(tick, perception) → Intention` contract and is instantiated per player by
+[`PitchSimulation`](../src/SoccerSim.Core/Pitch/PitchSimulation.cs) — the minimal tick host
+(player/ball state, pass/shot/tackle execution, first-touch windows, a sweeping keeper). The
+minute-by-minute `MatchEngine` remains the Tier 1 background resolver; the tick simulation is the
+substrate for the rendered/playable match scene (~22 brains, bounded by LOD). Acceptance tests in
+`TacticalBrainTests`/`PitchSimulationTests` pin the module's contract: identical seeds ⇒ identical
+trajectories, low decision-switch rates, and tactics measurably changing behaviour (pressing ⇒
+closer defenders in build-up, directness ⇒ longer passes, mentality ⇒ higher anchors, selfishness
+⇒ shooting over passing).
+
 ## Verification
 
 - `dotnet test tests/SoccerSim.Core.Tests` exercises the clock multipliers, task skip,
