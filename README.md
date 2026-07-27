@@ -49,6 +49,7 @@ would be compiled twice. Keeping it in `src/` avoids that.
 | `tests/SoccerSim.Core.Tests/` | Headless xUnit tests proving the core runs without the engine. |
 | `docs/ARCHITECTURE.md` | Design notes + the three required design artifacts (interfaces, schema, EventTrigger pseudo-code). |
 | `docs/GAME_READY_PLAN.md` | Phased plan to make the game presentation-ready on Godot-native systems (display/theme, editor scenes, rendered match, life-sim, export). |
+| `docs/LISTA_DE_ASSETS.md` | Asset production brief (PT-BR) for stage 1: every file to produce with exact dimensions, media formats, audio specs and acceptance criteria. |
 
 ## Build & run
 

@@ -28,7 +28,7 @@ sem tema). Esta fase define o "contrato visual" do jogo inteiro.
 
 | Decisão | Proposta | Racional |
 | --- | --- | --- |
-| Resolução base | **640×360** | Estilo 16-bit; escala inteira exata para 720p (×2), 1080p (×3), 4K (×6). |
+| Resolução base | **640×360** | Estilo 16-bit; escala inteira exata para 1080p (×3), 1440p (×4) e 4K (×6) — ~78% dos jogadores da Steam. |
 | Escala de pixel art | `stretch/mode = viewport`, `aspect = keep` | A Godot escala o jogo inteiro; pixels sempre nítidos e uniformes. |
 | Filtro de textura | `Nearest` (default do projeto) | Sem blur em sprites. |
 | Tile da partida (side-on) | **32×32 px** | Gramado, arquibancada, linhas. |
@@ -47,9 +47,9 @@ sem tema). Esta fase define o "contrato visual" do jogo inteiro.
 
 - [ ] `project.godot`: seção `[display]` (resolução base, stretch, aspect) e
       filtro `Nearest` como default de textura.
-- [ ] `docs/ART_SPEC.md`: a tabela acima expandida — dimensões canônicas, paleta
-      (limite de cores estilo 16-bit), nomenclatura de arquivos
-      (`player_run_side_00.png`…), estrutura de pastas `game/assets/`.
+- [x] [`docs/LISTA_DE_ASSETS.md`](LISTA_DE_ASSETS.md): briefing de produção — cada
+      arquivo a produzir com dimensão exata, formato de mídia, paleta, nomenclatura,
+      estrutura de pastas `game/assets/` e critérios de aceite.
 - [ ] `game/assets/theme/theme.tres`: `Theme` único do projeto (fonte bitmap,
       cores de botão/label/painel) aplicado via Project Settings → GUI Theme.
 - [ ] Assets placeholder gerados por nós (retângulos/formas nas dimensões canônicas)
