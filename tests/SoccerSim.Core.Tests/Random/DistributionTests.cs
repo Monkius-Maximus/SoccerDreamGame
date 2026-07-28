@@ -11,9 +11,9 @@ public sealed class DistributionTests
 {
     private const ulong Master = 0xD1CED00D2026UL;
 
-    private static RandomStream Stream() => RandomStream.Create(Master, StreamName.WorldGeneration);
+    private static RandomStream NewStream() => RandomStream.Create(Master, StreamName.WorldGeneration);
 
-    private static RandomStream Stream(StreamName name, params long[] ids)
+    private static RandomStream NewStream(StreamName name, params long[] ids)
         => RandomStream.Create(Master, name, ids);
 
     // ---------------------------------------------------------------- NextDouble
@@ -21,7 +21,7 @@ public sealed class DistributionTests
     [Fact]
     public void NextDouble_StaysInHalfOpenUnitInterval()
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         for (int i = 0; i < 100_000; i++)
         {
@@ -54,7 +54,7 @@ public sealed class DistributionTests
         const int samples = 3_000_000;
         const int buckets = 3;
 
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
         int[] counts = new int[buckets];
 
         for (int i = 0; i < samples; i++)
@@ -85,7 +85,7 @@ public sealed class DistributionTests
     [Fact]
     public void NextInt_RespectsNegativeBounds()
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         for (int i = 0; i < 10_000; i++)
             Assert.InRange(stream.NextInt(-5, 5), -5, 4);
@@ -94,7 +94,7 @@ public sealed class DistributionTests
     [Fact]
     public void NextInt_FullIntRange_DoesNotOverflow()
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         for (int i = 0; i < 1_000; i++)
             Assert.InRange(stream.NextInt(int.MinValue, int.MaxValue), int.MinValue, int.MaxValue - 1);
@@ -103,7 +103,7 @@ public sealed class DistributionTests
     [Fact]
     public void NextInt_SingleValueRange_AlwaysReturnsIt()
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         for (int i = 0; i < 100; i++)
             Assert.Equal(3, stream.NextInt(3, 4));
@@ -116,7 +116,7 @@ public sealed class DistributionTests
     [InlineData(0, int.MinValue)]
     public void NextInt_NonPositiveRange_Throws(int min, int max)
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => { stream.NextInt(min, max); });
     }
@@ -124,7 +124,7 @@ public sealed class DistributionTests
     [Fact]
     public void Next_NonPositiveMax_Throws()
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => { stream.Next(0); });
         Assert.Throws<ArgumentOutOfRangeException>(() => { stream.Next(-1); });
@@ -135,7 +135,7 @@ public sealed class DistributionTests
     [Fact]
     public void NextBool_AtTheExtremes_IsDecided()
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         for (int i = 0; i < 1_000; i++)
         {
@@ -148,7 +148,7 @@ public sealed class DistributionTests
     public void NextBool_ApproximatesTheRequestedProbability()
     {
         const int samples = 200_000;
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         int hits = 0;
         for (int i = 0; i < samples; i++)
@@ -167,7 +167,7 @@ public sealed class DistributionTests
     [InlineData(double.PositiveInfinity)]
     public void NextBool_ProbabilityOutsideUnitInterval_Throws(double probability)
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => { stream.NextBool(probability); });
     }
@@ -183,7 +183,7 @@ public sealed class DistributionTests
         const double stdDev = 15.0;
         const double bound = 6.0 * stdDev; // Irwin–Hall n = 12 trunca em ±6σ, por design.
 
-        RandomStream stream = Stream(StreamName.PlayerGeneration);
+        RandomStream stream = NewStream(StreamName.PlayerGeneration);
 
         double sum = 0.0;
         double sumOfSquares = 0.0;
@@ -209,7 +209,7 @@ public sealed class DistributionTests
     [Fact]
     public void NextGaussianBounded_ZeroDeviation_IsTheMean()
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         for (int i = 0; i < 100; i++)
             Assert.Equal(50.0, stream.NextGaussianBounded(50.0, 0.0));
@@ -220,7 +220,7 @@ public sealed class DistributionTests
     [InlineData(double.NaN)]
     public void NextGaussianBounded_InvalidDeviation_Throws(double stdDev)
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => { stream.NextGaussianBounded(50.0, stdDev); });
     }
@@ -228,7 +228,7 @@ public sealed class DistributionTests
     [Fact]
     public void NextGaussianBounded_NaNMean_Throws()
     {
-        RandomStream stream = Stream();
+        RandomStream stream = NewStream();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => { stream.NextGaussianBounded(double.NaN, 15.0); });
     }
@@ -240,7 +240,7 @@ public sealed class DistributionTests
     {
         List<int> items = Enumerable.Range(0, 200).ToList();
 
-        Stream().Shuffle(items);
+        NewStream().Shuffle(items);
 
         Assert.Equal(Enumerable.Range(0, 200), items.OrderBy(x => x));
     }
@@ -250,7 +250,7 @@ public sealed class DistributionTests
     {
         List<int> items = Enumerable.Range(0, 200).ToList();
 
-        Stream().Shuffle(items);
+        NewStream().Shuffle(items);
 
         Assert.NotEqual(Enumerable.Range(0, 200), items);
     }
@@ -261,8 +261,8 @@ public sealed class DistributionTests
         List<int> first = Enumerable.Range(0, 50).ToList();
         List<int> second = Enumerable.Range(0, 50).ToList();
 
-        Stream(StreamName.ClubIdentity, 4).Shuffle(first);
-        Stream(StreamName.ClubIdentity, 4).Shuffle(second);
+        NewStream(StreamName.ClubIdentity, 4).Shuffle(first);
+        NewStream(StreamName.ClubIdentity, 4).Shuffle(second);
 
         Assert.Equal(first, second);
     }
@@ -274,22 +274,22 @@ public sealed class DistributionTests
     {
         List<int> items = Enumerable.Range(0, count).ToList();
 
-        Stream().Shuffle(items);
+        NewStream().Shuffle(items);
 
         Assert.Equal(Enumerable.Range(0, count), items);
     }
 
     [Fact]
     public void Shuffle_Null_Throws()
-        => Assert.Throws<ArgumentNullException>(() => Stream().Shuffle<int>(null!));
+        => Assert.Throws<ArgumentNullException>(() => NewStream().Shuffle<int>(null!));
 
     // ---------------------------------------------------------------- NextGuid
 
     [Fact]
     public void NextGuid_IsDeterministicAndDistinct()
     {
-        Guid[] first = Draw(Stream(StreamName.LifeEvents), 100);
-        Guid[] second = Draw(Stream(StreamName.LifeEvents), 100);
+        Guid[] first = Draw(NewStream(StreamName.LifeEvents), 100);
+        Guid[] second = Draw(NewStream(StreamName.LifeEvents), 100);
 
         Assert.Equal(first, second);
         Assert.Equal(100, first.Distinct().Count());
@@ -309,7 +309,7 @@ public sealed class DistributionTests
     [Fact]
     public void State_RoundTrips_ResumingExactlyWhereItStopped()
     {
-        RandomStream stream = Stream(StreamName.MatchSimulation, 99);
+        RandomStream stream = NewStream(StreamName.MatchSimulation, 99);
 
         for (int i = 0; i < 100; i++)
             stream.NextUInt64();
@@ -332,7 +332,7 @@ public sealed class DistributionTests
     [Fact]
     public void FromState_ResumesAnotherStream()
     {
-        RandomStream original = Stream(StreamName.BackgroundSimulation, 2026, 12);
+        RandomStream original = NewStream(StreamName.BackgroundSimulation, 2026, 12);
 
         for (int i = 0; i < 37; i++)
             original.NextUInt64();
@@ -352,7 +352,7 @@ public sealed class DistributionTests
     [Fact]
     public void State_SurvivesTheSignedIntegerRoundTripSqliteUses()
     {
-        RandomStream stream = Stream(StreamName.WorldGeneration, 5);
+        RandomStream stream = NewStream(StreamName.WorldGeneration, 5);
 
         for (int i = 0; i < 10; i++)
         {

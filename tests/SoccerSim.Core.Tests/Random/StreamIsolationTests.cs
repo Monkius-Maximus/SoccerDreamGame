@@ -10,7 +10,7 @@ public sealed class StreamIsolationTests
 {
     private const ulong Master = 0xD1CED00D2026UL;
 
-    private static SplitMix64 Stream(StreamName name, params long[] ids)
+    private static SplitMix64 NewStream(StreamName name, params long[] ids)
         => new(SeedDerivation.Derive(Master, name, ids));
 
     /// <summary>
@@ -68,8 +68,8 @@ public sealed class StreamIsolationTests
     [Fact]
     public void DifferentStreamNames_ProduceDifferentSequences()
     {
-        SplitMix64 world = Stream(StreamName.WorldGeneration);
-        SplitMix64 players = Stream(StreamName.PlayerGeneration);
+        SplitMix64 world = NewStream(StreamName.WorldGeneration);
+        SplitMix64 players = NewStream(StreamName.PlayerGeneration);
 
         bool diverged = false;
         for (int i = 0; i < 16; i++)
@@ -81,8 +81,8 @@ public sealed class StreamIsolationTests
     [Fact]
     public void DifferentIds_ProduceDifferentSequences()
     {
-        SplitMix64 club10 = Stream(StreamName.ClubIdentity, 10);
-        SplitMix64 club11 = Stream(StreamName.ClubIdentity, 11);
+        SplitMix64 club10 = NewStream(StreamName.ClubIdentity, 10);
+        SplitMix64 club11 = NewStream(StreamName.ClubIdentity, 11);
 
         bool diverged = false;
         for (int i = 0; i < 16; i++)
@@ -104,13 +104,13 @@ public sealed class StreamIsolationTests
     [Fact]
     public void DrainingOneStream_DoesNotDisturbAnother()
     {
-        ulong expected = Stream(StreamName.PlayerGeneration, 7).Next();
+        ulong expected = NewStream(StreamName.PlayerGeneration, 7).Next();
 
-        SplitMix64 noisy = Stream(StreamName.MatchSimulation, 7);
+        SplitMix64 noisy = NewStream(StreamName.MatchSimulation, 7);
         for (int i = 0; i < 1000; i++)
             noisy.Next();
 
-        Assert.Equal(expected, Stream(StreamName.PlayerGeneration, 7).Next());
+        Assert.Equal(expected, NewStream(StreamName.PlayerGeneration, 7).Next());
     }
 
     [Fact]
