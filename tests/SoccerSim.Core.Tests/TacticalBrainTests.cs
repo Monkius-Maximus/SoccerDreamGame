@@ -37,10 +37,10 @@ public sealed class TacticalBrainTests
 
         var selfish = new TacticalPlayerBrain(
             TacticalAiTestKit.Player(1, new PersonalityProfile(0.8, 0.9, 0.3)),
-            ForwardSlot, TeamTactics.Default, new SplitMix64Random(7));
+            ForwardSlot, TeamTactics.Default, RandomStream.Create(7, StreamName.MatchSimulation));
         var collective = new TacticalPlayerBrain(
             TacticalAiTestKit.Player(1, new PersonalityProfile(0.3, 0.1, 0.8)),
-            ForwardSlot, TeamTactics.Default, new SplitMix64Random(7));
+            ForwardSlot, TeamTactics.Default, RandomStream.Create(7, StreamName.MatchSimulation));
 
         Intention selfishChoice = selfish.Decide(0, CarrierPerception(1, carrierPos, matePos, keeperPos));
         Intention collectiveChoice = collective.Decide(0, CarrierPerception(1, carrierPos, matePos, keeperPos));
@@ -53,7 +53,7 @@ public sealed class TacticalBrainTests
     public void Hysteresis_StaticSituation_NeverSwitchesAction()
     {
         var brain = new TacticalPlayerBrain(
-            TacticalAiTestKit.Player(1), ForwardSlot, TeamTactics.Default, new SplitMix64Random(11));
+            TacticalAiTestKit.Player(1), ForwardSlot, TeamTactics.Default, RandomStream.Create(11, StreamName.MatchSimulation));
 
         for (int tick = 0; tick < 120; tick++)
         {
@@ -68,7 +68,7 @@ public sealed class TacticalBrainTests
     public void Hysteresis_JitteringInputs_StaysCommitted()
     {
         var brain = new TacticalPlayerBrain(
-            TacticalAiTestKit.Player(1), ForwardSlot, TeamTactics.Default, new SplitMix64Random(11));
+            TacticalAiTestKit.Player(1), ForwardSlot, TeamTactics.Default, RandomStream.Create(11, StreamName.MatchSimulation));
 
         for (int tick = 0; tick < 240; tick++)
         {
@@ -84,8 +84,8 @@ public sealed class TacticalBrainTests
     [Fact]
     public void Decisions_AreDeterministic_ForTheSameSeed()
     {
-        var a = new TacticalPlayerBrain(TacticalAiTestKit.Player(1), ForwardSlot, TeamTactics.Default, new SplitMix64Random(99));
-        var b = new TacticalPlayerBrain(TacticalAiTestKit.Player(1), ForwardSlot, TeamTactics.Default, new SplitMix64Random(99));
+        var a = new TacticalPlayerBrain(TacticalAiTestKit.Player(1), ForwardSlot, TeamTactics.Default, RandomStream.Create(99, StreamName.MatchSimulation));
+        var b = new TacticalPlayerBrain(TacticalAiTestKit.Player(1), ForwardSlot, TeamTactics.Default, RandomStream.Create(99, StreamName.MatchSimulation));
 
         for (int tick = 0; tick < 60; tick++)
         {

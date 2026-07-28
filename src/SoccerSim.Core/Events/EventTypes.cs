@@ -16,14 +16,22 @@ public enum EventTier
 /// <summary>
 /// Minimal seedable randomness seam used across the simulation so every consumer is
 /// deterministically testable. The single production implementation is
-/// <see cref="SoccerSim.Core.Random.SplitMix64Random"/> — a cross-platform deterministic PRNG;
-/// the simulation never uses <see cref="System.Random"/>, whose sequence is unspecified.
+/// <see cref="SoccerSim.Core.Random.RandomStream"/> — a cross-platform deterministic PRNG.
+/// The BCL's own generator is never used: its sequence is an unspecified implementation
+/// detail, so it cannot back a replayable save.
 /// </summary>
 public interface IRandom
 {
     double NextDouble();
 
     int Next(int maxExclusive);
+
+    /// <summary>
+    /// An identifier drawn from the stream. Simulation-path entity ids must come from here
+    /// rather than the system GUID generator, which is non-deterministic by definition and
+    /// would break replay.
+    /// </summary>
+    Guid NextGuid();
 }
 
 /// <summary>A single stat modifier, e.g. <c>("morale", -2)</c>. Applied to FormMood/attributes.</summary>

@@ -74,7 +74,7 @@ public sealed class TacticsValidationTests
             Players = TacticalAiTestKit.Team(100, TeamTactics.Default).Players.Take(10).ToArray(),
         };
 
-        Assert.Throws<ArgumentException>(() => new PitchSimulation(home, shortAway, new SplitMix64Random(1)));
+        Assert.Throws<ArgumentException>(() => new PitchSimulation(home, shortAway, RandomStream.Create(1, StreamName.MatchSimulation)));
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class TacticsValidationTests
         PitchTeam home = TacticalAiTestKit.Team(1, TeamTactics.Default);
         PitchTeam clashingAway = TacticalAiTestKit.Team(1, TeamTactics.Default);
 
-        Assert.Throws<ArgumentException>(() => new PitchSimulation(home, clashingAway, new SplitMix64Random(1)));
+        Assert.Throws<ArgumentException>(() => new PitchSimulation(home, clashingAway, RandomStream.Create(1, StreamName.MatchSimulation)));
     }
 }
 

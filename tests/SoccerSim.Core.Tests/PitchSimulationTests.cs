@@ -17,7 +17,7 @@ public sealed class PitchSimulationTests
     private static PitchSimulation Simulation(TeamTactics homeTactics, TeamTactics awayTactics, ulong seed) => new(
         TacticalAiTestKit.Team(HomeFirstId, homeTactics),
         TacticalAiTestKit.Team(AwayFirstId, awayTactics),
-        new SplitMix64Random(seed));
+        RandomStream.Create(seed, StreamName.MatchSimulation));
 
     [Fact]
     public void SameSeedAndTactics_ProduceIdenticalTrajectoriesAndEvents()

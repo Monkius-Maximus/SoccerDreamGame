@@ -64,7 +64,7 @@ public sealed class MatchPresentationServiceTests
     public void Play_Simulates_Persists_Once_AndReturnsDisplay()
     {
         var gateway = new FakeGateway { Context = SampleContext(played: false), Display = SampleDisplay() };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(RandomStream.Create(1, StreamName.MatchSimulation)));
 
         MatchPresentation presentation = service.Play(1);
 
@@ -78,7 +78,7 @@ public sealed class MatchPresentationServiceTests
     public void Play_Throws_AndDoesNotPersist_WhenAlreadyPlayed()
     {
         var gateway = new FakeGateway { Context = SampleContext(played: true), Display = SampleDisplay() };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(RandomStream.Create(1, StreamName.MatchSimulation)));
 
         Assert.Throws<InvalidOperationException>(() => service.Play(1));
         Assert.Equal(0, gateway.SaveCount);
@@ -88,7 +88,7 @@ public sealed class MatchPresentationServiceTests
     public void PlayNextFixture_ReturnsNull_WhenNonePending()
     {
         var gateway = new FakeGateway { NextId = null };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(1)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(RandomStream.Create(1, StreamName.MatchSimulation)));
 
         Assert.Null(service.PlayNextFixture(SimulationTier.ActiveHuman));
         Assert.Equal(0, gateway.SaveCount);
@@ -103,7 +103,7 @@ public sealed class MatchPresentationServiceTests
             Context = SampleContext(played: false),
             Display = SampleDisplay(),
         };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(2)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(RandomStream.Create(2, StreamName.MatchSimulation)));
 
         MatchPresentation? presentation = service.PlayNextFixture(SimulationTier.ActiveHuman);
 
@@ -120,7 +120,7 @@ public sealed class MatchPresentationServiceTests
 
         using SqliteConnection connection = factory.Open();
         var gateway = new SqliteFixtureGateway(connection);
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(42)));
+        var service = new MatchPresentationService(gateway, new MatchEngine(RandomStream.Create(42, StreamName.MatchSimulation)));
 
         MatchPresentation? presentation = service.PlayNextFixture(SimulationTier.ActiveHuman);
 
@@ -161,7 +161,7 @@ public sealed class MatchPresentationServiceTests
             Context = SampleContext(played: false),
             Display = SampleDisplay(),
         };
-        var service = new MatchPresentationService(gateway, new MatchEngine(new SplitMix64Random(3)), humanTeamId: 7);
+        var service = new MatchPresentationService(gateway, new MatchEngine(RandomStream.Create(3, StreamName.MatchSimulation)), humanTeamId: 7);
 
         service.PlayNextFixture(SimulationTier.ActiveHuman);
 

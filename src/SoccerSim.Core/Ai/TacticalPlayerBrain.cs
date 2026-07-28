@@ -35,13 +35,13 @@ public sealed class TacticalPlayerBrain : IPlayerBrain
     private readonly PitchPlayer _player;
     private readonly FormationSlot _slot;
     private readonly BehaviourWeights _weights;
-    private readonly IDeterministicRandom _rng;
+    private readonly RandomStream _rng;
     private readonly UtilityDecider _decider = new();
 
     private ActionScore? _committed;
     private int _nextReevaluationTick = int.MinValue;
 
-    public TacticalPlayerBrain(PitchPlayer player, FormationSlot slot, TeamTactics tactics, IDeterministicRandom rng)
+    public TacticalPlayerBrain(PitchPlayer player, FormationSlot slot, TeamTactics tactics, RandomStream rng)
     {
         _player = player ?? throw new ArgumentNullException(nameof(player));
         _slot = slot ?? throw new ArgumentNullException(nameof(slot));

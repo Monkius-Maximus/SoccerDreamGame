@@ -40,10 +40,13 @@ public partial class GameBootstrap : Node
     /// </summary>
     public ulong MasterSeed { get; } = 0xD1CED00D2026UL;
 
-    // One deterministic generator, shared by the background resolvers and the match engine and
-    // derived from the master seed (no System.Random anywhere). Per-fixture isolation is available
-    // via DeterministicRng.CreateStream(MasterSeed, fixtureId, ...) once the LOD threads a seed per match.
-    private IDeterministicRandom _rng = null!;
+    // One isolated stream per concern, all derived from the master seed. Keeping them apart is the
+    // point: draining the match stream must not shift what the life-event stream produces next.
+    // Per-fixture isolation is available via RandomStream.Create(MasterSeed, StreamName.MatchSimulation,
+    // fixtureId, ...) once the LOD threads a seed per match.
+    private RandomStream _matchRng = null!;
+    private RandomStream _backgroundRng = null!;
+    private RandomStream _lifeRng = null!;
     private IFixtureGateway _gateway = null!;
     private SqliteConnection? _connection;
 
@@ -59,7 +62,9 @@ public partial class GameBootstrap : Node
         new MigrationRunner(factory).Migrate(includeSeeds: true);
         _connection = factory.Open();
 
-        _rng = DeterministicRng.Create(MasterSeed);
+        _matchRng = RandomStream.Create(MasterSeed, StreamName.MatchSimulation);
+        _backgroundRng = RandomStream.Create(MasterSeed, StreamName.BackgroundSimulation);
+        _lifeRng = RandomStream.Create(MasterSeed, StreamName.LifeEvents);
         _gateway = new SqliteFixtureGateway(_connection);
 
         // Who the human controls — sourced from the persisted career save-state rather than
@@ -70,12 +75,12 @@ public partial class GameBootstrap : Node
         Events = new EventManager(BuildEventDefinitions());
         Lod = new SimulationLODManager(_gateway, new ILeagueResolver[]
         {
-            new Tier1MatchResolver(_rng),
-            new Tier2EloResolver(_rng),
-            new Tier3MathResolver(_rng),
+            new Tier1MatchResolver(_matchRng),
+            new Tier2EloResolver(_backgroundRng),
+            new Tier3MathResolver(_backgroundRng),
         }, humanTeamId);
-        Match = new MatchPresentationService(_gateway, new MatchEngine(_rng), humanTeamId);
-        Time = new TimeManager(new GameClock(new DateTime(2026, 8, 1)), Events, Lod, BuildRollContext);
+        Match = new MatchPresentationService(_gateway, new MatchEngine(_matchRng), humanTeamId);
+        Time = new TimeManager(new GameClock(new DateTime(2026, 8, 1)), Events, Lod, BuildRollContext, _lifeRng);
 
         string human = Career is null ? "(none)" : $"player {Career.HumanPlayerId}, team {Career.HumanTeamId}";
         GD.Print($"[GameBootstrap] Core initialised. Save database: {databasePath}. Human: {human}");
@@ -103,7 +108,7 @@ public partial class GameBootstrap : Node
     }
 
     private EventRollContext BuildRollContext(DateTime date) =>
-        new(Career?.HumanPlayerId ?? 1, Career?.TraitWeights ?? new Dictionary<string, int>(), 1.0, _rng);
+        new(Career?.HumanPlayerId ?? 1, Career?.TraitWeights ?? new Dictionary<string, int>(), 1.0, _lifeRng);
 
     private static IReadOnlyList<EventDefinition> BuildEventDefinitions() => new[]
     {

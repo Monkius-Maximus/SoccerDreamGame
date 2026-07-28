@@ -65,7 +65,7 @@ public sealed class SqlitePersistenceTests
         var gateway = new SqliteFixtureGateway(connection);
         var lod = new SimulationLODManager(
             gateway,
-            new ILeagueResolver[] { new Tier3MathResolver(new SplitMix64Random(3)) });
+            new ILeagueResolver[] { new Tier3MathResolver(RandomStream.Create(3, StreamName.MatchSimulation)) });
 
         lod.OnWeekElapsed(new DateTime(2026, 9, 7));
 

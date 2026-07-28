@@ -27,7 +27,11 @@ public sealed class EventManager : IEventManager
 
             probability = Math.Clamp(probability, 0.0, 1.0);
             if (context.Rng.NextDouble() < probability)
-                return new GameEvent(Guid.NewGuid(), definition.Key, definition.Tier, date, context.PlayerId);
+            {
+                // The id comes off the same stream as the roll: replaying a save reproduces the
+                // event *and* its identity. A system GUID here would make the day non-replayable.
+                return new GameEvent(context.Rng.NextGuid(), definition.Key, definition.Tier, date, context.PlayerId);
+            }
         }
 
         return null;

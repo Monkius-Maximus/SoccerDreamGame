@@ -22,7 +22,7 @@ public sealed class TimeManagerTests
         EventRollContext Factory(DateTime date) =>
             new(1, new Dictionary<string, int>(), 1.0, random);
 
-        return new TimeManager(clock, events, captured, Factory);
+        return new TimeManager(clock, events, captured, Factory, TestStreams.LifeEvents());
     }
 
     [Fact]

@@ -76,7 +76,7 @@ public sealed class PitchSimulation
     private const int FirstTouchTicks = 20;
 
     private readonly PitchDimensions _pitch;
-    private readonly IDeterministicRandom _rng;
+    private readonly RandomStream _rng;
     private readonly InfluenceMap _influence;
     private readonly List<Runtime> _all = new();
     private readonly List<PitchEvent> _events = new();
@@ -85,7 +85,7 @@ public sealed class PitchSimulation
     private (int ShooterId, double Finishing)? _shotInFlight;
     private int _ownerControlReadyTick;
 
-    public PitchSimulation(PitchTeam home, PitchTeam away, IDeterministicRandom rng, PitchDimensions? pitch = null)
+    public PitchSimulation(PitchTeam home, PitchTeam away, RandomStream rng, PitchDimensions? pitch = null)
     {
         ArgumentNullException.ThrowIfNull(home);
         ArgumentNullException.ThrowIfNull(away);

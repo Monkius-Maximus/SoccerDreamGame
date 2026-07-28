@@ -135,7 +135,7 @@ real in [`TimeManager.AdvanceCalendar`](../src/SoccerSim.Core/Time/TimeManager.c
 
 ```text
 function AdvanceCalendar(target):
-    resumeToken   = newGuid()
+    resumeToken   = lifeEventsStream.NextGuid()   # stream-derived: the loop must replay identically
     speedBefore   = (Speed == Paused) ? Normal : Speed
     IsCalendarSimulating = true
     Speed = Normal
@@ -180,7 +180,7 @@ function RollForDay(date, context):                 # inside EventManager
                 p += (TraitWeights[traitKey] / 100) * modifier
         p = clamp(p, 0, 1)
         if context.Rng.NextDouble() < p:
-            return new GameEvent(newGuid(), definition.Key, definition.Tier, date, playerId)
+            return new GameEvent(context.Rng.NextGuid(), definition.Key, definition.Tier, date, playerId)
     return null
 
 
@@ -212,14 +212,39 @@ a thin Godot autoload on top.
   [`MatchEntryGuard`](../src/SoccerSim.Core/Modes/MatchEntryGuard.cs): a null, already-played, or
   malformed fixture (missing/duplicate clubs) **throws**.
 
-- **Determinism** — all simulation randomness flows through `IRandom`, whose single production
-  implementation is now [`SplitMix64Random`](../src/SoccerSim.Core/Random/SplitMix64Random.cs): a
-  pure-C# SplitMix64 PRNG that is bit-for-bit reproducible across platforms and .NET versions. The
-  old `System.Random`-backed `SeededRandom` is gone — `System.Random`'s sequence is unspecified, so
-  it cannot back a deterministic save. [`DeterministicRng.CreateStream(masterSeed, …keys)`](../src/SoccerSim.Core/Random/DeterministicRng.cs)
-  derives **isolated** child streams via hash mixing, enabling hierarchical seeding such as
-  `hash(masterSeed, fixtureId, season, round)` so a single match can be re-simulated in isolation.
-  `GameBootstrap` holds the world `MasterSeed` and seeds the shared generator from it.
+- **Determinism** — `(inputs, seed) → resultado` must replay bit for bit, on the same machine and
+  across machines. Four files in [`Core/Random/`](../src/SoccerSim.Core/Random/) carry that:
+  [`SplitMix64`](../src/SoccerSim.Core/Random/SplitMix64.cs) is the **one** generator (pure C#,
+  `unchecked` throughout because the algorithm needs wraparound overflow);
+  [`StreamName`](../src/SoccerSim.Core/Random/StreamName.cs) is a **closed enum** of the isolated
+  streams — a stream is an architectural decision, not content, so adding one takes code;
+  [`SeedDerivation`](../src/SoccerSim.Core/Random/SeedDerivation.cs) composes
+  `masterSeed + stream name + ids` into a stream seed and is **frozen** (changing it invalidates
+  every existing save); and [`RandomStream`](../src/SoccerSim.Core/Random/RandomStream.cs) is the
+  consumption façade — the single production implementation of `IRandom`, carrying the distribution
+  surface and a serialisable `State` (one `ulong`, stored as SQLite `INTEGER`) so save/load resumes a
+  stream exactly where it stopped. The BCL generator is banned outright: its sequence is an
+  unspecified implementation detail and cannot back a deterministic save.
+
+  Nothing instantiates the generator directly — consumers receive a `RandomStream` **injected by
+  constructor**, created via `RandomStream.Create(masterSeed, StreamName.X, …ids)`. Streams are
+  isolated: draining one never shifts another, which is what lets a single match be re-simulated
+  without disturbing world generation. Hierarchical seeding falls out of the ids
+  (`Create(seed, MatchSimulation, fixtureId, season, round)`). `GameBootstrap` holds the world
+  `MasterSeed` and opens one stream per concern from it.
+
+  Two consequences worth knowing. `NextInt` is unbiased **by mask rejection** — no `%` over the raw
+  draw, which would skew world generation toward the low buckets. And the Gaussian is
+  **Irwin–Hall (n = 12)**, not Box–Muller or Marsaglia polar: IEEE 754 only guarantees correct
+  rounding for `+ − × ÷` and `sqrt`, so `log`/`sin`/`cos` may differ across platforms and would
+  break replay precisely during attribute generation. Irwin–Hall is sums and multiplications only,
+  and comes naturally truncated at ±6σ — which is what truncated-Gaussian CA/PA generation wants.
+  `Math.Log`/`Exp`/`Sin`/`Cos`/`Tan`/`Pow` are therefore forbidden inside `Core/Random/`, enforced
+  by `DeterminismPolicyTests`, which also fails the build on any BCL-PRNG usage anywhere in `src/`.
+
+  Non-determinism beyond the PRNG is eradicated too: entity ids in simulation paths come from
+  `IRandom.NextGuid()` (stream-derived), never the system GUID generator, and wall-clock reads are
+  confined to logging, UI, and schema bookkeeping — never simulation logic.
 
 The per-tier match resolvers already are the match-resolution extension point: the
 [`SimulationLODManager`](../src/SoccerSim.Core/Simulation/SimulationLODManager.cs) routes each
@@ -242,7 +267,7 @@ Two layers, one weight source:
   considerations score a lean action set (short/long pass, shoot, carry, dribble; tackle/contain)
   for whoever has or contests the ball. Re-evaluated every `TacticalPlayerBrain.UtilityReevaluationTicks`
   (8 ticks ≈ 7.5 Hz at the 60 Hz tick rate) with a current-action bonus — **hysteresis is mandatory**,
-  otherwise near-tied scores make players twitch. Ties break through `IDeterministicRandom`.
+  otherwise near-tied scores make players twitch. Ties break through the injected `RandomStream`.
 - **The single modulation point** — [`BehaviourWeights.Derive`](../src/SoccerSim.Core/Ai/BehaviourWeights.cs)
   combines [`TeamTactics`](../src/SoccerSim.Core/Tactics/TeamTactics.cs) (one 4-4-2
   [`Formation`](../src/SoccerSim.Core/Tactics/Formation.cs), `Mentality`, normalised

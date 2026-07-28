@@ -50,6 +50,8 @@ public sealed class MigrationRunner
                 record.Transaction = transaction;
                 record.CommandText = "INSERT INTO SchemaVersions (Version, AppliedAt) VALUES ($v, $t);";
                 record.Parameters.AddWithValue("$v", version);
+                // Wall clock is deliberate and allowed here: this is schema bookkeeping — when a
+                // migration ran on this machine — not simulation state. No replayable path reads it.
                 record.Parameters.AddWithValue("$t", SqliteValue.ToText(DateTime.UtcNow));
                 record.ExecuteNonQuery();
             }

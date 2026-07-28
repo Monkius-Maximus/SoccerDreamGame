@@ -1,4 +1,5 @@
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 
 namespace SoccerSim.Core.Time;
@@ -15,6 +16,7 @@ public sealed class TimeManager : ITimeManager
     private readonly IEventManager _events;
     private readonly ISimulationLODManager _lod;
     private readonly Func<DateTime, EventRollContext> _rollContextFactory;
+    private readonly RandomStream _rng;
 
     private Guid _activeResumeToken = Guid.Empty;
     private TimeSpeed _speedBeforeCalendar = TimeSpeed.Normal;
@@ -26,16 +28,23 @@ public sealed class TimeManager : ITimeManager
     /// Builds the per-day roll context (active player + trait weights + RNG). Injected
     /// so the core never reaches into persistence or the engine directly.
     /// </param>
+    /// <param name="rng">
+    /// The <see cref="StreamName.LifeEvents"/> stream, injected like every other consumer.
+    /// It mints the resume tokens: the calendar loop is the replayable driver, so a system
+    /// GUID here would make two replays of the same save differ in their output.
+    /// </param>
     public TimeManager(
         GameClock clock,
         IEventManager events,
         ISimulationLODManager lod,
-        Func<DateTime, EventRollContext> rollContextFactory)
+        Func<DateTime, EventRollContext> rollContextFactory,
+        RandomStream rng)
     {
         _clock = clock;
         _events = events;
         _lod = lod;
         _rollContextFactory = rollContextFactory;
+        _rng = rng ?? throw new ArgumentNullException(nameof(rng));
     }
 
     public DateTime CurrentDate => _clock.Current;
@@ -64,12 +73,12 @@ public sealed class TimeManager : ITimeManager
             _clock.Set(taskEnd);
 
         return new TimeAdvanceResult(_clock.Current, Completed: true, Interrupted: false,
-            PendingEvent: null, ResumeToken: Guid.NewGuid());
+            PendingEvent: null, ResumeToken: _rng.NextGuid());
     }
 
     public TimeAdvanceResult AdvanceCalendar(DateTime target, CancellationToken cancellationToken = default)
     {
-        _activeResumeToken = Guid.NewGuid();
+        _activeResumeToken = _rng.NextGuid();
         _speedBeforeCalendar = Speed == TimeSpeed.Paused ? TimeSpeed.Normal : Speed;
         return RunCalendarLoop(target, cancellationToken);
     }

@@ -27,7 +27,7 @@ public sealed class LodResolverTests
     [Fact]
     public void Tier3_Resolves_WithoutRatings()
     {
-        var resolver = new Tier3MathResolver(new SplitMix64Random(7));
+        var resolver = new Tier3MathResolver(RandomStream.Create(7, StreamName.MatchSimulation));
 
         MatchResult result = resolver.Resolve(SampleContext());
 
@@ -43,15 +43,15 @@ public sealed class LodResolverTests
     {
         MatchContext context = SampleContext();
 
-        Assert.NotEmpty(new Tier1MatchResolver(new SplitMix64Random(1)).Resolve(context).PlayerRatings);
-        Assert.NotEmpty(new Tier2EloResolver(new SplitMix64Random(1)).Resolve(context).PlayerRatings);
+        Assert.NotEmpty(new Tier1MatchResolver(RandomStream.Create(1, StreamName.MatchSimulation)).Resolve(context).PlayerRatings);
+        Assert.NotEmpty(new Tier2EloResolver(RandomStream.Create(1, StreamName.MatchSimulation)).Resolve(context).PlayerRatings);
     }
 
     [Fact]
     public void Resolver_Tiers_MatchEnum()
     {
-        Assert.Equal(SimulationTier.ActiveHuman, new Tier1MatchResolver(new SplitMix64Random(1)).Tier);
-        Assert.Equal(SimulationTier.MajorForeign, new Tier2EloResolver(new SplitMix64Random(1)).Tier);
-        Assert.Equal(SimulationTier.Minor, new Tier3MathResolver(new SplitMix64Random(1)).Tier);
+        Assert.Equal(SimulationTier.ActiveHuman, new Tier1MatchResolver(RandomStream.Create(1, StreamName.MatchSimulation)).Tier);
+        Assert.Equal(SimulationTier.MajorForeign, new Tier2EloResolver(RandomStream.Create(1, StreamName.MatchSimulation)).Tier);
+        Assert.Equal(SimulationTier.Minor, new Tier3MathResolver(RandomStream.Create(1, StreamName.MatchSimulation)).Tier);
     }
 }

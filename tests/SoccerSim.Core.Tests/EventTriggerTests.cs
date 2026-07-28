@@ -58,7 +58,7 @@ public sealed class EventTriggerTests
         // Fires on the first roll only; every later roll returns 1.0 (no fire).
         var rng = new ScriptedRandom(0.0);
         EventRollContext Factory(DateTime date) => new(1, new Dictionary<string, int>(), 1.0, rng);
-        var manager = new TimeManager(clock, events, lod, Factory);
+        var manager = new TimeManager(clock, events, lod, Factory, TestStreams.LifeEvents());
 
         DateTime target = Start.AddDays(5);
         TimeAdvanceResult interrupted = manager.AdvanceCalendar(target);
@@ -84,7 +84,8 @@ public sealed class EventTriggerTests
         var clock = new GameClock(Start);
         var events = new EventManager(Array.Empty<EventDefinition>());
         var manager = new TimeManager(clock, events, new NullLodManager(),
-            _ => new EventRollContext(1, new Dictionary<string, int>(), 1.0, new StubRandom(1.0)));
+            _ => new EventRollContext(1, new Dictionary<string, int>(), 1.0, new StubRandom(1.0)),
+            TestStreams.LifeEvents());
 
         Assert.Throws<InvalidOperationException>(
             () => manager.ResumeCalendar(Guid.NewGuid(), Start.AddDays(1)));

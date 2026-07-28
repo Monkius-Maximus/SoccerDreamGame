@@ -32,7 +32,7 @@ public sealed class UtilityDecider
         BehaviourWeights weights,
         PlayerPerception perception,
         PlayerAction? currentAction,
-        IDeterministicRandom rng)
+        RandomStream rng)
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(weights);
@@ -160,7 +160,7 @@ public sealed class UtilityDecider
         BehaviourWeights weights,
         PlayerPerception perception,
         PlayerAction? currentAction,
-        IDeterministicRandom rng)
+        RandomStream rng)
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(weights);
@@ -258,7 +258,7 @@ public sealed class UtilityDecider
         return bias * (totalScore / totalWeight);
     }
 
-    private static ActionScore Choose(List<ActionScore> options, PlayerAction? currentAction, IDeterministicRandom rng)
+    private static ActionScore Choose(List<ActionScore> options, PlayerAction? currentAction, RandomStream rng)
     {
         if (options.Count == 0)
             throw new InvalidOperationException("Utility decision requested with no scorable options.");

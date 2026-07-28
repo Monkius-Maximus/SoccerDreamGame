@@ -27,8 +27,8 @@ public sealed class MatchEngineTests
     {
         MatchContext context = Context(Team(1, 1600, 1, 2, 3), Team(2, 1500, 4, 5, 6));
 
-        MatchResult a = new MatchEngine(new SplitMix64Random(123)).Simulate(context);
-        MatchResult b = new MatchEngine(new SplitMix64Random(123)).Simulate(context);
+        MatchResult a = new MatchEngine(RandomStream.Create(123, StreamName.MatchSimulation)).Simulate(context);
+        MatchResult b = new MatchEngine(RandomStream.Create(123, StreamName.MatchSimulation)).Simulate(context);
 
         Assert.Equal(a.HomeGoals, b.HomeGoals);
         Assert.Equal(a.AwayGoals, b.AwayGoals);
@@ -39,7 +39,7 @@ public sealed class MatchEngineTests
     [Fact]
     public void Scorers_Count_Always_Matches_TotalGoals()
     {
-        var engine = new MatchEngine(new SplitMix64Random(7));
+        var engine = new MatchEngine(RandomStream.Create(7, StreamName.MatchSimulation));
         MatchContext context = Context(Team(1, 1550, 1, 2, 3), Team(2, 1450, 4, 5, 6));
 
         for (int i = 0; i < 250; i++)
@@ -58,7 +58,7 @@ public sealed class MatchEngineTests
     {
         MatchContext context = Context(Team(1, 1600, 1, 2, 3), Team(2, 1500, 4, 5, 6));
 
-        MatchResult result = new MatchEngine(new SplitMix64Random(1)).Simulate(context);
+        MatchResult result = new MatchEngine(RandomStream.Create(1, StreamName.MatchSimulation)).Simulate(context);
 
         Assert.NotEmpty(result.PlayerRatings);
         foreach (int id in new[] { 1, 2, 3, 4, 5, 6 })
@@ -69,7 +69,7 @@ public sealed class MatchEngineTests
     [Fact]
     public void StrongerTeam_Scores_More_OnAggregate()
     {
-        var engine = new MatchEngine(new SplitMix64Random(2024));
+        var engine = new MatchEngine(RandomStream.Create(2024, StreamName.MatchSimulation));
         MatchContext context = Context(Team(1, 1850, 1, 2, 3), Team(2, 1300, 4, 5, 6));
 
         int home = 0, away = 0;
@@ -88,7 +88,7 @@ public sealed class MatchEngineTests
     {
         MatchContext context = Context(Team(1, 1700, 1, 2, 3), Team(2, 1400, 4, 5, 6));
 
-        MatchSimulation sim = new MatchEngine(new SplitMix64Random(99)).SimulateDetailed(context);
+        MatchSimulation sim = new MatchEngine(RandomStream.Create(99, StreamName.MatchSimulation)).SimulateDetailed(context);
 
         Assert.Equal(1, sim.Timeline.Count(e => e.Kind == MatchEventKind.KickOff));
         Assert.Equal(1, sim.Timeline.Count(e => e.Kind == MatchEventKind.HalfTime));
@@ -108,7 +108,7 @@ public sealed class MatchEngineTests
         // Away squad is empty → only the home side can find the net, and every scorer is a home player.
         MatchContext context = Context(Team(1, 1500, 1, 2, 3), Team(2, 1500));
 
-        var engine = new MatchEngine(new SplitMix64Random(5));
+        var engine = new MatchEngine(RandomStream.Create(5, StreamName.MatchSimulation));
         for (int i = 0; i < 100; i++)
         {
             MatchResult r = engine.Simulate(context);
@@ -135,7 +135,7 @@ public sealed class MatchEngineTests
         MatchContext context = Context(home, Team(2, 1400, 4, 5, 6));
 
         var tally = new Dictionary<int, int>();
-        var engine = new MatchEngine(new SplitMix64Random(2025));
+        var engine = new MatchEngine(RandomStream.Create(2025, StreamName.MatchSimulation));
         for (int i = 0; i < 400; i++)
         {
             foreach (ScorerLine s in engine.Simulate(context).Scorers)

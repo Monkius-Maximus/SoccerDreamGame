@@ -37,9 +37,9 @@ public sealed class SimulationLodReservationTests
 
     private static ILeagueResolver[] Resolvers() => new ILeagueResolver[]
     {
-        new Tier1MatchResolver(new SplitMix64Random(1)),
-        new Tier2EloResolver(new SplitMix64Random(1)),
-        new Tier3MathResolver(new SplitMix64Random(1)),
+        new Tier1MatchResolver(RandomStream.Create(1, StreamName.MatchSimulation)),
+        new Tier2EloResolver(RandomStream.Create(1, StreamName.MatchSimulation)),
+        new Tier3MathResolver(RandomStream.Create(1, StreamName.MatchSimulation)),
     };
 
     private static MatchContext Fixture(int matchId, int homeTeamId, int awayTeamId) => new(
@@ -93,7 +93,8 @@ public sealed class SimulationLodReservationTests
             new GameClock(new DateTime(2026, 8, 1)),
             new EventManager(Array.Empty<EventDefinition>()),   // no events → no interrupts
             lod,
-            date => new EventRollContext(1, new Dictionary<string, int>(), 1.0, new SplitMix64Random(0)));
+            date => new EventRollContext(1, new Dictionary<string, int>(), 1.0, RandomStream.Create(0, StreamName.LifeEvents)),
+            RandomStream.Create(0, StreamName.LifeEvents));
 
         time.AdvanceCalendar(new DateTime(2026, 8, 20));   // past both seeded Tier 1 fixtures (8/8, 8/15)
 
