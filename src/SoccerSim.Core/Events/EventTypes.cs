@@ -33,6 +33,45 @@ public readonly record struct StatDelta(string StatKey, int Delta);
 public readonly record struct ResourceDelta(string ResourceKey, long Delta);
 
 /// <summary>
+/// One selectable outcome of a High/Medium event, presented to the human when the calendar advance
+/// is interrupted.
+///
+/// <para>
+/// <see cref="RequiredTraitKey"/> is what makes <see cref="EventTier.Medium"/> a "trait-gated
+/// dialogue choice" rather than a plain menu: a hot-headed player is offered a reply a composed one
+/// never sees. Gating is data, not code, so new gates need no changes to the presenter.
+/// </para>
+/// </summary>
+public sealed record EventChoice(string Key, string Label)
+{
+    /// <summary>Optional longer body text explaining the consequence.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Stat deltas applied when this choice is taken.</summary>
+    public IReadOnlyList<StatDelta> StatDeltas { get; init; } = [];
+
+    /// <summary>Resource deltas applied when this choice is taken.</summary>
+    public IReadOnlyList<ResourceDelta> ResourceDeltas { get; init; } = [];
+
+    /// <summary>
+    /// Personality dimension that unlocks this choice (an <c>EventRollContext.TraitWeights</c> key),
+    /// or null when the choice is always offered.
+    /// </summary>
+    public string? RequiredTraitKey { get; init; }
+
+    /// <summary>Minimum 0–100 trait weight required when <see cref="RequiredTraitKey"/> is set.</summary>
+    public int RequiredTraitWeight { get; init; }
+
+    /// <summary>True when the human's traits unlock this choice.</summary>
+    public bool IsAvailableTo(IReadOnlyDictionary<string, int> traitWeights)
+    {
+        ArgumentNullException.ThrowIfNull(traitWeights);
+        return RequiredTraitKey is null
+            || (traitWeights.TryGetValue(RequiredTraitKey, out int weight) && weight >= RequiredTraitWeight);
+    }
+}
+
+/// <summary>
 /// Template for an event: its base per-day probability and how static personality
 /// traits weight it. Low-stakes events carry their unavoidable, predetermined deltas.
 /// </summary>
@@ -42,6 +81,18 @@ public sealed record EventDefinition(
     double BaseProbability,
     IReadOnlyDictionary<string, double> TraitModifiers)
 {
+    /// <summary>Human-readable title for the resolution screen; falls back to <see cref="Key"/>.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>The situation put to the human when a High/Medium event interrupts the calendar.</summary>
+    public string? Prompt { get; init; }
+
+    /// <summary>
+    /// The choices offered for a High/Medium event. Empty means the presenter shows an
+    /// acknowledgement with no deltas, which is the correct behaviour for a not-yet-authored event.
+    /// </summary>
+    public IReadOnlyList<EventChoice> Choices { get; init; } = [];
+
     /// <summary>Stat deltas applied automatically when a Low-stakes event resolves.</summary>
     public IReadOnlyList<StatDelta> LowStakesStatDeltas { get; init; } = [];
 
