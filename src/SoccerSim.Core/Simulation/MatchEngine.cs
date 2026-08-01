@@ -1,5 +1,6 @@
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Numerics;
 
 namespace SoccerSim.Core.Simulation;
 
@@ -104,7 +105,7 @@ public sealed class MatchEngine
         double awayElo = EffectiveElo(context.Away);
 
         // Logistic Elo expectation → expected goals per side, plus the home bump.
-        double homeShare = 1.0 / (1.0 + Math.Pow(10, (awayElo - homeElo) / 400.0));
+        double homeShare = 1.0 / (1.0 + DeterministicMath.Pow10((awayElo - homeElo) / 400.0));
         double xgHome = (_settings.BaseGoals * 2.0 * homeShare) + _settings.HomeAdvantageGoals;
         double xgAway = _settings.BaseGoals * 2.0 * (1.0 - homeShare);
 

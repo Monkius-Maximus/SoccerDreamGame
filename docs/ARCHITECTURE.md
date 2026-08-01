@@ -239,8 +239,22 @@ a thin Godot autoload on top.
   rounding for `+ − × ÷` and `sqrt`, so `log`/`sin`/`cos` may differ across platforms and would
   break replay precisely during attribute generation. Irwin–Hall is sums and multiplications only,
   and comes naturally truncated at ±6σ — which is what truncated-Gaussian CA/PA generation wants.
-  `Math.Log`/`Exp`/`Sin`/`Cos`/`Tan`/`Pow` are therefore forbidden inside `Core/Random/`, enforced
-  by `DeterminismPolicyTests`, which also fails the build on any BCL-PRNG usage anywhere in `src/`.
+  The same argument disqualifies the BCL's transcendentals **everywhere on the simulation path**,
+  not just inside `Core/Random/`: the Elo logistic (`10^(Δ/400)`, both resolvers) and the pass/shot
+  angle error in [`Vec2.Rotated`](../src/SoccerSim.Core/Pitch/Vec2.cs) used to call them.
+  [`Numerics/DeterministicMath`](../src/SoccerSim.Core/Numerics/DeterministicMath.cs) replaces
+  them with `Pow10`, `Sin` and `Cos` written from `+ − × ÷` only — a split-exponent `2^x` and
+  Cody–Waite range reduction with polynomial kernels, all coefficients frozen. Measured against the
+  platform libm: `Sin`/`Cos` within 1 ULP, `Pow10` within 16 ULP over the Elo domain, which moves
+  the win expectation by at most 1 ULP of a probability. `Math.Log`/`Exp`/`Sin`/`Cos`/`Tan`/`Pow`
+  are therefore forbidden across all of `src/`, enforced by `DeterminismPolicyTests` (which also
+  fails on any BCL-PRNG usage). `Math.Sqrt` and `Math.Abs` stay allowed — IEEE 754 guarantees both.
+
+  One honest caveat: `DeterministicMath` is a long chain of `double` arithmetic rather than integer
+  ops, so its reproducibility additionally assumes the runtime neither contracts `a*b+c` into an
+  FMA nor keeps extended-precision intermediates. .NET on x64/ARM64 does neither, but this is a
+  weaker guarantee than the generator's. The tests therefore pin the exact output bit patterns, so
+  a platform that broke the assumption fails loudly instead of writing incompatible saves.
 
   Non-determinism beyond the PRNG is eradicated too: entity ids in simulation paths come from
   `IRandom.NextGuid()` (stream-derived), never the system GUID generator, and wall-clock reads are

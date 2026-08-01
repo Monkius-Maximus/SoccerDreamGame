@@ -1,4 +1,5 @@
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Numerics;
 
 namespace SoccerSim.Core.Simulation;
 
@@ -20,7 +21,7 @@ public abstract class EloResolverBase : ILeagueResolver
     public virtual MatchResult Resolve(MatchContext context)
     {
         // Logistic Elo expectation → expected goals for each side.
-        double expectedHome = 1.0 / (1.0 + Math.Pow(10, (context.Away.Elo - context.Home.Elo) / 400.0));
+        double expectedHome = 1.0 / (1.0 + DeterministicMath.Pow10((context.Away.Elo - context.Home.Elo) / 400.0));
 
         int homeGoals = SampleGoals((expectedHome * 3.0) + HomeAdvantageGoals);
         int awayGoals = SampleGoals((1.0 - expectedHome) * 3.0);

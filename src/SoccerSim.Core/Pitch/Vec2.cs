@@ -1,3 +1,5 @@
+using SoccerSim.Core.Numerics;
+
 namespace SoccerSim.Core.Pitch;
 
 /// <summary>
@@ -40,11 +42,19 @@ public readonly record struct Vec2(double X, double Y)
 
     public static Vec2 Lerp(Vec2 a, Vec2 b, double t) => a + ((b - a) * t);
 
-    /// <summary>This vector rotated by <paramref name="radians"/> (counter-clockwise).</summary>
+    /// <summary>
+    /// This vector rotated by <paramref name="radians"/> (counter-clockwise).
+    ///
+    /// <para>
+    /// Trigonometry comes from <see cref="DeterministicMath"/>, not the BCL: the platform libm is
+    /// not guaranteed to round correctly, and this runs on the simulation path (pass and shot
+    /// angle error), so a last-bit difference between two machines would break match replay.
+    /// </para>
+    /// </summary>
     public Vec2 Rotated(double radians)
     {
-        double cos = Math.Cos(radians);
-        double sin = Math.Sin(radians);
+        double cos = DeterministicMath.Cos(radians);
+        double sin = DeterministicMath.Sin(radians);
         return new Vec2((X * cos) - (Y * sin), (X * sin) + (Y * cos));
     }
 
