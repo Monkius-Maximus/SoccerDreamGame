@@ -20,18 +20,34 @@ public sealed class SqliteCareerService : ICareerService
     public CareerState? GetActiveCareer()
     {
         int humanPlayerId;
+        ulong masterSeed;
+
         using (SqliteCommand command = _connection.CreateCommand())
         {
-            command.CommandText = "SELECT HumanPlayerId FROM Career WHERE Id = 1;";
-            object? value = command.ExecuteScalar();
-            if (value is null or DBNull)
+            command.CommandText = "SELECT HumanPlayerId, MasterSeed FROM Career WHERE Id = 1;";
+            using SqliteDataReader reader = command.ExecuteReader();
+            if (!reader.Read())
                 return null;
-            humanPlayerId = Convert.ToInt32(value);
+
+            humanPlayerId = reader.GetInt32(0);
+
+            // No seed means no replayable world. Substituting one here would silently generate a
+            // different world than the save was written against, so it fails instead.
+            if (reader.IsDBNull(1))
+            {
+                throw new InvalidOperationException(
+                    "The active career has no MasterSeed. A save without a seed cannot be replayed; " +
+                    "re-run migrations (0006 backfills pre-existing saves) or recreate the career.");
+            }
+
+            // SQLite integers are signed 64-bit; the unsigned seed travels as its two's-complement
+            // bit pattern, so reinterpreting gives back exactly what was written.
+            masterSeed = unchecked((ulong)reader.GetInt64(1));
         }
 
         int humanTeamId = LoadTeamId(humanPlayerId);
         IReadOnlyDictionary<string, int> traitWeights = PlayerTraitWeights.From(LoadTraits(humanPlayerId));
-        return new CareerState(humanPlayerId, humanTeamId, traitWeights);
+        return new CareerState(humanPlayerId, humanTeamId, traitWeights, masterSeed);
     }
 
     private int LoadTeamId(int playerId)

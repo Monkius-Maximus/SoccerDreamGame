@@ -1,14 +1,22 @@
 namespace SoccerSim.Core.Domain;
 
 /// <summary>
-/// The active career / save-state: which player the human controls. The controlled
-/// club is derived from that player (their <see cref="Player.TeamId"/>), so "who the
-/// player is" lives in one record rather than being hardcoded at the composition root.
+/// The active career / save-state: which player the human controls, and the world seed
+/// everything else derives from. The controlled club is derived from that player (their
+/// <see cref="Player.TeamId"/>), so "who the player is" lives in one record rather than
+/// being hardcoded at the composition root.
 /// </summary>
+/// <param name="MasterSeed">
+/// The world seed for this save. Every simulation stream derives from it via
+/// <c>RandomStream.Create(MasterSeed, StreamName.X, …ids)</c>, so it is what makes a save
+/// replayable — and why it belongs here rather than in the composition root. A save with no
+/// recorded seed is an error, not something to substitute a default for.
+/// </param>
 public sealed record CareerState(
     int HumanPlayerId,
     int HumanTeamId,
-    IReadOnlyDictionary<string, int> TraitWeights);
+    IReadOnlyDictionary<string, int> TraitWeights,
+    ulong MasterSeed);
 
 /// <summary>
 /// Projects a player's static personality traits into the 0–100 trait weights the event

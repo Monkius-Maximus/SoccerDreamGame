@@ -57,7 +57,9 @@ INSERT INTO PlayerTraitAssignments (PlayerId, TraitId) VALUES
 
 -- The active career for this dev save: the human controls player 1 (Alex Mercer),
 -- who plays for Riverside FC (team 1). Sourced at startup instead of hardcoded.
-INSERT INTO Career (Id, HumanPlayerId) VALUES (1, 1);
+-- MasterSeed (0xD1CED00D2026) is stated explicitly, never defaulted: it is what makes this
+-- dev world reproducible, and every simulation stream derives from it.
+INSERT INTO Career (Id, HumanPlayerId, MasterSeed) VALUES (1, 1, 230686183989286);
 
 INSERT INTO PlayerFinances (PlayerId, Balance, BaseSalaryWeekly) VALUES
     (1, 250000, 35000),

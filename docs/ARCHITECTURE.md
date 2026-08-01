@@ -230,8 +230,15 @@ a thin Godot autoload on top.
   constructor**, created via `RandomStream.Create(masterSeed, StreamName.X, …ids)`. Streams are
   isolated: draining one never shifts another, which is what lets a single match be re-simulated
   without disturbing world generation. Hierarchical seeding falls out of the ids
-  (`Create(seed, MatchSimulation, fixtureId, season, round)`). `GameBootstrap` holds the world
-  `MasterSeed` and opens one stream per concern from it.
+  (`Create(seed, MatchSimulation, fixtureId, season, round)`).
+
+  The world `MasterSeed` lives in the **save file**, on the `Career` row (migration `0006`, an
+  `INTEGER` holding the unsigned seed's two's-complement bit pattern) — not in the composition
+  root. A constant there would have meant every save replayed the same world, and no save could be
+  replayed once the constant changed. `GameBootstrap` reads the career first and opens one stream
+  per concern from its seed; a save with no recorded seed **throws** rather than being handed an
+  invented one, since that would generate a world the save was never written against. Migration
+  `0006` backfills pre-existing rows with the old bootstrap constant — history, not a default.
 
   Two consequences worth knowing. `NextInt` is unbiased **by mask rejection** — no `%` over the raw
   draw, which would skew world generation toward the low buckets. And the Gaussian is

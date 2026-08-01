@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
@@ -52,6 +53,71 @@ public sealed class CareerTests
         Assert.Equal(1, career.HumanTeamId);                  // player 1 plays for Riverside FC (team 1)
         Assert.Equal(85, career.TraitWeights["aggression"]);  // seeded hot_headed + showboat
         Assert.Equal(80, career.TraitWeights["selfishness"]);
+        Assert.Equal(0xD1CED00D2026UL, career.MasterSeed);    // stated by the seed, never defaulted
+    }
+
+    /// <summary>
+    /// The seed is what makes the save replayable, so it has to survive the database round trip
+    /// exactly. SQLite integers are signed 64-bit; a seed with the high bit set is the case that
+    /// would break a naive conversion, so it is the one worth pinning.
+    /// </summary>
+    [Fact]
+    public void GetActiveCareer_RoundTripsASeedWithTheHighBitSet()
+    {
+        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(includeSeeds: true);
+        using SqliteConnection connection = keepAlive;
+
+        const ulong seed = 0xFEDCBA9876543210UL;
+        using (SqliteCommand update = connection.CreateCommand())
+        {
+            update.CommandText = "UPDATE Career SET MasterSeed = $seed WHERE Id = 1;";
+            update.Parameters.AddWithValue("$seed", unchecked((long)seed));
+            update.ExecuteNonQuery();
+        }
+
+        Assert.Equal(seed, new SqliteCareerService(connection).GetActiveCareer()!.MasterSeed);
+    }
+
+    /// <summary>
+    /// Fail-fast: a career with no seed has no world to replay. Substituting a default here would
+    /// silently generate a different world than the save was written against.
+    /// </summary>
+    [Fact]
+    public void GetActiveCareer_WithoutAMasterSeed_Throws()
+    {
+        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(includeSeeds: true);
+        using SqliteConnection connection = keepAlive;
+
+        using (SqliteCommand clear = connection.CreateCommand())
+        {
+            clear.CommandText = "UPDATE Career SET MasterSeed = NULL WHERE Id = 1;";
+            clear.ExecuteNonQuery();
+        }
+
+        var service = new SqliteCareerService(connection);
+        Assert.Throws<InvalidOperationException>(() => { service.GetActiveCareer(); });
+    }
+
+    /// <summary>
+    /// A constante de backfill da migração 0006 é a seed com que os mundos antigos foram de fato
+    /// gerados (o antigo constante do GameBootstrap). Se ela derivar, todo save pré-migração passa
+    /// a replayar um mundo diferente — em silêncio. Por isso está pinada aqui.
+    /// </summary>
+    [Fact]
+    public void Migration0006_BackfillsWithTheExactLegacyBootstrapConstant()
+    {
+        Assembly assembly = typeof(MigrationRunner).Assembly;
+        string resource = assembly.GetManifestResourceNames()
+            .Single(name => name.EndsWith("0006_career_master_seed.sql", StringComparison.Ordinal));
+
+        using Stream stream = assembly.GetManifestResourceStream(resource)!;
+        using var reader = new StreamReader(stream);
+        string sql = reader.ReadToEnd();
+
+        Assert.Contains(
+            $"UPDATE Career SET MasterSeed = {0xD1CED00D2026UL} WHERE MasterSeed IS NULL;",
+            sql,
+            StringComparison.Ordinal);
     }
 
     [Fact]

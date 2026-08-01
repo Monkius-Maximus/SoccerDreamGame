@@ -28,17 +28,18 @@ public partial class GameBootstrap : Node
     public IMatchPresenter Match { get; private set; } = null!;
 
     /// <summary>
-    /// The active career / save-state: who the human controls. Sourced from the database
-    /// at startup. The player's club is the one reserved for the rendered match scene
-    /// instead of background LOD resolution; null only if no career has been created yet.
+    /// The active career / save-state: who the human controls, and the world seed. Sourced from
+    /// the database at startup. The player's club is the one reserved for the rendered match scene
+    /// instead of background LOD resolution.
     /// </summary>
-    public CareerState? Career { get; private set; }
+    public CareerState Career { get; private set; } = null!;
 
     /// <summary>
-    /// Root world seed. Every simulation stream derives from this, so a given save replays
-    /// identically. TODO: persist this per-career in the save-state instead of a constant.
+    /// Root world seed, read from the active career. Every simulation stream derives from it, so a
+    /// given save replays identically — and a different save replays as its own world, which a
+    /// constant here could never do.
     /// </summary>
-    public ulong MasterSeed { get; } = 0xD1CED00D2026UL;
+    public ulong MasterSeed => Career.MasterSeed;
 
     // One isolated stream per concern, all derived from the master seed. Keeping them apart is the
     // point: draining the match stream must not shift what the life-event stream produces next.
@@ -62,15 +63,20 @@ public partial class GameBootstrap : Node
         new MigrationRunner(factory).Migrate(includeSeeds: true);
         _connection = factory.Open();
 
+        // Who the human controls AND the world seed — both sourced from the persisted career
+        // save-state rather than hardcoded. This has to happen before the streams exist, because
+        // the streams derive from the seed it carries.
+        Career = new SqliteCareerService(_connection).GetActiveCareer()
+            ?? throw new InvalidOperationException(
+                $"No active career in '{databasePath}'. There is no world seed to simulate from, " +
+                "and inventing one would generate a world this save was never written against.");
+
+        int humanTeamId = Career.HumanTeamId;
+
         _matchRng = RandomStream.Create(MasterSeed, StreamName.MatchSimulation);
         _backgroundRng = RandomStream.Create(MasterSeed, StreamName.BackgroundSimulation);
         _lifeRng = RandomStream.Create(MasterSeed, StreamName.LifeEvents);
         _gateway = new SqliteFixtureGateway(_connection);
-
-        // Who the human controls — sourced from the persisted career save-state rather than
-        // hardcoded. The reserved-for-rendering club is this player's team.
-        Career = new SqliteCareerService(_connection).GetActiveCareer();
-        int? humanTeamId = Career?.HumanTeamId;
 
         Events = new EventManager(BuildEventDefinitions());
         Lod = new SimulationLODManager(_gateway, new ILeagueResolver[]
@@ -82,8 +88,8 @@ public partial class GameBootstrap : Node
         Match = new MatchPresentationService(_gateway, new MatchEngine(_matchRng), humanTeamId);
         Time = new TimeManager(new GameClock(new DateTime(2026, 8, 1)), Events, Lod, BuildRollContext, _lifeRng);
 
-        string human = Career is null ? "(none)" : $"player {Career.HumanPlayerId}, team {Career.HumanTeamId}";
-        GD.Print($"[GameBootstrap] Core initialised. Save database: {databasePath}. Human: {human}");
+        GD.Print($"[GameBootstrap] Core initialised. Save database: {databasePath}. " +
+            $"Human: player {Career.HumanPlayerId}, team {Career.HumanTeamId}. Master seed: 0x{MasterSeed:X}.");
     }
 
     public override void _ExitTree() => _connection?.Dispose();
@@ -103,12 +109,12 @@ public partial class GameBootstrap : Node
     /// </summary>
     public SoccerSim.Core.Domain.Match? PeekNextHumanFixture()
     {
-        int? matchId = _gateway.GetNextUnplayedMatchId(SimulationTier.ActiveHuman, Career?.HumanTeamId);
+        int? matchId = _gateway.GetNextUnplayedMatchId(SimulationTier.ActiveHuman, Career.HumanTeamId);
         return matchId is int id ? _gateway.GetMatchContext(id)?.Match : null;
     }
 
     private EventRollContext BuildRollContext(DateTime date) =>
-        new(Career?.HumanPlayerId ?? 1, Career?.TraitWeights ?? new Dictionary<string, int>(), 1.0, _lifeRng);
+        new(Career.HumanPlayerId, Career.TraitWeights, 1.0, _lifeRng);
 
     private static IReadOnlyList<EventDefinition> BuildEventDefinitions() => new[]
     {
