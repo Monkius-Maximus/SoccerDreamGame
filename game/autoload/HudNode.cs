@@ -1,6 +1,7 @@
 using Godot;
 using SoccerDreamGame.Ui;
 using SoccerSim.Core.LifeSim;
+using SoccerSim.Core.Localization;
 using SoccerSim.Core.Modes;
 
 namespace SoccerDreamGame.Autoload;
@@ -49,17 +50,19 @@ public partial class HudNode : Node
         _bar.SetAnchorsPreset(Control.LayoutPreset.TopWide);
         anchor.AddChild(_bar);
 
-        _bar.AddTile(HudBar.TileDate, "date");
-        _bar.AddTile(HudBar.TileRole, "career");
-        _bar.AddTile(HudBar.TileWellbeing, "wellbeing");
-        _bar.AddTile(HudBar.TileForm, "form");
+        ILocalizer text = GameBootstrap.Instance.Text;
+        _bar.UseLocalizer(text);
+        _bar.AddTile(HudBar.TileDate, text.Get(LocKeys.HudDate));
+        _bar.AddTile(HudBar.TileRole, text.Get(LocKeys.HudCareer));
+        _bar.AddTile(HudBar.TileWellbeing, text.Get(LocKeys.HudWellbeing));
+        _bar.AddTile(HudBar.TileForm, text.Get(LocKeys.HudForm));
 
         _wellbeing = GameBootstrap.Instance.Wellbeing;
         _wellbeing.Changed += OnWellbeingChanged;
         GameModeManager.Instance.ModeChanged += OnModeChanged;
 
         _bar.SetTile(HudBar.TileRole,
-            _wellbeing.Role == CareerRole.Player ? "PLAYER" : "MANAGER",
+            text.Get(LocKeys.Role(_wellbeing.Role)).ToUpperInvariant(),
             UiTokens.Positive);
         _bar.ApplyWellbeing(_wellbeing.Snapshot);
         ApplyVisibility(GameModeManager.Instance.CurrentMode);

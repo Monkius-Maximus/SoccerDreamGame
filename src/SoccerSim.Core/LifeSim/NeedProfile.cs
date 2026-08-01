@@ -49,34 +49,39 @@ public sealed class NeedProfile
     };
 
     /// <summary>
-    /// An athlete's life. Conditioning is the axis everything else serves: <see cref="NeedKind.Fitness"/>
-    /// carries the heaviest weight, and training/matches are what drain <see cref="NeedKind.Energy"/>
-    /// and <see cref="NeedKind.Nutrition"/> fastest.
+    /// An athlete's life. The body is the axis everything else serves: <see cref="NeedKind.Fitness"/>
+    /// and <see cref="NeedKind.MuscleCondition"/> together carry over a third of the index, and
+    /// training/matches are what drain <see cref="NeedKind.Energy"/>, <see cref="NeedKind.Nutrition"/>
+    /// and muscle freshness fastest.
     /// </summary>
     public static NeedProfile Player { get; } = new(CareerRole.Player, BuildOrThrow(new Dictionary<NeedKind, NeedTuning>
     {
-        [NeedKind.Energy] = new(DailyDecay: 12.0, Weight: 0.20),
-        [NeedKind.Nutrition] = new(DailyDecay: 10.0, Weight: 0.15),
-        [NeedKind.Fitness] = new(DailyDecay: 6.0, Weight: 0.25),
-        [NeedKind.Morale] = new(DailyDecay: 4.0, Weight: 0.15),
-        [NeedKind.Social] = new(DailyDecay: 7.0, Weight: 0.10),
-        [NeedKind.Focus] = new(DailyDecay: 8.0, Weight: 0.15),
+        [NeedKind.Energy] = new(DailyDecay: 12.0, Weight: 0.16),
+        [NeedKind.Nutrition] = new(DailyDecay: 10.0, Weight: 0.12),
+        [NeedKind.Hygiene] = new(DailyDecay: 14.0, Weight: 0.06),
+        [NeedKind.Fitness] = new(DailyDecay: 6.0, Weight: 0.20),
+        [NeedKind.MuscleCondition] = new(DailyDecay: 9.0, Weight: 0.16),
+        [NeedKind.Morale] = new(DailyDecay: 4.0, Weight: 0.12),
+        [NeedKind.Social] = new(DailyDecay: 7.0, Weight: 0.08),
+        [NeedKind.Focus] = new(DailyDecay: 8.0, Weight: 0.10),
     }));
 
     /// <summary>
     /// A manager's life. Tactical clarity and the dressing room are the axes: <see cref="NeedKind.Focus"/>
-    /// carries the heaviest weight and drains fastest, <see cref="NeedKind.Social"/> matters double what
-    /// it does for a player, and <see cref="NeedKind.Fitness"/> is reduced to a background health signal
-    /// rather than a performance input.
+    /// carries the heaviest weight and drains fastest, <see cref="NeedKind.Social"/> matters more than
+    /// double what it does for a player, and the two physical needs collapse to a background health
+    /// signal rather than a performance input.
     /// </summary>
     public static NeedProfile Manager { get; } = new(CareerRole.Manager, BuildOrThrow(new Dictionary<NeedKind, NeedTuning>
     {
-        [NeedKind.Energy] = new(DailyDecay: 14.0, Weight: 0.20),
-        [NeedKind.Nutrition] = new(DailyDecay: 9.0, Weight: 0.10),
-        [NeedKind.Fitness] = new(DailyDecay: 3.0, Weight: 0.05),
-        [NeedKind.Morale] = new(DailyDecay: 5.0, Weight: 0.20),
-        [NeedKind.Social] = new(DailyDecay: 6.0, Weight: 0.20),
-        [NeedKind.Focus] = new(DailyDecay: 10.0, Weight: 0.25),
+        [NeedKind.Energy] = new(DailyDecay: 14.0, Weight: 0.18),
+        [NeedKind.Nutrition] = new(DailyDecay: 9.0, Weight: 0.09),
+        [NeedKind.Hygiene] = new(DailyDecay: 12.0, Weight: 0.05),
+        [NeedKind.Fitness] = new(DailyDecay: 3.0, Weight: 0.04),
+        [NeedKind.MuscleCondition] = new(DailyDecay: 3.0, Weight: 0.03),
+        [NeedKind.Morale] = new(DailyDecay: 5.0, Weight: 0.19),
+        [NeedKind.Social] = new(DailyDecay: 6.0, Weight: 0.19),
+        [NeedKind.Focus] = new(DailyDecay: 10.0, Weight: 0.23),
     }));
 
     /// <summary>

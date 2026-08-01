@@ -20,7 +20,7 @@ public sealed class EventChoiceTests
     [Fact]
     public void UngatedChoice_IsOfferedToEveryone()
     {
-        var choice = new EventChoice("deflect", "Deflect the question");
+        var choice = new EventChoice("deflect");
 
         Assert.True(choice.IsAvailableTo(HotHeaded));
         Assert.True(choice.IsAvailableTo(Composed));
@@ -30,7 +30,7 @@ public sealed class EventChoiceTests
     [Fact]
     public void GatedChoice_IsOfferedOnlyWhenTheTraitClearsTheThreshold()
     {
-        var choice = new EventChoice("hit_back", "Hit back at the reporter")
+        var choice = new EventChoice("hit_back")
         {
             RequiredTraitKey = PlayerTraitWeights.Aggression,
             RequiredTraitWeight = 60,
@@ -43,7 +43,7 @@ public sealed class EventChoiceTests
     [Fact]
     public void GatedChoice_IsWithheldWhenTheTraitIsAbsentEntirely()
     {
-        var choice = new EventChoice("walk", "Walk away")
+        var choice = new EventChoice("walk")
         {
             RequiredTraitKey = PlayerTraitWeights.Selfishness,
             RequiredTraitWeight = 60,
@@ -55,7 +55,7 @@ public sealed class EventChoiceTests
     [Fact]
     public void GateIsInclusive_AtExactlyTheThreshold()
     {
-        var choice = new EventChoice("edge", "Edge case")
+        var choice = new EventChoice("edge")
         {
             RequiredTraitKey = PlayerTraitWeights.Aggression,
             RequiredTraitWeight = 85,
@@ -73,6 +73,7 @@ public sealed class EventChoiceTests
             "flight_delay", EventTier.Low, 0.02, new Dictionary<string, double>());
 
         Assert.Empty(definition.Choices);
-        Assert.Null(definition.Prompt);
+        // Keys are always derivable; whether the catalogue defines them is the localizer's business.
+        Assert.Equal("event.flight_delay.prompt", definition.PromptKey);
     }
 }

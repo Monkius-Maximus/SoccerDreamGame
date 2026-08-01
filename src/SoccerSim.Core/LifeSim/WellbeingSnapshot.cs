@@ -30,8 +30,8 @@ namespace SoccerSim.Core.LifeSim;
 /// <param name="Index">Weighted 0–100 wellbeing score; comparable across roles because profile weights sum to 1.</param>
 /// <param name="FormModifier">−5..+5, shaped to drop straight into <see cref="SoccerSim.Core.Domain.FormMood"/>.</param>
 /// <param name="EventProbabilityMultiplier">Multiplier for the daily life-event roll; &gt;1 means more events fire.</param>
-/// <param name="InjuryRisk">0–1 chance-weight of picking up a knock; driven by fitness and energy deficits.</param>
-/// <param name="BurnoutRisk">0–1 chance-weight of a manager burning out; driven by energy, focus and morale deficits.</param>
+/// <param name="InjuryRisk">0–1 chance-weight of picking up a knock; driven by conditioning, muscle freshness and rest.</param>
+/// <param name="Stress">0–1 how close to breaking this person is. The mockups' "Estresse", modelled as a consequence rather than a gauge.</param>
 /// <param name="DecisionQuality">0–1 sharpness of tactical/managerial decisions.</param>
 /// <param name="CriticalNeeds">Needs currently in <see cref="NeedBand.Critical"/>, in <see cref="Needs.All"/> order.</param>
 public readonly record struct WellbeingSnapshot(
@@ -40,7 +40,7 @@ public readonly record struct WellbeingSnapshot(
     int FormModifier,
     double EventProbabilityMultiplier,
     double InjuryRisk,
-    double BurnoutRisk,
+    double Stress,
     double DecisionQuality,
     IReadOnlyList<NeedKind> CriticalNeeds)
 {
@@ -76,6 +76,7 @@ public readonly record struct WellbeingSnapshot(
 
         double energy = state[NeedKind.Energy] / 100.0;
         double fitness = state[NeedKind.Fitness] / 100.0;
+        double muscle = state[NeedKind.MuscleCondition] / 100.0;
         double morale = state[NeedKind.Morale] / 100.0;
         double focus = state[NeedKind.Focus] / 100.0;
 
@@ -90,10 +91,20 @@ public readonly record struct WellbeingSnapshot(
                 1.0 + (NeutralEventPressureIndex - index) / 100.0,
                 MinEventMultiplier,
                 MaxEventMultiplier),
-            // A player breaks down when conditioning and rest are gone; nutrition acts through Fitness.
-            InjuryRisk: Math.Clamp(BaseInjuryRisk + (1.0 - fitness) * 0.45 + (1.0 - energy) * 0.28, 0.0, 1.0),
-            // A manager breaks down when rest, clarity and mood are gone; conditioning barely features.
-            BurnoutRisk: Math.Clamp((1.0 - energy) * 0.40 + (1.0 - focus) * 0.35 + (1.0 - morale) * 0.25, 0.0, 1.0),
+            // Conditioning sets the floor, but it is SORENESS that turns a heavy week into a torn
+            // hamstring — which is the whole reason MuscleCondition exists as a need separate from
+            // Energy. Nutrition acts on this indirectly, through Fitness.
+            InjuryRisk: Math.Clamp(
+                BaseInjuryRisk + (1.0 - fitness) * 0.40 + (1.0 - muscle) * 0.30 + (1.0 - energy) * 0.20,
+                0.0,
+                1.0),
+            // The mockups drew "Estresse" as a bar. It is a consequence, not a gauge: you cannot rest
+            // a stress meter, you rest the things that cause it. Role-agnostic — for a player it
+            // compounds injury risk, for a manager it is the road to being sacked.
+            Stress: Math.Clamp(
+                (1.0 - energy) * 0.35 + (1.0 - morale) * 0.30 + (1.0 - focus) * 0.20 + (1.0 - muscle) * 0.15,
+                0.0,
+                1.0),
             // Sharpness of a decision: mostly clarity, then rest, then mood.
             DecisionQuality: Math.Clamp(focus * 0.50 + energy * 0.30 + morale * 0.20, 0.0, 1.0),
             CriticalNeeds: (IReadOnlyList<NeedKind>?)critical ?? Array.Empty<NeedKind>());

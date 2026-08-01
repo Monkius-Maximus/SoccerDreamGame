@@ -164,6 +164,94 @@ public sealed class LifeSimTests
         Assert.Equal(expected, state[NeedKind.Energy], precision: 9);
     }
 
+    // ── The reconciled needs (Hygiene, MuscleCondition) ─────────────────────────────────
+
+    [Fact]
+    public void AdvanceDay_CriticalHygiene_DragsMoraleDown()
+    {
+        WellbeingState state = StateWith(CareerRole.Player, (NeedKind.Hygiene, 10.0));
+
+        new LifeSimulator().AdvanceDay(state, Day, NoVariance);
+
+        // 70 − 4 (own decay) − 4 × 1.5 (cross-effect) = 60. Letting yourself go costs mood.
+        Assert.Equal(60.0, state[NeedKind.Morale], precision: 9);
+    }
+
+    [Fact]
+    public void AdvanceDay_CriticalMuscleCondition_DragsFitnessDown()
+    {
+        WellbeingState state = StateWith(CareerRole.Player, (NeedKind.MuscleCondition, 10.0));
+
+        new LifeSimulator().AdvanceDay(state, Day, NoVariance);
+
+        // You cannot train through soreness: 70 − 6 − 6 × 1.5 = 55.
+        Assert.Equal(55.0, state[NeedKind.Fitness], precision: 9);
+    }
+
+    [Fact]
+    public void AdvanceDay_TwoCriticalDrivers_BothDragTheSameDependent()
+    {
+        // Nutrition and MuscleCondition both feed Fitness; each cross-effect fires independently.
+        WellbeingState state = StateWith(CareerRole.Player,
+            (NeedKind.Nutrition, 10.0), (NeedKind.MuscleCondition, 10.0));
+
+        new LifeSimulator().AdvanceDay(state, Day, NoVariance);
+
+        // 70 − 6 − 9 − 9 = 46. A bad week compounds instead of degrading linearly.
+        Assert.Equal(46.0, state[NeedKind.Fitness], precision: 9);
+    }
+
+    [Fact]
+    public void Training_BuysConditioningWithSorenessAndHygiene()
+    {
+        WellbeingState state = WellbeingState.CreateDefault(CareerRole.Player);
+
+        new LifeSimulator().Perform(state, LifeActivityCatalogue.ByKey("individual_training"));
+
+        Assert.True(state[NeedKind.Fitness] > 70.0);
+        Assert.True(state[NeedKind.MuscleCondition] < 70.0);
+        Assert.True(state[NeedKind.Hygiene] < 70.0);
+    }
+
+    [Fact]
+    public void Snapshot_InjuryRisk_RespondsToSorenessIndependentlyOfRest()
+    {
+        // The reason MuscleCondition is a need and not a flavour of Energy: a well-rested but sore
+        // player is at materially higher risk than a well-rested fresh one.
+        WellbeingState fresh = StateWith(CareerRole.Player, (NeedKind.MuscleCondition, 95.0));
+        WellbeingState sore = StateWith(CareerRole.Player, (NeedKind.MuscleCondition, 5.0));
+
+        Assert.True(WellbeingSnapshot.From(sore).InjuryRisk > WellbeingSnapshot.From(fresh).InjuryRisk);
+    }
+
+    [Fact]
+    public void Snapshot_Stress_IsDerived_NotAGauge()
+    {
+        // The mockups drew Estresse as a bar. It is a consequence: it falls because the needs that
+        // cause it were serviced, never because a "stress bar" was topped up.
+        WellbeingState state = StateWith(CareerRole.Player,
+            (NeedKind.Energy, 10.0), (NeedKind.Morale, 10.0), (NeedKind.Focus, 10.0));
+        double before = WellbeingSnapshot.From(state).Stress;
+
+        new LifeSimulator().Perform(state, LifeActivityCatalogue.ByKey("sleep"));
+
+        Assert.True(WellbeingSnapshot.From(state).Stress < before);
+    }
+
+    [Fact]
+    public void Shower_IsTheCheapestFix_AndOnlyTouchesWhatItShould()
+    {
+        WellbeingState state = StateWith(CareerRole.Player, (NeedKind.Hygiene, 20.0));
+        LifeActivity shower = LifeActivityCatalogue.ByKey("shower");
+
+        new LifeSimulator().Perform(state, shower);
+
+        Assert.Equal(0, shower.Cost);
+        Assert.True(shower.DurationHours <= 1.0);
+        Assert.Equal(75.0, state[NeedKind.Hygiene], precision: 9);
+        Assert.Equal(70.0, state[NeedKind.Energy], precision: 9); // untouched
+    }
+
     // ── Snapshot: the derived read model ────────────────────────────────────────────────
 
     [Fact]
@@ -227,7 +315,7 @@ public sealed class LifeSimTests
         WellbeingSnapshot frazzledSnapshot = WellbeingSnapshot.From(frazzled);
 
         Assert.True(sharpSnapshot.DecisionQuality > frazzledSnapshot.DecisionQuality);
-        Assert.True(frazzledSnapshot.BurnoutRisk > sharpSnapshot.BurnoutRisk);
+        Assert.True(frazzledSnapshot.Stress > sharpSnapshot.Stress);
     }
 
     [Fact]

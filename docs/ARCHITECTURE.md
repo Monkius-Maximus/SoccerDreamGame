@@ -267,9 +267,9 @@ closer defenders in build-up, directness ⇒ longer passes, mentality ⇒ higher
 The life-sim lives in `SoccerSim.Core/LifeSim` with zero Godot dependencies. Its governing
 decision: **a player career and a manager career share one simulation**, not two.
 
-Six needs — `Energy`, `Nutrition`, `Fitness`, `Morale`, `Social`, `Focus` — drain daily for
-whoever the human is. A manager still sleeps, eats and needs company. Exactly two things
-change with [`CareerRole`](../src/SoccerSim.Core/LifeSim/CareerRole.cs):
+Eight needs — `Energy`, `Nutrition`, `Hygiene`, `Fitness`, `MuscleCondition`, `Morale`, `Social`,
+`Focus` — drain daily for whoever the human is. A manager still sleeps, eats and needs company.
+Exactly two things change with [`CareerRole`](../src/SoccerSim.Core/LifeSim/CareerRole.cs):
 
 1. **The tuning.** [`NeedProfile`](../src/SoccerSim.Core/LifeSim/NeedProfile.cs) supplies a
    per-need decay rate and weight. An athlete's profile weights `Fitness` heaviest; a manager's
@@ -277,9 +277,17 @@ change with [`CareerRole`](../src/SoccerSim.Core/LifeSim/CareerRole.cs):
    fail-fast) so a wellbeing index of 60 means the same thing in either career.
 2. **Which derived output the consumer reads.** Every field is computed for every role.
 
-Fame/reputation is deliberately **not** a need: it accumulates rather than draining toward a
-deficit, so a bar that can never be topped up by resting would misteach the loop. It belongs with
-the economy/standing systems.
+The set reconciles four different need lists that existed across the design artifacts, under four
+rules: every gauge points the same way (100 is good, so "Fome"/"Dor Muscular" become `Nutrition`/
+`MuscleCondition`); "Sono" folds into `Energy`; "Estresse" and "Injury Risk" are consequences rather
+than gauges and are computed in the snapshot; "Sharpness" is `Focus`. Fame/reputation is likewise
+not a need — it accumulates rather than draining, and belongs with the economy/standing systems.
+The full table is in [`UI_DESIGN_SYSTEM.md`](UI_DESIGN_SYSTEM.md#need-reconciliation).
+
+`MuscleCondition` is the one that changes the simulation rather than just the UI: a player can be
+well rested and still sore, and soreness — not tiredness — is what turns a heavy training week into
+a torn hamstring. Training buys conditioning with rest, food, soreness and hygiene, and soreness is
+the second-largest input to `InjuryRisk`.
 
 ### The needs are not decorative
 
@@ -291,16 +299,22 @@ point — nothing outside the life-sim inspects raw gauges. Each field lands in 
 | --- | --- | --- |
 | `FormModifier` (−5..+5) | `Player.FormMood` | `EffectiveAttributes` already applies FormMood, so wellbeing reaches the pitch with no match-engine change. Arcade mode (`applyForm: false`) still bypasses it. |
 | `EventProbabilityMultiplier` | `EventRollContext.GlobalProbabilityMultiplier` | `EventManager.RollForDay` already multiplies this into every probability, so a struggling career attracts more life events. Anchored so index 75 ⇒ ×1.0, clamped to ×0.75..×1.75. |
-| `InjuryRisk` | training / match layer (player) | Driven by `Fitness` + `Energy` deficits. |
-| `DecisionQuality`, `BurnoutRisk` | dugout layer (manager) | Driven by `Focus`, `Energy`, `Morale`. |
+| `InjuryRisk` | training / match layer (player) | Driven by `Fitness`, `MuscleCondition` and `Energy` deficits. |
+| `Stress` | both roles | The mockups' "Estresse", as a consequence: it falls because the needs that cause it were serviced. |
+| `DecisionQuality` | dugout layer (manager) | Driven by `Focus`, `Energy`, `Morale`. |
 
 ### Determinism
 
 `LifeSimulator.AdvanceDay` is two ordered passes and takes `IRandom` like the rest of the
 simulation. Decay variance is one draw per need in `Needs.All` order; **cross-effects judge the
 bands captured before any decay was written**, so a bottomed-out need drags its dependent down
-(`Nutrition→Fitness`, `Energy→Focus`, `Social→Morale`) without the result ever depending on
-iteration order. Same seed ⇒ same needs, pinned by `LifeSimTests`.
+without the result ever depending on iteration order. Same seed ⇒ same needs, pinned by
+`LifeSimTests`.
+
+The cross-effect graph is what stops the needs from being eight independent bars serviced in
+isolation — neglecting one makes another cheaper to lose, so a bad week compounds:
+`Nutrition→Fitness`, `Energy→Focus`, `Social→Morale`, `Hygiene→Morale`, `MuscleCondition→Fitness`.
+Several drivers may feed the same dependent; each fires on its own.
 
 `ITimeManager` stays unaware of all this: `GameBootstrap` subscribes `DayElapsed` and calls
 `AdvanceDay`. Time drives, the life-sim consumes — the same relationship the LOD manager has.
@@ -314,6 +328,37 @@ long-form (one row per need) so adding a seventh need is a data change, not a mi
 round-trip as enum *names*, so reordering `NeedKind` can never reinterpret a saved gauge. A
 partially-saved state throws rather than letting a missing gauge default to zero and read as a
 critical deficit the human never earned.
+
+## Localisation
+
+`SoccerSim.Core/Localization` holds the contract that lets the code stay in English while the game
+runs in pt-BR: **the simulation never holds a sentence.** `LifeActivity` carries
+`activity.sleep.name`, `EventDefinition` carries `event.contract_offer.title`; what those render as
+is decided at draw time by [`ILocalizer`](../src/SoccerSim.Core/Localization/ILocalizer.cs).
+
+Keys are built by `LocKeys`, never written as literals, so a rename is a compile error. The
+catalogue lives in Core rather than as a Godot resource for two reasons: it needs no engine, and
+being here makes **key coverage unit-testable** — `LocalizationTests` enumerates every producible
+key and asserts it resolves in every locale directly, plus that the locales carry identical key
+sets. A missing string renders as its key, so gaps are loud in playtest instead of blank.
+
+pt-BR is the default and the source of truth; `en` is the pivot. Moving to `.po` files later is
+mechanical — the keys do not change.
+
+## World
+
+`SoccerSim.Core/World` carries a location hierarchy shaped to match the **City Searcher** editor
+exactly — same id scheme (`test.verith#apartamento`), same levels (`Region → … → Venue`) — so the
+real world can be imported later without reshaping anything downstream. Everything reaches it
+through [`IWorldGazetteer`](../src/SoccerSim.Core/World/IWorldGazetteer.cs); nothing names a
+specific place.
+
+The join with the life-sim is `VenueCategory`: an activity declares the *kind* of venue it needs
+(`physio` needs `Medical`) and any venue of that category can host it, so activities are never
+re-authored per location. That is what turns a menu of buttons into a reason to go somewhere.
+
+`TestWorldGazetteer` is a deliberately small fictional city and **is scaffolding to be deleted**.
+See [`WORLD_INTEGRATION.md`](WORLD_INTEGRATION.md) for the merge sequence.
 
 ## Interface layer
 
@@ -329,7 +374,13 @@ the scales and the reasoning. Three pieces matter architecturally:
   (an unanswered event would stall the calendar). `EventChoice.RequiredTraitKey` supplies the
   trait gate that makes an `EventTier.Medium` event the trait-gated dialogue its tier promises.
 - **`NeedsPanel` / `ActivityBar`** bind to `IWellbeingService` and read the career role from it,
-  so one life-sim scene serves both careers.
+  so one life-sim scene serves both careers. The action bar additionally filters by the venue the
+  human is standing in.
+- **`InterfaceNode`** owns the input map, the device-aware prompt strip and the in-game phone —
+  all three must outlive `ChangeSceneToFile`. Screens declare *verbs* (`Confirm`, `Back`, `Alt`,
+  `Menu`, `Phone`), never buttons, and `GameInput` resolves the glyph for whichever device was last
+  used. Actions are registered into `InputMap` in code, not authored in `project.godot`, because the
+  editor's serialised `InputEvent` blobs are unreviewable in a diff.
 
 ## Verification
 

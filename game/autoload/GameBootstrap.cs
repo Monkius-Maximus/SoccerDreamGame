@@ -3,9 +3,11 @@ using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
 using SoccerSim.Core.LifeSim;
+using SoccerSim.Core.Localization;
 using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.Time;
+using SoccerSim.Core.World;
 using SoccerSim.Infrastructure.Sqlite;
 
 namespace SoccerDreamGame.Autoload;
@@ -39,6 +41,32 @@ public partial class GameBootstrap : Node
     /// career alike — <see cref="CareerState.Role"/> selects the need profile, not a separate service.
     /// </summary>
     public IWellbeingService Wellbeing { get; private set; } = null!;
+
+    /// <summary>
+    /// Resolves display text. Every string the player reads goes through here: the simulation only
+    /// ever holds keys, so the code stays in English while the game runs in pt-BR.
+    /// </summary>
+    public ILocalizer Text { get; private set; } = null!;
+
+    /// <summary>
+    /// The world's locations. Backed by <see cref="TestWorldGazetteer"/> for now — the real world is
+    /// authored in the City Searcher tool and swaps in behind this same port.
+    /// </summary>
+    public IWorldGazetteer World { get; private set; } = null!;
+
+    /// <summary>Where the human currently is. Gates which activities the action bar offers.</summary>
+    public WorldLocation CurrentLocation { get; private set; } = null!;
+
+    /// <summary>Raised when <see cref="CurrentLocation"/> changes, so bound UI can re-filter.</summary>
+    public event Action<WorldLocation>? LocationChanged;
+
+    /// <summary>Move the human to a venue. Throws on an unknown id (fail-fast).</summary>
+    public void TravelTo(string locationId)
+    {
+        CurrentLocation = World.Find(locationId)
+            ?? throw new InvalidOperationException($"Unknown world location '{locationId}'.");
+        LocationChanged?.Invoke(CurrentLocation);
+    }
 
     /// <summary>
     /// The active career / save-state: who the human controls. Sourced from the database
@@ -79,6 +107,10 @@ public partial class GameBootstrap : Node
         // hardcoded. The reserved-for-rendering club is this player's team.
         Career = new SqliteCareerService(_connection).GetActiveCareer();
         int? humanTeamId = Career?.HumanTeamId;
+
+        Text = new Localizer(StringCatalogue.DefaultLocale);
+        World = new TestWorldGazetteer();
+        CurrentLocation = World.Find(World.HomeLocationId)!;
 
         Events = new EventManager(BuildEventDefinitions());
         Lod = new SimulationLODManager(_gateway, new ILeagueResolver[]
@@ -169,27 +201,25 @@ public partial class GameBootstrap : Node
             Wellbeing.EventProbabilityMultiplier,
             _rng);
 
+    // Definitions carry no prose: titles, prompts and choice labels are localisation keys derived
+    // from the definition/choice keys (see LocKeys) and resolved against StringCatalogue at draw
+    // time. That is what lets the game run in pt-BR while the code stays in English.
     private static IReadOnlyList<EventDefinition> BuildEventDefinitions() => new[]
     {
         new EventDefinition("contract_offer", EventTier.High, 0.01, new Dictionary<string, double>())
         {
-            Title = "Contract Offer",
-            Prompt = "Your agent has an offer on the table. How do you want to play it?",
             Choices =
             [
-                new EventChoice("sign", "Sign now")
+                new EventChoice("sign")
                 {
-                    Description = "Security today, leverage gone tomorrow.",
                     ResourceDeltas = [new ResourceDelta("money", 250_000)],
                 },
-                new EventChoice("hold", "Hold out for more")
+                new EventChoice("hold")
                 {
-                    Description = "Bet on your form. The dressing room will notice either way.",
                     StatDeltas = [new StatDelta("morale", -1)],
                 },
-                new EventChoice("walk", "Walk away")
+                new EventChoice("walk")
                 {
-                    Description = "Only a player who backs himself burns a bridge this early.",
                     RequiredTraitKey = PlayerTraitWeights.Selfishness,
                     RequiredTraitWeight = 60,
                     StatDeltas = [new StatDelta("morale", 1)],
@@ -199,23 +229,16 @@ public partial class GameBootstrap : Node
         new EventDefinition("press_conference", EventTier.Medium, 0.03,
             new Dictionary<string, double> { ["aggression"] = 0.05 })
         {
-            Title = "Press Conference",
-            Prompt = "A reporter asks about the dressing-room rumours.",
             Choices =
             [
-                new EventChoice("deflect", "Deflect the question")
+                new EventChoice("deflect"),
+                new EventChoice("back_squad")
                 {
-                    Description = "Safe, forgettable, and nobody is upset.",
-                },
-                new EventChoice("back_squad", "Back your teammates publicly")
-                {
-                    Description = "Costs you nothing but the headline.",
                     StatDeltas = [new StatDelta("morale", 1)],
                 },
                 // Trait-gated: only a hot-headed character is offered the reply that starts a fire.
-                new EventChoice("hit_back", "Hit back at the reporter")
+                new EventChoice("hit_back")
                 {
-                    Description = "Great copy. The manager will have seen it.",
                     RequiredTraitKey = PlayerTraitWeights.Aggression,
                     RequiredTraitWeight = 60,
                     StatDeltas = [new StatDelta("morale", 2)],
@@ -224,7 +247,6 @@ public partial class GameBootstrap : Node
         },
         new EventDefinition("flight_delay", EventTier.Low, 0.02, new Dictionary<string, double>())
         {
-            Title = "Flight Delay",
             LowStakesStatDeltas = new[] { new StatDelta("morale", -1) },
         },
     };

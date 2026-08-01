@@ -28,6 +28,11 @@ GameModeManager="*res://autoload/GameModeManager.cs"
 ; HudNode must come AFTER GameModeManager: it subscribes to that autoload's ModeChanged.
 ; It hosts the persistent status strip on its own CanvasLayer so the strip survives scene swaps.
 HudNode="*res://autoload/HudNode.cs"
+; InterfaceNode owns the input map, the contextual prompt strip and the in-game phone. Like the HUD,
+; these must outlive scene changes — a phone you cannot open mid-match would not be a phone.
+; Input actions are registered here in code rather than in [input] below: the editor's serialised
+; InputEvent blobs are unreviewable in a diff. See Ui/Input/GameInput.cs.
+InterfaceNode="*res://autoload/InterfaceNode.cs"
 
 [rendering]
 

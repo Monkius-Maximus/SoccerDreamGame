@@ -1,5 +1,6 @@
 using Godot;
 using SoccerSim.Core.LifeSim;
+using SoccerSim.Core.Localization;
 
 namespace SoccerDreamGame.Ui;
 
@@ -26,6 +27,10 @@ public partial class HudBar : PanelContainer
 
     private HBoxContainer _tiles = null!;
     private Label _alert = null!;
+    private ILocalizer _text = null!;
+
+    /// <summary>Supplies the display text for tile units and the critical-need badge.</summary>
+    public void UseLocalizer(ILocalizer text) => _text = text ?? throw new ArgumentNullException(nameof(text));
 
     public override void _Ready()
     {
@@ -115,9 +120,14 @@ public partial class HudBar : PanelContainer
                 _ => UiTokens.TextMuted,
             });
 
-        SetAlert(snapshot.HasCriticalNeed
-            ? $"⚕ {string.Join(" · ", snapshot.CriticalNeeds).ToUpperInvariant()}"
-            : null);
+        if (!snapshot.HasCriticalNeed)
+        {
+            SetAlert(null);
+            return;
+        }
+
+        IEnumerable<string> names = snapshot.CriticalNeeds.Select(need => _text.Get(LocKeys.NeedShort(need)));
+        SetAlert($"⚕ {_text.Get(LocKeys.HudCritical)} · {string.Join(" · ", names)}");
     }
 
     /// <summary>Tile key: the current in-game date.</summary>
