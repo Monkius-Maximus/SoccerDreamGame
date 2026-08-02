@@ -95,6 +95,17 @@ public static class LocKeys
     public const string PhoneTravelTime = "phone.travel_time";
     public const string PhoneCurrentLocation = "phone.current_location";
 
+    public const string PhoneAppBank = "phone.app.bank";
+    public const string BankBalance = "bank.balance";
+    public const string BankWeeklyWage = "bank.weekly_wage";
+
+    // ── Quick menu ──────────────────────────────────────────────────────────────────────
+
+    public const string MenuTitle = "menu.title";
+    public const string MenuCareerRole = "menu.career_role";
+    public const string MenuRoleHint = "menu.role_hint";
+    public const string MenuResume = "menu.resume";
+
     // ── Contextual input prompts ────────────────────────────────────────────────────────
 
     public const string PromptSelect = "prompt.select";
@@ -103,6 +114,7 @@ public static class LocKeys
     public const string PromptMenu = "prompt.menu";
     public const string PromptPhone = "prompt.phone";
     public const string PromptTravel = "prompt.travel";
+    public const string ActivityUnaffordable = "activity.unaffordable";
 
     // ── Derived wellbeing readouts ──────────────────────────────────────────────────────
 

@@ -198,6 +198,17 @@ public static class StringCatalogue
         ["prompt.phone"] = "Celular",
         ["prompt.travel"] = "Ir para",
 
+        ["phone.app.bank"] = "Banco",
+        ["bank.balance"] = "Saldo atual",
+        ["bank.weekly_wage"] = "Salário semanal",
+
+        // ── Menu rápido ─────────────────────────────────────────────────────────────────
+        ["menu.title"] = "Menu",
+        ["menu.career_role"] = "Carreira atual",
+        ["menu.role_hint"] = "Trocar de carreira mantém suas necessidades exatamente onde estão — só muda o peso de cada uma. Você continua sendo a mesma pessoa que dormiu mal ontem.",
+        ["menu.resume"] = "Continuar",
+        ["activity.unaffordable"] = "Saldo insuficiente",
+
         // ── Valores derivados ───────────────────────────────────────────────────────────
         ["derived.injury_risk"] = "Risco de Lesão",
         ["derived.stress"] = "Estresse",
@@ -352,6 +363,16 @@ public static class StringCatalogue
         ["prompt.menu"] = "Menu",
         ["prompt.phone"] = "Phone",
         ["prompt.travel"] = "Travel to",
+
+        ["phone.app.bank"] = "Bank",
+        ["bank.balance"] = "Current balance",
+        ["bank.weekly_wage"] = "Weekly wage",
+
+        ["menu.title"] = "Menu",
+        ["menu.career_role"] = "Current career",
+        ["menu.role_hint"] = "Switching career keeps your needs exactly where they are — only their weighting changes. You are still the person who slept badly last night.",
+        ["menu.resume"] = "Resume",
+        ["activity.unaffordable"] = "Insufficient balance",
 
         ["derived.injury_risk"] = "Injury Risk",
         ["derived.stress"] = "Stress",

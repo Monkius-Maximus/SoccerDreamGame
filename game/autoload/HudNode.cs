@@ -60,6 +60,7 @@ public partial class HudNode : Node
         _wellbeing = GameBootstrap.Instance.Wellbeing;
         _wellbeing.Changed += OnWellbeingChanged;
         GameModeManager.Instance.ModeChanged += OnModeChanged;
+        GameBootstrap.Instance.WellbeingReplaced += OnWellbeingReplaced;
 
         _bar.SetTile(HudBar.TileRole,
             text.Get(LocKeys.Role(_wellbeing.Role)).ToUpperInvariant(),
@@ -74,12 +75,27 @@ public partial class HudNode : Node
             _wellbeing.Changed -= OnWellbeingChanged;
         if (GameModeManager.Instance is not null)
             GameModeManager.Instance.ModeChanged -= OnModeChanged;
+        if (GameBootstrap.Instance is not null)
+            GameBootstrap.Instance.WellbeingReplaced -= OnWellbeingReplaced;
     }
 
     public override void _Process(double delta) =>
         _bar.SetTile(HudBar.TileDate, GameBootstrap.Instance.Time.CurrentDate.ToString("dd MMM yyyy"));
 
     private void OnWellbeingChanged(WellbeingSnapshot snapshot) => _bar.ApplyWellbeing(snapshot);
+
+    /// <summary>A career-role switch replaces the service; move the subscription with it.</summary>
+    private void OnWellbeingReplaced(IWellbeingService wellbeing)
+    {
+        _wellbeing.Changed -= OnWellbeingChanged;
+        _wellbeing = wellbeing;
+        _wellbeing.Changed += OnWellbeingChanged;
+
+        _bar.SetTile(HudBar.TileRole,
+            GameBootstrap.Instance.Text.Get(LocKeys.Role(_wellbeing.Role)).ToUpperInvariant(),
+            UiTokens.Positive);
+        _bar.ApplyWellbeing(_wellbeing.Snapshot);
+    }
 
     private void OnModeChanged(GameMode previous, GameMode next) => ApplyVisibility(next);
 

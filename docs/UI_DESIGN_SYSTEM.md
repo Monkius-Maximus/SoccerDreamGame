@@ -271,6 +271,20 @@ behaviour players already expect.
 Actions are registered into `InputMap` **in code**, not authored in `project.godot`: the editor's
 serialised `InputEvent` blobs are unreviewable in a diff and easy to corrupt by hand.
 
+## The quick menu
+
+`Esc` / `Start` opens it, and it is deliberately **not** the phone. The phone is diegetic and holds
+what the *character* can see; the quick menu is the system menu and holds what the *player*
+controls. Blurring the two is how a Sims-style phone ends up with "Quit to Desktop" in it.
+
+One key walks out one step at a time: inside a phone app → the phone's home screen; phone open →
+closed; menu open → closed; nothing open → open the menu.
+
+Its first real entry is the **career-role switch**, which is also the cheapest way to make the
+manager career reachable — before it, flipping roles meant editing the database by hand. The switch
+carries the need gauges over untouched and only re-tunes their weighting, which is the life-sim's
+whole thesis made operable: a manager is the same person who slept badly last night.
+
 ## The in-game phone
 
 Borrowed from The Sims, and it earns its place for a specific reason: it gives the game one
@@ -278,9 +292,10 @@ diegetic surface for everything that is *not* the world, so the human never leav
 check their schedule. It also gives the interface somewhere to grow — a new system becomes a new
 app, not another tab bolted onto a HUD.
 
-Opens on `P` / `Y` / `△`. Three apps today: **Saúde** (the same `NeedsPanel` the life-sim scene
-uses, bound to the same service), **Agenda** (date, career, current location), **Mapa** (venues and
-travel).
+Opens on `P` / `Y` / `△`. Four apps today: **Saúde** (the same `NeedsPanel` the life-sim scene uses,
+bound to the same service), **Agenda** (date, career, current location), **Mapa** (venues and
+travel), **Banco** (the live `PlayerFinances` balance — the same one an activity's cost is debited
+from, so what the screen shows and what the action bar can afford cannot disagree).
 
 One rule, and it is the one that matters: **every app is a view onto a system that already
 exists.** The phone must never become the place where state secretly lives.
@@ -296,8 +311,8 @@ exists.** The phone must never become the place where state secretly lives.
 - **The world is a placeholder.** `TestWorldGazetteer` is scaffolding; the real world comes from the
   City Searcher tool in its own sprint. See [`WORLD_INTEGRATION.md`](WORLD_INTEGRATION.md) for the
   seam that was built to receive it and the ordered merge sequence.
-- **The quick menu itself is not built.** `Esc`/`Start` currently only dismisses the phone. The verb
-  and the prompt exist; the menu it should open does not.
+- **Manager-mode screens do not exist.** The career role is switchable from the quick menu and the
+  life-sim honours it fully, but the squad/tactics/transfer screens the role implies are unbuilt.
 - **HUD tiles** for league position, balance and season objectives need a read model per screen
   (`GameplayViewModel`, `SeasonViewModel`) projecting `SoccerSim.Core` onto the UI. Note the
   concept's `GameContext` used 6 FIFA-style 0–99 attributes while `Players` stores 7 on a 1–20

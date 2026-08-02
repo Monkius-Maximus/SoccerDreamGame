@@ -1,4 +1,5 @@
 using SoccerSim.Core.Domain;
+using SoccerSim.Core.Economy;
 using SoccerSim.Core.Events;
 using SoccerSim.Core.Persistence;
 
@@ -19,22 +20,32 @@ public sealed class WellbeingService : IWellbeingService
     private readonly ILifeSimulator _simulator;
     private readonly IRandom _rng;
     private readonly IWellbeingRepository? _repository;
+    private readonly IEconomyService? _economy;
     private readonly int _careerId;
+    private readonly int _walletPlayerId;
 
     private WellbeingSnapshot _snapshot;
 
+    /// <summary>
+    /// Persistence and the economy are both optional (<c>null</c>) so headless tests and a future
+    /// multiplayer server can run the life-sim with neither a database nor a wallet behind it.
+    /// </summary>
     public WellbeingService(
         WellbeingState state,
         ILifeSimulator simulator,
         IRandom rng,
         IWellbeingRepository? repository = null,
-        int careerId = 1)
+        int careerId = 1,
+        IEconomyService? economy = null,
+        int walletPlayerId = 1)
     {
         State = state ?? throw new ArgumentNullException(nameof(state));
         _simulator = simulator ?? throw new ArgumentNullException(nameof(simulator));
         _rng = rng ?? throw new ArgumentNullException(nameof(rng));
         _repository = repository;
         _careerId = careerId;
+        _economy = economy;
+        _walletPlayerId = walletPlayerId;
         _snapshot = _simulator.Snapshot(State);
     }
 
@@ -56,9 +67,25 @@ public sealed class WellbeingService : IWellbeingService
         return alerts;
     }
 
+    public bool CanAfford(string activityKey)
+    {
+        LifeActivity activity = LifeActivityCatalogue.ByKey(activityKey);
+        return activity.Cost <= 0 || _economy is null || _economy.CanAfford(_walletPlayerId, activity.Cost);
+    }
+
     public ActivityOutcome Perform(string activityKey, DateTime date)
     {
         LifeActivity activity = LifeActivityCatalogue.ByKey(activityKey);
+
+        // Charge BEFORE mutating the needs: a failed payment must leave the gauges untouched, not
+        // grant the benefit and then discover the wallet was empty.
+        if (activity.Cost > 0 && _economy is not null
+            && !_economy.TryCharge(_walletPlayerId, activity.Cost, TransactionCategory.LifeActivity, date))
+        {
+            throw new InvalidOperationException(
+                $"Cannot afford activity '{activityKey}' (costs {activity.Cost}).");
+        }
+
         ActivityOutcome outcome = _simulator.Perform(State, activity);
         _repository?.Save(_careerId, State);
         _repository?.LogActivity(_careerId, date, outcome);

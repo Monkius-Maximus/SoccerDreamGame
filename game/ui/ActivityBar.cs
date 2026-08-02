@@ -136,10 +136,17 @@ public partial class ActivityBar : PanelContainer
 
     private Button BuildButton(LifeActivity activity)
     {
+        // Disable rather than let it be clicked and refused: Perform throws on an unaffordable
+        // activity, and a button that always throws is a worse answer than a button that is off.
+        bool affordable = _service!.CanAfford(activity.Key);
+
         var button = new Button
         {
             Text = _text!.Get(activity.NameKey),
-            TooltipText = DescribeTrade(activity),
+            TooltipText = affordable
+                ? DescribeTrade(activity)
+                : $"{_text.Get(LocKeys.ActivityUnaffordable)}\n{DescribeTrade(activity)}",
+            Disabled = !affordable,
             // Above the comfortable click-target floor: the concept's 32px-tall rows were the
             // single worst usability problem in it.
             CustomMinimumSize = new Vector2(0, UiTokens.MinTouchTarget),
@@ -174,5 +181,8 @@ public partial class ActivityBar : PanelContainer
 
         ActivityOutcome outcome = _service.Perform(activity.Key, CurrentDate);
         ActivityPerformed?.Invoke(outcome);
+        // A paid activity changed the balance, which changes what else is affordable.
+        if (activity.Cost > 0)
+            Rebuild();
     }
 }

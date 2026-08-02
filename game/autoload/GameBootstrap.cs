@@ -1,9 +1,11 @@
 using Godot;
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
+using SoccerSim.Core.Economy;
 using SoccerSim.Core.Events;
 using SoccerSim.Core.LifeSim;
 using SoccerSim.Core.Localization;
+using SoccerSim.Core.Persistence;
 using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.Time;
@@ -57,8 +59,59 @@ public partial class GameBootstrap : Node
     /// <summary>Where the human currently is. Gates which activities the action bar offers.</summary>
     public WorldLocation CurrentLocation { get; private set; } = null!;
 
+    /// <summary>The human's own money. Backed by PlayerFinances + the Transactions ledger.</summary>
+    public IEconomyService Economy { get; private set; } = null!;
+
+    /// <summary>
+    /// The human's player aggregate. This is what <c>SyncFormMood</c> writes into, and therefore
+    /// what carries wellbeing onto the pitch through <see cref="Player.EffectiveAttributes"/>.
+    /// Null when no career exists yet.
+    /// </summary>
+    public Player? HumanPlayer { get; private set; }
+
     /// <summary>Raised when <see cref="CurrentLocation"/> changes, so bound UI can re-filter.</summary>
     public event Action<WorldLocation>? LocationChanged;
+
+    /// <summary>
+    /// Raised when <see cref="Wellbeing"/> is replaced — currently only by a career-role switch.
+    /// Bound UI re-binds rather than holding a stale service.
+    /// </summary>
+    public event Action<IWellbeingService>? WellbeingReplaced;
+
+    /// <summary>
+    /// Switch the career between player and manager, keeping the need gauges exactly where they
+    /// are and only re-tuning how they behave.
+    ///
+    /// <para>
+    /// This is the whole thesis made operable: the same eight needs, the same save row, a different
+    /// <see cref="NeedProfile"/>. Nothing is reset, because a manager is the same person who was
+    /// tired yesterday.
+    /// </para>
+    /// </summary>
+    public void SwitchCareerRole(CareerRole role)
+    {
+        if (Career is null || Wellbeing.Role == role)
+            return;
+
+        using (SqliteCommand command = _connection!.CreateCommand())
+        {
+            command.CommandText = "UPDATE Career SET Role = $role WHERE Id = $id;";
+            command.Parameters.AddWithValue("$role", role.ToString());
+            command.Parameters.AddWithValue("$id", ActiveCareerId);
+            command.ExecuteNonQuery();
+        }
+
+        Career = Career with { Role = role };
+
+        WellbeingState carried = WellbeingState.FromValues(role, Wellbeing.State.ToDictionary());
+        var repository = new SqliteWellbeingRepository(_connection!);
+        repository.Save(ActiveCareerId, carried);
+        Wellbeing = new WellbeingService(
+            carried, new LifeSimulator(), _rng, repository, ActiveCareerId, Economy, Career.HumanPlayerId);
+
+        GD.Print($"[GameBootstrap] Career role switched to {role}.");
+        WellbeingReplaced?.Invoke(Wellbeing);
+    }
 
     /// <summary>Move the human to a venue. Throws on an unknown id (fail-fast).</summary>
     public void TravelTo(string locationId)
@@ -86,6 +139,7 @@ public partial class GameBootstrap : Node
     // via DeterministicRng.CreateStream(MasterSeed, fixtureId, ...) once the LOD threads a seed per match.
     private IDeterministicRandom _rng = null!;
     private IFixtureGateway _gateway = null!;
+    private IPlayerStateService _playerState = null!;
     private SqliteConnection? _connection;
 
     public override void _Ready()
@@ -109,6 +163,9 @@ public partial class GameBootstrap : Node
         int? humanTeamId = Career?.HumanTeamId;
 
         Text = new Localizer(StringCatalogue.DefaultLocale);
+        Economy = new SqliteEconomyService(_connection);
+        _playerState = new SqlitePlayerStateService(_connection);
+        HumanPlayer = Career is null ? null : _playerState.Load(Career.HumanPlayerId);
         World = new TestWorldGazetteer();
         CurrentLocation = World.Find(World.HomeLocationId)!;
 
@@ -164,12 +221,31 @@ public partial class GameBootstrap : Node
         // Null means this career has never been advanced; seed the default gauges and write them
         // through so the very first day advances from a known state rather than an empty table.
         WellbeingState state = repository.Load(ActiveCareerId, role) ?? WellbeingState.CreateDefault(role);
-        var service = new WellbeingService(state, new LifeSimulator(), _rng, repository, ActiveCareerId);
+        var service = new WellbeingService(
+            state, new LifeSimulator(), _rng, repository, ActiveCareerId, Economy, Career.HumanPlayerId);
         repository.Save(ActiveCareerId, state);
         return service;
     }
 
-    private void OnDayElapsed(DateTime date) => Wellbeing.AdvanceDay(date);
+    /// <summary>
+    /// Each simulated day drains the needs, and the resulting form is pushed onto the human's player
+    /// and persisted. This is the call site that makes the life-sim load-bearing: without it the
+    /// form modifier is computed and displayed but never applied to anything.
+    /// </summary>
+    private void OnDayElapsed(DateTime date)
+    {
+        Wellbeing.AdvanceDay(date);
+
+        if (HumanPlayer is null || Career is null)
+            return;
+
+        Wellbeing.SyncFormMood(HumanPlayer);
+
+        // FormMood is keyed by season. A save with no season open simply does not persist form
+        // rather than inventing a season id to hang it on.
+        if (_playerState.GetCurrentSeasonId(Career.HumanTeamId) is int seasonId)
+            _playerState.SaveFormMood(HumanPlayer.Id, seasonId, HumanPlayer.FormMood, date);
+    }
 
     /// <summary>True if a club with this id exists in the world. Used by the match-entry guard.</summary>
     public bool ClubExists(int clubId)

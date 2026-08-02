@@ -76,6 +76,14 @@ public sealed class LocalizationTests
         yield return LocKeys.PromptMenu;
         yield return LocKeys.PromptPhone;
         yield return LocKeys.PromptTravel;
+        yield return LocKeys.PhoneAppBank;
+        yield return LocKeys.BankBalance;
+        yield return LocKeys.BankWeeklyWage;
+        yield return LocKeys.MenuTitle;
+        yield return LocKeys.MenuCareerRole;
+        yield return LocKeys.MenuRoleHint;
+        yield return LocKeys.MenuResume;
+        yield return LocKeys.ActivityUnaffordable;
         yield return LocKeys.DerivedInjuryRisk;
         yield return LocKeys.DerivedStress;
         yield return LocKeys.DerivedDecisionQuality;

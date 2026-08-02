@@ -297,7 +297,7 @@ point — nothing outside the life-sim inspects raw gauges. Each field lands in 
 
 | Snapshot field | Consumer | Effect |
 | --- | --- | --- |
-| `FormModifier` (−5..+5) | `Player.FormMood` | `EffectiveAttributes` already applies FormMood, so wellbeing reaches the pitch with no match-engine change. Arcade mode (`applyForm: false`) still bypasses it. |
+| `FormModifier` (−5..+5) | `Player.FormMood` | `EffectiveAttributes` already applies FormMood, so wellbeing reaches the pitch with no match-engine change. Arcade mode (`applyForm: false`) still bypasses it. **Driven from `GameBootstrap.OnDayElapsed`**, which loads the human via `IPlayerStateService`, syncs form, and persists it to the season-keyed `FormMood` table. |
 | `EventProbabilityMultiplier` | `EventRollContext.GlobalProbabilityMultiplier` | `EventManager.RollForDay` already multiplies this into every probability, so a struggling career attracts more life events. Anchored so index 75 ⇒ ×1.0, clamped to ×0.75..×1.75. |
 | `InjuryRisk` | training / match layer (player) | Driven by `Fitness`, `MuscleCondition` and `Energy` deficits. |
 | `Stress` | both roles | The mockups' "Estresse", as a consequence: it falls because the needs that cause it were serviced. |
@@ -328,6 +328,19 @@ long-form (one row per need) so adding a seventh need is a data change, not a mi
 round-trip as enum *names*, so reordering `NeedKind` can never reinterpret a saved gauge. A
 partially-saved state throws rather than letting a missing gauge default to zero and read as a
 critical deficit the human never earned.
+
+## Economy
+
+[`IEconomyService`](../src/SoccerSim.Core/Economy/EconomyTypes.cs) is implemented over
+`PlayerFinances` + `Transactions` (migration 0004). Every balance change writes its ledger row **in
+the same transaction** as the balance update, so a spending-breakdown screen can never disagree with
+the balance it is explaining, and a refused charge leaves neither behind.
+
+`LifeActivity.Cost` is charged through it, **before** the needs move — a failed payment must not
+grant the benefit and then discover the wallet was empty. `IWellbeingService.CanAfford` lets the UI
+disable what cannot be paid for rather than offering a button that always throws. Both the economy
+and persistence are optional constructor arguments, so the life-sim still runs headless with no
+wallet behind it.
 
 ## Localisation
 

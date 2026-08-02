@@ -36,8 +36,15 @@ public interface IWellbeingService
     IReadOnlyList<NeedAlert> AdvanceDay(DateTime date);
 
     /// <summary>
-    /// Perform an activity by catalogue key, persist, and log it. Throws when the key is unknown or
-    /// the activity is not available to <see cref="Role"/>.
+    /// True when the human can pay for this activity. Always true when it is free or when no
+    /// economy is wired. The UI disables what cannot be afforded rather than letting it be clicked
+    /// and refused.
+    /// </summary>
+    bool CanAfford(string activityKey);
+
+    /// <summary>
+    /// Perform an activity by catalogue key, charge it, persist, and log it. Throws when the key is
+    /// unknown, the activity is not available to <see cref="Role"/>, or it cannot be afforded.
     /// </summary>
     ActivityOutcome Perform(string activityKey, DateTime date);
 

@@ -63,6 +63,8 @@ public partial class LifeSimScene : Node2D
         // Which activities exist depends on where the human is standing, so the bar re-filters on
         // every move rather than being rebuilt by whoever triggered the travel.
         GameBootstrap.Instance.LocationChanged += OnLocationChanged;
+        // A career-role switch replaces the service; re-bind rather than holding the orphaned one.
+        GameBootstrap.Instance.WellbeingReplaced += OnWellbeingReplaced;
 
         _log = new Label
         {
@@ -76,8 +78,17 @@ public partial class LifeSimScene : Node2D
 
     public override void _ExitTree()
     {
-        if (GameBootstrap.Instance is not null)
-            GameBootstrap.Instance.LocationChanged -= OnLocationChanged;
+        if (GameBootstrap.Instance is null)
+            return;
+
+        GameBootstrap.Instance.LocationChanged -= OnLocationChanged;
+        GameBootstrap.Instance.WellbeingReplaced -= OnWellbeingReplaced;
+    }
+
+    private void OnWellbeingReplaced(IWellbeingService wellbeing)
+    {
+        _needs.Bind(wellbeing, _text);
+        _activities.Bind(wellbeing, _text, GameBootstrap.Instance.CurrentLocation);
     }
 
     public override void _Process(double delta) =>

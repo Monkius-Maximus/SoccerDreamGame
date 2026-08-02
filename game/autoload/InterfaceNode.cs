@@ -1,6 +1,7 @@
 using Godot;
 using SoccerDreamGame.Ui;
 using SoccerDreamGame.Ui.Input;
+using SoccerSim.Core.LifeSim;
 using SoccerSim.Core.Localization;
 using SoccerSim.Core.World;
 
@@ -24,6 +25,7 @@ public partial class InterfaceNode : Node
     public static InterfaceNode Instance { get; private set; } = null!;
 
     private PhoneOverlay _phone = null!;
+    private QuickMenuOverlay _menu = null!;
     private InputPromptBar _prompts = null!;
     private ILocalizer _text = null!;
     private InputDevice _device = InputDevice.Keyboard;
@@ -52,6 +54,14 @@ public partial class InterfaceNode : Node
         _phone.Configure(_text, BuildApps());
         _phone.VisibilityToggled += _ => RefreshPrompts();
 
+        // The quick menu is added after the phone, so it draws on top when both could be open.
+        _menu = new QuickMenuOverlay();
+        layer.AddChild(_menu);
+        _menu.Configure(_text);
+        _menu.VisibilityToggled += _ => RefreshPrompts();
+        _menu.RoleSwitchRequested += OnRoleSwitchRequested;
+        _menu.ShowRole(GameBootstrap.Instance.Wellbeing.Role);
+
         RefreshPrompts();
     }
 
@@ -66,10 +76,33 @@ public partial class InterfaceNode : Node
             return;
         }
 
-        // Esc / Start: dismiss whatever is open, otherwise it is the quick menu. Routing it through
-        // the phone first is what makes one key step back out of an app before closing the device.
-        if (@event.IsActionPressed(GameInput.ActionMenu) && _phone.HandleDismiss())
+        if (!@event.IsActionPressed(GameInput.ActionMenu))
+            return;
+
+        // Esc / Start walks one step out at a time: inside a phone app -> the phone's home screen;
+        // phone open -> closed; menu open -> closed; nothing open -> open the menu. One key, and it
+        // always does the least surprising thing.
+        if (_phone.HandleDismiss() || _menu.HandleDismiss())
+        {
             GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        _menu.Toggle();
+        GetViewport().SetInputAsHandled();
+    }
+
+    /// <summary>
+    /// Switch career and re-bind everything that held the old service. The gauges are carried over
+    /// untouched — see <c>GameBootstrap.SwitchCareerRole</c>.
+    /// </summary>
+    private void OnRoleSwitchRequested(CareerRole role)
+    {
+        GameBootstrap.Instance.SwitchCareerRole(role);
+        _menu.ShowRole(GameBootstrap.Instance.Wellbeing.Role);
+        // Rebuild the apps so the health view binds to the replacement service rather than the
+        // orphaned one.
+        _phone.Configure(_text, BuildApps());
     }
 
     /// <summary>
@@ -141,7 +174,25 @@ public partial class InterfaceNode : Node
         new PhoneApp("health", LocKeys.PhoneAppHealth, BuildHealthApp),
         new PhoneApp("agenda", LocKeys.PhoneAppAgenda, BuildAgendaApp),
         new PhoneApp("map", LocKeys.PhoneAppMap, BuildMapApp),
+        new PhoneApp("bank", LocKeys.PhoneAppBank, BuildBankApp),
     ];
+
+    private Control BuildBankApp()
+    {
+        var column = new VBoxContainer();
+        column.AddThemeConstantOverride("separation", UiTokens.SpaceSm);
+
+        GameBootstrap game = GameBootstrap.Instance;
+        int walletId = game.Career?.HumanPlayerId ?? 1;
+
+        // Reads the live PlayerFinances balance — the same one an activity's cost is debited from,
+        // so what this screen shows and what the action bar can afford cannot disagree.
+        column.AddChild(Row(
+            _text.Get(LocKeys.BankBalance),
+            game.Economy.GetBalance(walletId).ToString("N0")));
+
+        return column;
+    }
 
     private Control BuildHealthApp()
     {
