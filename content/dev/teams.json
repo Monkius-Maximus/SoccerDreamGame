@@ -5,7 +5,12 @@
     "name": "Atletico Sur",
     "leagueKey": "la-liga-mayor",
     "budget": 7500000,
-    "eloRating": 1668
+    "eloRating": 1668,
+    "shortName": "ASU",
+    "nationKey": "iberia",
+    "stadiumKey": "estadio-del-sur",
+    "foundedYear": 1923,
+    "reputation": 80
   },
   {
     "id": 3,
@@ -13,7 +18,12 @@
     "name": "Costa Real",
     "leagueKey": "la-liga-mayor",
     "budget": 9000000,
-    "eloRating": 1710
+    "eloRating": 1710,
+    "shortName": "CRE",
+    "nationKey": "iberia",
+    "stadiumKey": "parque-costa",
+    "foundedYear": 1899,
+    "reputation": 86
   },
   {
     "id": 2,
@@ -21,7 +31,12 @@
     "name": "Hilltop United",
     "leagueKey": "premier-division",
     "budget": 4200000,
-    "eloRating": 1555
+    "eloRating": 1555,
+    "shortName": "HIL",
+    "nationKey": "homeland",
+    "stadiumKey": "hilltop-arena",
+    "foundedYear": 1911,
+    "reputation": 68
   },
   {
     "id": 6,
@@ -29,7 +44,12 @@
     "name": "Lakeside Town",
     "leagueKey": "regional-north",
     "budget": 120000,
-    "eloRating": 1390
+    "eloRating": 1390,
+    "shortName": "LKT",
+    "nationKey": "homeland",
+    "stadiumKey": "lakeside-field",
+    "foundedYear": 1934,
+    "reputation": 28
   },
   {
     "id": 5,
@@ -37,7 +57,12 @@
     "name": "North Rovers",
     "leagueKey": "regional-north",
     "budget": 150000,
-    "eloRating": 1420
+    "eloRating": 1420,
+    "shortName": "NRO",
+    "nationKey": "homeland",
+    "stadiumKey": "north-ground",
+    "foundedYear": 1888,
+    "reputation": 34
   },
   {
     "id": 1,
@@ -45,6 +70,11 @@
     "name": "Riverside FC",
     "leagueKey": "premier-division",
     "budget": 5000000,
-    "eloRating": 1620
+    "eloRating": 1620,
+    "shortName": "RIV",
+    "nationKey": "homeland",
+    "stadiumKey": "riverside-park",
+    "foundedYear": 1902,
+    "reputation": 74
   }
 ]

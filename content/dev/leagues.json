@@ -4,20 +4,35 @@
     "key": "la-liga-mayor",
     "name": "La Liga Mayor",
     "country": "Iberia",
-    "tier": "MajorForeign"
+    "tier": "MajorForeign",
+    "competitionKey": "iberian-championship",
+    "nationKey": "iberia",
+    "pyramidLevel": 1,
+    "promotionSlots": 0,
+    "relegationSlots": 2
   },
   {
     "id": 1,
     "key": "premier-division",
     "name": "Premier Division",
     "country": "Homeland",
-    "tier": "ActiveHuman"
+    "tier": "ActiveHuman",
+    "competitionKey": "homeland-pyramid",
+    "nationKey": "homeland",
+    "pyramidLevel": 1,
+    "promotionSlots": 0,
+    "relegationSlots": 2
   },
   {
     "id": 3,
     "key": "regional-north",
     "name": "Regional North",
     "country": "Homeland",
-    "tier": "Minor"
+    "tier": "Minor",
+    "competitionKey": "homeland-pyramid",
+    "nationKey": "homeland",
+    "pyramidLevel": 2,
+    "promotionSlots": 2,
+    "relegationSlots": 0
   }
 ]

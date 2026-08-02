@@ -1,4 +1,5 @@
 using SoccerSim.Core.Simulation;
+using SoccerSim.Core.Tactics;
 
 namespace SoccerSim.Content.Model;
 
@@ -32,6 +33,18 @@ public sealed record ContentLeague : IContentEntity
 
     /// <summary>Level-of-detail tier; controls how this league's matches are resolved.</summary>
     public SimulationTier Tier { get; init; } = SimulationTier.Minor;
+
+    /// <summary>The tournament this division belongs to. Null while unassigned.</summary>
+    public string? CompetitionKey { get; init; }
+
+    public string? NationKey { get; init; }
+
+    /// <summary>1 = top flight. Drives promotion/relegation between divisions.</summary>
+    public int PyramidLevel { get; init; } = 1;
+
+    public int PromotionSlots { get; init; }
+
+    public int RelegationSlots { get; init; }
 }
 
 /// <summary>A club. Maps to the <c>Teams</c> table.</summary>
@@ -49,6 +62,16 @@ public sealed record ContentTeam : IContentEntity
     public long Budget { get; init; }
 
     public int EloRating { get; init; } = 1500;
+
+    public string? ShortName { get; init; }
+
+    public string? NationKey { get; init; }
+
+    public string? StadiumKey { get; init; }
+
+    public int? FoundedYear { get; init; }
+
+    public int Reputation { get; init; } = 50;
 }
 
 /// <summary>
@@ -102,6 +125,26 @@ public sealed record ContentPlayer : IContentEntity
 
     /// <summary><see cref="ContentTrait.Key"/> values assigned at generation.</summary>
     public IReadOnlyList<string> TraitKeys { get; init; } = [];
+
+    public DateTime? DateOfBirth { get; init; }
+
+    public string? NationKey { get; init; }
+
+    public PreferredFoot PreferredFoot { get; init; } = PreferredFoot.Right;
+
+    /// <summary>
+    /// Deliberately the lean <see cref="SoccerSim.Core.Tactics.PlayerRole"/> vocabulary rather
+    /// than a 14-position taxonomy: the on-pitch AI reasons in roles plus formation slots, so a
+    /// finer position list would be authored data nothing could act on. Side preference lives in
+    /// <see cref="Flank"/>, which together with the role is what a formation slot needs.
+    /// </summary>
+    public PlayerRole PrimaryRole { get; init; } = PlayerRole.Midfielder;
+
+    public Flank Flank { get; init; } = Flank.Centre;
+
+    public int? SquadNumber { get; init; }
+
+    public int? HeightCm { get; init; }
 }
 
 /// <summary>A personality trait in the catalogue. Maps to <c>PlayerTraits</c>.</summary>

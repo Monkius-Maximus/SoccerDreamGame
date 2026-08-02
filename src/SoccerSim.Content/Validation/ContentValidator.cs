@@ -23,6 +23,11 @@ public sealed class ContentValidator
 
         // Identity first: everything downstream resolves references by key, so duplicate or
         // malformed keys would make the later rules report nonsense.
+        CheckIdentity(bundle.Nations, ContentCategory.Nations, issues);
+        CheckIdentity(bundle.Stadiums, ContentCategory.Stadiums, issues);
+        CheckIdentity(bundle.Competitions, ContentCategory.Competitions, issues);
+        CheckIdentity(bundle.Coaches, ContentCategory.Coaches, issues);
+        CheckIdentity(bundle.Contracts, ContentCategory.Contracts, issues);
         CheckIdentity(bundle.Traits, ContentCategory.Traits, issues);
         CheckIdentity(bundle.Leagues, ContentCategory.Leagues, issues);
         CheckIdentity(bundle.Teams, ContentCategory.Teams, issues);
@@ -36,17 +41,238 @@ public sealed class ContentValidator
         var teamKeys = ToKeySet(bundle.Teams);
         var playerKeys = ToKeySet(bundle.Players);
         var seasonKeys = ToKeySet(bundle.World.Seasons);
+        var nationKeys = ToKeySet(bundle.Nations);
+        var stadiumKeys = ToKeySet(bundle.Stadiums);
+        var competitionKeys = ToKeySet(bundle.Competitions);
+        var coachKeys = ToKeySet(bundle.Coaches);
 
+        CheckNations(bundle, issues);
+        CheckStadiums(bundle, nationKeys, issues);
+        CheckCompetitions(bundle, nationKeys, issues);
         CheckTraits(bundle, issues);
-        CheckLeagues(bundle, issues);
-        CheckTeams(bundle, leagueKeys, issues);
-        CheckPlayers(bundle, teamKeys, traitKeys, issues);
+        CheckLeagues(bundle, competitionKeys, nationKeys, issues);
+        CheckTeams(bundle, leagueKeys, nationKeys, stadiumKeys, issues);
+        CheckPlayers(bundle, teamKeys, traitKeys, nationKeys, issues);
+        CheckCoaches(bundle, teamKeys, nationKeys, issues);
+        CheckContracts(bundle, playerKeys, coachKeys, teamKeys, issues);
         CheckHousingItems(bundle, issues);
         CheckWorld(bundle, leagueKeys, teamKeys, playerKeys, seasonKeys, issues);
         CheckSquads(bundle, issues);
 
         return new ContentValidationResult { Issues = issues };
     }
+
+    private static void CheckNations(ContentBundle bundle, List<ContentIssue> issues)
+    {
+        var seenCodes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (ContentNation nation in bundle.Nations)
+        {
+            RequireText(nation.Name, ContentCategory.Nations, nation.Key, nameof(nation.Name), issues);
+            RequireRange(nation.Reputation, 0, 100, ContentCategory.Nations, nation.Key,
+                nameof(nation.Reputation), issues);
+
+            if (nation.Code?.Length != 3)
+            {
+                issues.Add(Error(Codes.NationCode, ContentCategory.Nations, nation.Key, nameof(nation.Code),
+                    $"Country code must be exactly 3 characters, got '{nation.Code}'."));
+            }
+            else if (!seenCodes.TryAdd(nation.Code, nation.Key))
+            {
+                // The column is UNIQUE, so this would otherwise fail as a constraint violation
+                // deep inside the import with no indication of which two nations clashed.
+                issues.Add(Error(Codes.NationCode, ContentCategory.Nations, nation.Key, nameof(nation.Code),
+                    $"Code '{nation.Code}' is already used by '{seenCodes[nation.Code]}'."));
+            }
+        }
+    }
+
+    private static void CheckStadiums(
+        ContentBundle bundle, IReadOnlySet<string> nationKeys, List<ContentIssue> issues)
+    {
+        foreach (ContentStadium stadium in bundle.Stadiums)
+        {
+            RequireText(stadium.Name, ContentCategory.Stadiums, stadium.Key, nameof(stadium.Name), issues);
+            RequireOptionalRef(stadium.NationKey, nationKeys, ContentCategory.Stadiums, stadium.Key,
+                nameof(stadium.NationKey), ContentCategory.Nations, issues);
+
+            // Bounds mirror the laws of the game and the CHECK constraints in 0007.
+            RequireRange(stadium.PitchLengthM, 90, 120, ContentCategory.Stadiums, stadium.Key,
+                nameof(stadium.PitchLengthM), issues);
+            RequireRange(stadium.PitchWidthM, 45, 90, ContentCategory.Stadiums, stadium.Key,
+                nameof(stadium.PitchWidthM), issues);
+
+            if (stadium.Capacity < 0)
+            {
+                issues.Add(Error(Codes.Range, ContentCategory.Stadiums, stadium.Key, nameof(stadium.Capacity),
+                    $"Capacity must not be negative, got {stadium.Capacity}."));
+            }
+        }
+    }
+
+    private static void CheckCompetitions(
+        ContentBundle bundle, IReadOnlySet<string> nationKeys, List<ContentIssue> issues)
+    {
+        foreach (ContentCompetition competition in bundle.Competitions)
+        {
+            RequireText(competition.Name, ContentCategory.Competitions, competition.Key,
+                nameof(competition.Name), issues);
+            RequireOptionalRef(competition.NationKey, nationKeys, ContentCategory.Competitions,
+                competition.Key, nameof(competition.NationKey), ContentCategory.Nations, issues);
+            RequireRange(competition.Reputation, 0, 100, ContentCategory.Competitions, competition.Key,
+                nameof(competition.Reputation), issues);
+
+            int divisions = bundle.Leagues.Count(l =>
+                string.Equals(l.CompetitionKey, competition.Key, StringComparison.Ordinal));
+
+            // A cup still needs exactly one division row, because Matches.LeagueId is what the
+            // LOD router reads — a cup fixture with nowhere to point could not be resolved.
+            if (competition.Format == CompetitionFormat.Cup && divisions != 1)
+            {
+                issues.Add(Error(Codes.CompetitionDivisions, ContentCategory.Competitions, competition.Key,
+                    nameof(competition.Format),
+                    $"A cup must own exactly one division for fixture routing, found {divisions}."));
+            }
+            else if (competition.Format == CompetitionFormat.League && divisions == 0)
+            {
+                issues.Add(new ContentIssue
+                {
+                    Severity = IssueSeverity.Warning,
+                    Code = Codes.CompetitionDivisions,
+                    Category = ContentCategory.Competitions,
+                    EntityKey = competition.Key,
+                    Message = "No divisions belong to this competition yet.",
+                });
+            }
+
+            if (competition.PointsWin < competition.PointsDraw)
+            {
+                issues.Add(Error(Codes.Range, ContentCategory.Competitions, competition.Key,
+                    nameof(competition.PointsWin),
+                    $"A win ({competition.PointsWin}) must be worth at least as much as a draw "
+                    + $"({competition.PointsDraw})."));
+            }
+        }
+    }
+
+    private static void CheckCoaches(
+        ContentBundle bundle,
+        IReadOnlySet<string> teamKeys,
+        IReadOnlySet<string> nationKeys,
+        List<ContentIssue> issues)
+    {
+        var headCoachByTeam = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (ContentCoach coach in bundle.Coaches)
+        {
+            RequireText(coach.FirstName, ContentCategory.Coaches, coach.Key, nameof(coach.FirstName), issues);
+            RequireText(coach.LastName, ContentCategory.Coaches, coach.Key, nameof(coach.LastName), issues);
+            RequireOptionalRef(coach.TeamKey, teamKeys, ContentCategory.Coaches, coach.Key,
+                nameof(coach.TeamKey), ContentCategory.Teams, issues);
+            RequireOptionalRef(coach.NationKey, nationKeys, ContentCategory.Coaches, coach.Key,
+                nameof(coach.NationKey), ContentCategory.Nations, issues);
+
+            foreach ((string field, int value) in new[]
+                     {
+                         (nameof(coach.Coaching), coach.Coaching),
+                         (nameof(coach.TacticalKnowledge), coach.TacticalKnowledge),
+                         (nameof(coach.ManManagement), coach.ManManagement),
+                         (nameof(coach.Fitness), coach.Fitness),
+                         (nameof(coach.Scouting), coach.Scouting),
+                     })
+            {
+                RequireRange(value, PlayerAttributes.MinValue, PlayerAttributes.MaxValue,
+                    ContentCategory.Coaches, coach.Key, field, issues);
+            }
+
+            if (!Mentalities.Contains(coach.PreferredMentality))
+            {
+                issues.Add(Error(Codes.EnumInvalid, ContentCategory.Coaches, coach.Key,
+                    nameof(coach.PreferredMentality),
+                    $"'{coach.PreferredMentality}' is not a known mentality. Expected one of: "
+                    + string.Join(", ", Mentalities)));
+            }
+
+            if (coach.Role == CoachRole.HeadCoach && coach.TeamKey is not null
+                && !headCoachByTeam.TryAdd(coach.TeamKey, coach.Key))
+            {
+                issues.Add(Error(Codes.DuplicateHeadCoach, ContentCategory.Coaches, coach.Key,
+                    nameof(coach.Role),
+                    $"'{coach.TeamKey}' already has head coach '{headCoachByTeam[coach.TeamKey]}'."));
+            }
+        }
+    }
+
+    private static void CheckContracts(
+        ContentBundle bundle,
+        IReadOnlySet<string> playerKeys,
+        IReadOnlySet<string> coachKeys,
+        IReadOnlySet<string> teamKeys,
+        List<ContentIssue> issues)
+    {
+        foreach (ContentContract contract in bundle.Contracts)
+        {
+            RequireRef(contract.TeamKey, teamKeys, ContentCategory.Contracts, contract.Key,
+                nameof(contract.TeamKey), ContentCategory.Teams, issues);
+            RequireOptionalRef(contract.PlayerKey, playerKeys, ContentCategory.Contracts, contract.Key,
+                nameof(contract.PlayerKey), ContentCategory.Players, issues);
+            RequireOptionalRef(contract.CoachKey, coachKeys, ContentCategory.Contracts, contract.Key,
+                nameof(contract.CoachKey), ContentCategory.Coaches, issues);
+
+            // Mirrors the XOR CHECK in 0007: a contract binds exactly one person.
+            if ((contract.PlayerKey is null) == (contract.CoachKey is null))
+            {
+                issues.Add(Error(Codes.ContractSubject, ContentCategory.Contracts, contract.Key,
+                    nameof(contract.PlayerKey),
+                    "A contract must name exactly one of playerKey or coachKey."));
+            }
+
+            if (contract.EndDate <= contract.StartDate)
+            {
+                issues.Add(Error(Codes.ContractDates, ContentCategory.Contracts, contract.Key,
+                    nameof(contract.EndDate),
+                    $"End date {contract.EndDate:yyyy-MM-dd} must be after start date "
+                    + $"{contract.StartDate:yyyy-MM-dd}."));
+            }
+
+            if (contract.WeeklyWage < 0)
+            {
+                issues.Add(Error(Codes.Range, ContentCategory.Contracts, contract.Key,
+                    nameof(contract.WeeklyWage),
+                    $"Weekly wage must not be negative, got {contract.WeeklyWage}."));
+            }
+        }
+
+        CheckOverlappingContracts(bundle, issues);
+    }
+
+    private static void CheckOverlappingContracts(ContentBundle bundle, List<ContentIssue> issues)
+    {
+        IEnumerable<IGrouping<string, ContentContract>> bySubject = bundle.Contracts
+            .Where(c => c.PlayerKey is not null || c.CoachKey is not null)
+            .GroupBy(c => c.PlayerKey ?? c.CoachKey!, StringComparer.Ordinal);
+
+        foreach (IGrouping<string, ContentContract> group in bySubject)
+        {
+            List<ContentContract> ordered = group.OrderBy(c => c.StartDate).ToList();
+            for (int i = 1; i < ordered.Count; i++)
+            {
+                if (ordered[i].StartDate < ordered[i - 1].EndDate)
+                {
+                    issues.Add(Error(Codes.ContractOverlap, ContentCategory.Contracts, ordered[i].Key,
+                        nameof(ContentContract.StartDate),
+                        $"Overlaps '{ordered[i - 1].Key}', which runs to "
+                        + $"{ordered[i - 1].EndDate:yyyy-MM-dd}. One person cannot hold two "
+                        + "contracts at the same time."));
+                }
+            }
+        }
+    }
+
+    private static readonly HashSet<string> Mentalities = new(StringComparer.Ordinal)
+    {
+        "VeryDefensive", "Defensive", "Balanced", "Attacking", "VeryAttacking",
+    };
 
     private static void CheckIdentity<T>(IReadOnlyList<T> entities, string category, List<ContentIssue> issues)
         where T : IContentEntity
@@ -131,12 +357,22 @@ public sealed class ContentValidator
         }
     }
 
-    private static void CheckLeagues(ContentBundle bundle, List<ContentIssue> issues)
+    private static void CheckLeagues(
+        ContentBundle bundle,
+        IReadOnlySet<string> competitionKeys,
+        IReadOnlySet<string> nationKeys,
+        List<ContentIssue> issues)
     {
         foreach (ContentLeague league in bundle.Leagues)
         {
             RequireText(league.Name, ContentCategory.Leagues, league.Key, nameof(league.Name), issues);
             RequireText(league.Country, ContentCategory.Leagues, league.Key, nameof(league.Country), issues);
+            RequireOptionalRef(league.CompetitionKey, competitionKeys, ContentCategory.Leagues, league.Key,
+                nameof(league.CompetitionKey), ContentCategory.Competitions, issues);
+            RequireOptionalRef(league.NationKey, nationKeys, ContentCategory.Leagues, league.Key,
+                nameof(league.NationKey), ContentCategory.Nations, issues);
+            RequireRange(league.PyramidLevel, 1, 10, ContentCategory.Leagues, league.Key,
+                nameof(league.PyramidLevel), issues);
 
             if (!Enum.IsDefined(league.Tier))
             {
@@ -146,13 +382,24 @@ public sealed class ContentValidator
         }
     }
 
-    private static void CheckTeams(ContentBundle bundle, IReadOnlySet<string> leagueKeys, List<ContentIssue> issues)
+    private static void CheckTeams(
+        ContentBundle bundle,
+        IReadOnlySet<string> leagueKeys,
+        IReadOnlySet<string> nationKeys,
+        IReadOnlySet<string> stadiumKeys,
+        List<ContentIssue> issues)
     {
         foreach (ContentTeam team in bundle.Teams)
         {
             RequireText(team.Name, ContentCategory.Teams, team.Key, nameof(team.Name), issues);
             RequireRef(team.LeagueKey, leagueKeys, ContentCategory.Teams, team.Key,
                 nameof(team.LeagueKey), ContentCategory.Leagues, issues);
+            RequireOptionalRef(team.NationKey, nationKeys, ContentCategory.Teams, team.Key,
+                nameof(team.NationKey), ContentCategory.Nations, issues);
+            RequireOptionalRef(team.StadiumKey, stadiumKeys, ContentCategory.Teams, team.Key,
+                nameof(team.StadiumKey), ContentCategory.Stadiums, issues);
+            RequireRange(team.Reputation, 0, 100, ContentCategory.Teams, team.Key,
+                nameof(team.Reputation), issues);
 
             if (team.Budget < 0)
             {
@@ -166,6 +413,7 @@ public sealed class ContentValidator
         ContentBundle bundle,
         IReadOnlySet<string> teamKeys,
         IReadOnlySet<string> traitKeys,
+        IReadOnlySet<string> nationKeys,
         List<ContentIssue> issues)
     {
         foreach (ContentPlayer player in bundle.Players)
@@ -174,10 +422,15 @@ public sealed class ContentValidator
             RequireText(player.LastName, ContentCategory.Players, player.Key, nameof(player.LastName), issues);
 
             // A null TeamKey is a free agent, which is legitimate; a non-null one must resolve.
-            if (player.TeamKey is not null)
+            RequireOptionalRef(player.TeamKey, teamKeys, ContentCategory.Players, player.Key,
+                nameof(player.TeamKey), ContentCategory.Teams, issues);
+            RequireOptionalRef(player.NationKey, nationKeys, ContentCategory.Players, player.Key,
+                nameof(player.NationKey), ContentCategory.Nations, issues);
+
+            if (player.SquadNumber is int number && number is < 1 or > 99)
             {
-                RequireRef(player.TeamKey, teamKeys, ContentCategory.Players, player.Key,
-                    nameof(player.TeamKey), ContentCategory.Teams, issues);
+                issues.Add(Error(Codes.Range, ContentCategory.Players, player.Key,
+                    nameof(player.SquadNumber), $"Squad number must be between 1 and 99, got {number}."));
             }
 
             foreach ((string name, int value) in player.Attributes.Enumerate())
@@ -397,6 +650,22 @@ public sealed class ContentValidator
         }
     }
 
+    /// <summary>A reference that may legitimately be absent, but must resolve when present.</summary>
+    private static void RequireOptionalRef(
+        string? value,
+        IReadOnlySet<string> known,
+        string category,
+        string entityKey,
+        string field,
+        string targetCategory,
+        List<ContentIssue> issues)
+    {
+        if (value is null)
+            return;
+
+        RequireRef(value, known, category, entityKey, field, targetCategory, issues);
+    }
+
     private static ContentIssue Error(string code, string category, string entityKey, string field, string message)
         => new()
         {
@@ -443,5 +712,11 @@ public sealed class ContentValidator
         public const string CareerNoTeam = "CAREER_NO_TEAM";
         public const string SquadTooSmall = "SQUAD_TOO_SMALL";
         public const string LeagueTooSmall = "LEAGUE_TOO_SMALL";
+        public const string NationCode = "NATION_CODE";
+        public const string CompetitionDivisions = "COMPETITION_DIVISIONS";
+        public const string DuplicateHeadCoach = "DUPLICATE_HEAD_COACH";
+        public const string ContractSubject = "CONTRACT_SUBJECT";
+        public const string ContractDates = "CONTRACT_DATES";
+        public const string ContractOverlap = "CONTRACT_OVERLAP";
     }
 }

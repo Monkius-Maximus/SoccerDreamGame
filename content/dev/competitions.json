@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "key": "homeland-pyramid",
+    "name": "Homeland Football Pyramid",
+    "shortName": "HFP",
+    "nationKey": "homeland",
+    "format": "League",
+    "scope": "Domestic",
+    "reputation": 72,
+    "pointsWin": 3,
+    "pointsDraw": 1
+  },
+  {
+    "id": 2,
+    "key": "iberian-championship",
+    "name": "Iberian Championship",
+    "shortName": "IBC",
+    "nationKey": "iberia",
+    "format": "League",
+    "scope": "Domestic",
+    "reputation": 84,
+    "pointsWin": 3,
+    "pointsDraw": 1
+  }
+]

@@ -1,14 +1,19 @@
 {
   "formatVersion": 1,
   "contentVersion": 1,
-  "buildId": "2026-08-02T20:03:25Z",
+  "buildId": "2026-08-02T20:20:55Z",
   "generator": "SoccerSim.ContentCli 0.1.0",
-  "contentHash": "sha256:c399dc474e7f0170be5ed0549449a800c9514d9973c809bef7f148ad34e7f58c",
+  "contentHash": "sha256:06034a049bded4e1e9102486de69e4c07186cdd96b9ee5810a8cb7e7f715739f",
   "counts": {
+    "nations": 2,
+    "stadiums": 6,
+    "competitions": 2,
     "traits": 3,
     "leagues": 3,
     "teams": 6,
     "players": 12,
+    "coaches": 7,
+    "contracts": 11,
     "housing_items": 3,
     "seasons": 3,
     "fixtures": 2

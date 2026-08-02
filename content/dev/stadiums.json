@@ -1,0 +1,74 @@
+[
+  {
+    "id": 4,
+    "key": "estadio-del-sur",
+    "name": "Estadio del Sur",
+    "nationKey": "iberia",
+    "city": "Valdemar",
+    "capacity": 38000,
+    "pitchLengthM": 105,
+    "pitchWidthM": 68,
+    "surface": "Grass",
+    "yearBuilt": 1974
+  },
+  {
+    "id": 2,
+    "key": "hilltop-arena",
+    "name": "Hilltop Arena",
+    "nationKey": "homeland",
+    "city": "Hilltop",
+    "capacity": 32000,
+    "pitchLengthM": 103,
+    "pitchWidthM": 66,
+    "surface": "Hybrid",
+    "yearBuilt": 2004
+  },
+  {
+    "id": 6,
+    "key": "lakeside-field",
+    "name": "Lakeside Field",
+    "nationKey": "homeland",
+    "city": "Lakeside",
+    "capacity": 3200,
+    "pitchLengthM": 100,
+    "pitchWidthM": 64,
+    "surface": "Artificial",
+    "yearBuilt": 1998
+  },
+  {
+    "id": 5,
+    "key": "north-ground",
+    "name": "The North Ground",
+    "nationKey": "homeland",
+    "city": "Northgate",
+    "capacity": 4500,
+    "pitchLengthM": 100,
+    "pitchWidthM": 64,
+    "surface": "Grass",
+    "yearBuilt": 1921
+  },
+  {
+    "id": 3,
+    "key": "parque-costa",
+    "name": "Parque Costa",
+    "nationKey": "iberia",
+    "city": "Costa Vella",
+    "capacity": 45000,
+    "pitchLengthM": 105,
+    "pitchWidthM": 68,
+    "surface": "Grass",
+    "yearBuilt": 1961
+  },
+  {
+    "id": 1,
+    "key": "riverside-park",
+    "name": "Riverside Park",
+    "nationKey": "homeland",
+    "city": "Riverside",
+    "capacity": 41000,
+    "pitchLengthM": 105,
+    "pitchWidthM": 68,
+    "surface": "Grass",
+    "yearBuilt": 1949
+  }
+]

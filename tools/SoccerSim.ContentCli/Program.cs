@@ -23,6 +23,7 @@ try
         "validate" => Validate(Arg(args, "--content", DefaultContentDir)),
         "build" => BuildDb(Arg(args, "--content", DefaultContentDir), Arg(args, "--out", DefaultOutputDb)),
         "stats" => Stats(Arg(args, "--content", DefaultContentDir)),
+        "reexport" => Reexport(Arg(args, "--content", DefaultContentDir)),
         "import-legacy" => ImportLegacy(Arg(args, "--out", DefaultContentDir)),
         _ => Unknown(args[0]),
     };
@@ -70,6 +71,22 @@ static int BuildDb(string contentDir, string outputPath)
 
     ContentImportReport report = ContentDbBuilder.Build(bundle, outputPath);
     Console.WriteLine($"Built {outputPath}: {report.Describe()}");
+    return 0;
+}
+
+static int Reexport(string contentDir)
+{
+    // Read, validate, write back. Normalises formatting and key order and recomputes the hash,
+    // which is what a bundle needs after being edited by hand rather than through the tool.
+    ContentBundle bundle = ContentBundleFiles.Read(contentDir);
+
+    ContentValidationResult result = ContentValidator.Default.Validate(bundle);
+    foreach (ContentIssue issue in result.Issues)
+        Console.WriteLine(issue);
+    result.ThrowIfInvalid();
+
+    ContentManifest manifest = ContentBundleFiles.Write(bundle, contentDir, Generator);
+    Console.WriteLine($"Re-exported {contentDir}: build {manifest.BuildId} ({manifest.ContentHash})");
     return 0;
 }
 
@@ -137,6 +154,7 @@ static void PrintUsage() => Console.WriteLine(
       validate       [--content <dir>]              Validate a bundle and check its hash.
       build          [--content <dir>] [--out <db>] Validate, then build a playable content.db.
       stats          [--content <dir>]              Row counts per category.
+      reexport       [--content <dir>]              Re-normalise and re-hash a hand-edited bundle.
       import-legacy  [--out <dir>]                  One-shot port of sql/9999_seed_dev.sql to JSON.
 
     Defaults: --content content/dev, --out build/content/content.db

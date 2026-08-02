@@ -27,17 +27,8 @@ public static class ContentBundleFiles
 
         Directory.CreateDirectory(directory);
 
-        // Payloads in a fixed category order so the hash is stable regardless of dictionary
-        // enumeration order.
-        var payloads = new List<(string File, string Json)>
-        {
-            (FileNameFor(ContentCategory.Traits), ContentJson.Serialize(Sorted(bundle.Traits))),
-            (FileNameFor(ContentCategory.Leagues), ContentJson.Serialize(Sorted(bundle.Leagues))),
-            (FileNameFor(ContentCategory.Teams), ContentJson.Serialize(Sorted(bundle.Teams))),
-            (FileNameFor(ContentCategory.Players), ContentJson.Serialize(Sorted(bundle.Players))),
-            (FileNameFor(ContentCategory.HousingItems), ContentJson.Serialize(Sorted(bundle.HousingItems))),
-            (FileNameFor(ContentCategory.World), ContentJson.Serialize(SortWorld(bundle.World))),
-        };
+        // Payloads in the fixed ContentCategory.Files order so the hash is stable.
+        List<(string File, string Json)> payloads = Payloads(bundle);
 
         var manifest = new ContentManifest
         {
@@ -97,14 +88,38 @@ public static class ContentBundleFiles
         return new ContentBundle
         {
             Manifest = manifest,
+            Nations = ReadList<ContentNation>(readText, ContentCategory.Nations),
+            Stadiums = ReadList<ContentStadium>(readText, ContentCategory.Stadiums),
+            Competitions = ReadList<ContentCompetition>(readText, ContentCategory.Competitions),
             Traits = ReadList<ContentTrait>(readText, ContentCategory.Traits),
             Leagues = ReadList<ContentLeague>(readText, ContentCategory.Leagues),
             Teams = ReadList<ContentTeam>(readText, ContentCategory.Teams),
             Players = ReadList<ContentPlayer>(readText, ContentCategory.Players),
+            Coaches = ReadList<ContentCoach>(readText, ContentCategory.Coaches),
+            Contracts = ReadList<ContentContract>(readText, ContentCategory.Contracts),
             HousingItems = ReadList<ContentHousingItem>(readText, ContentCategory.HousingItems),
             World = ReadOne<ContentWorld>(readText, ContentCategory.World) ?? new ContentWorld(),
         };
     }
+
+    /// <summary>
+    /// The canonical (file, json) pairs for a bundle, in <see cref="ContentCategory.Files"/>
+    /// order. Single source for both writing and hashing, so the two can never disagree.
+    /// </summary>
+    private static List<(string File, string Json)> Payloads(ContentBundle bundle) =>
+    [
+        (FileNameFor(ContentCategory.Nations), ContentJson.Serialize(Sorted(bundle.Nations))),
+        (FileNameFor(ContentCategory.Stadiums), ContentJson.Serialize(Sorted(bundle.Stadiums))),
+        (FileNameFor(ContentCategory.Competitions), ContentJson.Serialize(Sorted(bundle.Competitions))),
+        (FileNameFor(ContentCategory.Traits), ContentJson.Serialize(Sorted(bundle.Traits))),
+        (FileNameFor(ContentCategory.Leagues), ContentJson.Serialize(Sorted(bundle.Leagues))),
+        (FileNameFor(ContentCategory.Teams), ContentJson.Serialize(Sorted(bundle.Teams))),
+        (FileNameFor(ContentCategory.Players), ContentJson.Serialize(Sorted(bundle.Players))),
+        (FileNameFor(ContentCategory.Coaches), ContentJson.Serialize(Sorted(bundle.Coaches))),
+        (FileNameFor(ContentCategory.Contracts), ContentJson.Serialize(Sorted(bundle.Contracts))),
+        (FileNameFor(ContentCategory.HousingItems), ContentJson.Serialize(Sorted(bundle.HousingItems))),
+        (FileNameFor(ContentCategory.World), ContentJson.Serialize(SortWorld(bundle.World))),
+    ];
 
     /// <summary>
     /// Recomputes the hash of what is on disk and compares it to the manifest. Catches a JSON
@@ -113,20 +128,12 @@ public static class ContentBundleFiles
     public static bool HashMatches(string directory)
     {
         ContentBundle bundle = Read(directory);
-        var payloads = new List<string>
-        {
-            Payload(directory, ContentCategory.Traits),
-            Payload(directory, ContentCategory.Leagues),
-            Payload(directory, ContentCategory.Teams),
-            Payload(directory, ContentCategory.Players),
-            Payload(directory, ContentCategory.HousingItems),
-            Payload(directory, ContentCategory.World),
-        };
+        IEnumerable<string> payloads = ContentCategory.Files.Select(category => OnDiskPayload(directory, category));
 
         return string.Equals(ContentJson.Hash(payloads), bundle.Manifest.ContentHash, StringComparison.Ordinal);
     }
 
-    private static string Payload(string directory, string category)
+    private static string OnDiskPayload(string directory, string category)
     {
         string path = Path.Combine(directory, FileNameFor(category));
         string json = File.Exists(path) ? File.ReadAllText(path) : string.Empty;

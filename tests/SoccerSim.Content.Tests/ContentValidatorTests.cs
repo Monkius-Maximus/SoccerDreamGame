@@ -189,6 +189,156 @@ public sealed class ContentValidatorTests
         Assert.Contains("missing-two", error.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("TOOLONG")]
+    [InlineData("XY")]
+    [InlineData("")]
+    public void MalformedNationCode_IsAnError(string code)
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        bundle = bundle with { Nations = [bundle.Nations[0] with { Code = code }] };
+
+        AssertError(bundle, ContentValidator.Codes.NationCode);
+    }
+
+    [Fact]
+    public void DuplicateNationCode_IsAnError_BeforeItHitsTheUniqueIndex()
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        ContentNation first = bundle.Nations[0];
+        bundle = bundle with
+        {
+            Nations = [first, first with { Id = 2, Key = "otherland", Name = "Otherland" }],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.NationCode);
+    }
+
+    [Fact]
+    public void CupWithoutExactlyOneDivision_IsAnError()
+    {
+        // A cup fixture still needs a LeagueId for the LOD router to resolve it.
+        ContentBundle bundle = TestBundles.Minimal();
+        bundle = bundle with
+        {
+            Competitions = [bundle.Competitions[0] with { Format = CompetitionFormat.Cup }],
+            Leagues = [bundle.Leagues[0] with { CompetitionKey = null }],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.CompetitionDivisions);
+    }
+
+    [Fact]
+    public void TwoHeadCoachesAtOneClub_IsAnError()
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        ContentCoach head = bundle.Coaches[0];
+        bundle = bundle with
+        {
+            Coaches = [head, head with { Id = 3, Key = "gaffer-three" }],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.DuplicateHeadCoach);
+    }
+
+    [Fact]
+    public void ContractNamingBothAPlayerAndACoach_IsAnError()
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        bundle = bundle with
+        {
+            Contracts = [bundle.Contracts[0] with { CoachKey = "gaffer-one" }, bundle.Contracts[1]],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.ContractSubject);
+    }
+
+    [Fact]
+    public void ContractNamingNeitherAPlayerNorACoach_IsAnError()
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        bundle = bundle with
+        {
+            Contracts = [bundle.Contracts[0] with { PlayerKey = null }, bundle.Contracts[1]],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.ContractSubject);
+    }
+
+    [Fact]
+    public void OverlappingContractsForOnePerson_IsAnError()
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        ContentContract existing = bundle.Contracts[0];
+        bundle = bundle with
+        {
+            Contracts =
+            [
+                existing,
+                existing with
+                {
+                    Id = 3,
+                    Key = "contract-03-overlap",
+                    StartDate = existing.StartDate.AddYears(1),   // still inside the first term
+                    EndDate = existing.EndDate.AddYears(2),
+                },
+            ],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.ContractOverlap);
+    }
+
+    [Fact]
+    public void ContractEndingBeforeItStarts_IsAnError()
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        ContentContract contract = bundle.Contracts[0];
+        bundle = bundle with
+        {
+            Contracts = [contract with { EndDate = contract.StartDate.AddDays(-1) }, bundle.Contracts[1]],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.ContractDates);
+    }
+
+    [Fact]
+    public void DanglingStadiumReference_IsAnError()
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        bundle = bundle with
+        {
+            Teams = [bundle.Teams[0] with { StadiumKey = "no-such-stadium" }, bundle.Teams[1]],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.RefDangling);
+    }
+
+    [Theory]
+    [InlineData(80, 68)]    // pitch too short
+    [InlineData(105, 100)]  // pitch too wide
+    public void PitchOutsideTheLawsOfTheGame_IsAnError(int length, int width)
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        bundle = bundle with
+        {
+            Stadiums = [bundle.Stadiums[0] with { PitchLengthM = length, PitchWidthM = width }],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.Range);
+    }
+
+    [Fact]
+    public void UnknownCoachMentality_IsAnError()
+    {
+        ContentBundle bundle = TestBundles.Minimal();
+        bundle = bundle with
+        {
+            Coaches = [bundle.Coaches[0] with { PreferredMentality = "Reckless" }, bundle.Coaches[1]],
+        };
+
+        AssertError(bundle, ContentValidator.Codes.EnumInvalid);
+    }
+
     private static ContentValidationResult Validate(ContentBundle bundle)
         => ContentValidator.Default.Validate(bundle);
 

@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "key": "homeland",
+    "name": "Homeland",
+    "code": "HOM",
+    "adjective": "Homelander",
+    "confederation": "Northern Union",
+    "reputation": 70
+  },
+  {
+    "id": 2,
+    "key": "iberia",
+    "name": "Iberia",
+    "code": "IBE",
+    "adjective": "Iberian",
+    "confederation": "Southern Union",
+    "reputation": 82
+  }
+]

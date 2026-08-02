@@ -17,7 +17,14 @@
     "traitKeys": [
       "hot_headed",
       "showboat"
-    ]
+    ],
+    "dateOfBirth": "1999-03-21T00:00:00",
+    "nationKey": "homeland",
+    "preferredFoot": "Right",
+    "primaryRole": "Forward",
+    "flank": "Centre",
+    "squadNumber": 10,
+    "heightCm": 181
   },
   {
     "id": 10,
@@ -34,7 +41,14 @@
       "tackling": 14,
       "vision": 11
     },
-    "traitKeys": []
+    "traitKeys": [],
+    "dateOfBirth": "1996-12-15T00:00:00",
+    "nationKey": "iberia",
+    "preferredFoot": "Right",
+    "primaryRole": "Defender",
+    "flank": "Right",
+    "squadNumber": 2,
+    "heightCm": 183
   },
   {
     "id": 2,
@@ -53,7 +67,14 @@
     },
     "traitKeys": [
       "team_player"
-    ]
+    ],
+    "dateOfBirth": "1997-08-04T00:00:00",
+    "nationKey": "iberia",
+    "preferredFoot": "Left",
+    "primaryRole": "Defender",
+    "flank": "Left",
+    "squadNumber": 3,
+    "heightCm": 184
   },
   {
     "id": 8,
@@ -70,7 +91,14 @@
       "tackling": 12,
       "vision": 15
     },
-    "traitKeys": []
+    "traitKeys": [],
+    "dateOfBirth": "1999-09-30T00:00:00",
+    "nationKey": "homeland",
+    "preferredFoot": "Right",
+    "primaryRole": "Midfielder",
+    "flank": "Centre",
+    "squadNumber": 6,
+    "heightCm": 175
   },
   {
     "id": 6,
@@ -87,7 +115,14 @@
       "tackling": 15,
       "vision": 10
     },
-    "traitKeys": []
+    "traitKeys": [],
+    "dateOfBirth": "1995-02-08T00:00:00",
+    "nationKey": "homeland",
+    "preferredFoot": "Right",
+    "primaryRole": "Defender",
+    "flank": "Centre",
+    "squadNumber": 4,
+    "heightCm": 190
   },
   {
     "id": 7,
@@ -104,7 +139,14 @@
       "tackling": 12,
       "vision": 13
     },
-    "traitKeys": []
+    "traitKeys": [],
+    "dateOfBirth": "1994-07-23T00:00:00",
+    "nationKey": "homeland",
+    "preferredFoot": "Right",
+    "primaryRole": "Goalkeeper",
+    "flank": "Centre",
+    "squadNumber": 1,
+    "heightCm": 193
   },
   {
     "id": 5,
@@ -121,7 +163,14 @@
       "tackling": 11,
       "vision": 14
     },
-    "traitKeys": []
+    "traitKeys": [],
+    "dateOfBirth": "1998-11-12T00:00:00",
+    "nationKey": "iberia",
+    "preferredFoot": "Right",
+    "primaryRole": "Midfielder",
+    "flank": "Centre",
+    "squadNumber": 8,
+    "heightCm": 179
   },
   {
     "id": 12,
@@ -138,7 +187,14 @@
       "tackling": 15,
       "vision": 12
     },
-    "traitKeys": []
+    "traitKeys": [],
+    "dateOfBirth": "1993-10-05T00:00:00",
+    "nationKey": "homeland",
+    "preferredFoot": "Right",
+    "primaryRole": "Goalkeeper",
+    "flank": "Centre",
+    "squadNumber": 1,
+    "heightCm": 191
   },
   {
     "id": 9,
@@ -155,7 +211,14 @@
       "tackling": 10,
       "vision": 12
     },
-    "traitKeys": []
+    "traitKeys": [],
+    "dateOfBirth": "2001-04-02T00:00:00",
+    "nationKey": "homeland",
+    "preferredFoot": "Left",
+    "primaryRole": "Forward",
+    "flank": "Left",
+    "squadNumber": 9,
+    "heightCm": 180
   },
   {
     "id": 3,
@@ -174,7 +237,14 @@
     },
     "traitKeys": [
       "showboat"
-    ]
+    ],
+    "dateOfBirth": "2000-01-17T00:00:00",
+    "nationKey": "iberia",
+    "preferredFoot": "Right",
+    "primaryRole": "Forward",
+    "flank": "Right",
+    "squadNumber": 11,
+    "heightCm": 177
   },
   {
     "id": 11,
@@ -191,7 +261,14 @@
       "tackling": 11,
       "vision": 13
     },
-    "traitKeys": []
+    "traitKeys": [],
+    "dateOfBirth": "1998-06-19T00:00:00",
+    "nationKey": "homeland",
+    "preferredFoot": "Right",
+    "primaryRole": "Midfielder",
+    "flank": "Right",
+    "squadNumber": 7,
+    "heightCm": 176
   },
   {
     "id": 4,
@@ -210,6 +287,13 @@
     },
     "traitKeys": [
       "team_player"
-    ]
+    ],
+    "dateOfBirth": "1996-05-29T00:00:00",
+    "nationKey": "homeland",
+    "preferredFoot": "Right",
+    "primaryRole": "Defender",
+    "flank": "Centre",
+    "squadNumber": 5,
+    "heightCm": 188
   }
 ]
