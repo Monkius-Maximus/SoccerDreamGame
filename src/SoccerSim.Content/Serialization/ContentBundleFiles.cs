@@ -30,13 +30,22 @@ public static class ContentBundleFiles
         // Payloads in the fixed ContentCategory.Files order so the hash is stable.
         List<(string File, string Json)> payloads = Payloads(bundle);
 
+        string hash = ContentJson.Hash(payloads.Select(p => p.File + "\n" + p.Json));
+
+        // Keep the recorded provenance when the content is byte-identical. Stamping a fresh
+        // timestamp (or a different tool name) on every write would make manifest.json show up
+        // in `git status` after a save that changed nothing, and would make an unchanged bundle
+        // look like a new build to a save file that already holds it.
+        bool unchanged = string.Equals(bundle.Manifest.ContentHash, hash, StringComparison.Ordinal)
+                         && !string.IsNullOrEmpty(bundle.Manifest.BuildId);
+
         var manifest = new ContentManifest
         {
             FormatVersion = ContentSchema.FormatVersion,
             ContentVersion = ContentSchema.CurrentVersion,
-            BuildId = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-            Generator = generator,
-            ContentHash = ContentJson.Hash(payloads.Select(p => p.File + "\n" + p.Json)),
+            BuildId = unchanged ? bundle.Manifest.BuildId : DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            Generator = unchanged ? bundle.Manifest.Generator : generator,
+            ContentHash = hash,
             Counts = bundle.CountByCategory(),
         };
 

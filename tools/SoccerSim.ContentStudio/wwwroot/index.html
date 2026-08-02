@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Soccer Dream — Content Studio</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header>
+    <h1>Content Studio</h1>
+    <div id="location" class="muted"></div>
+    <div class="spacer"></div>
+    <button id="validate-btn" type="button">Validate</button>
+    <button id="build-btn" type="button" class="primary">Build content.db</button>
+  </header>
+
+  <div class="layout">
+    <nav id="categories" aria-label="Content categories"></nav>
+
+    <main>
+      <div class="toolbar">
+        <h2 id="category-title">&nbsp;</h2>
+        <input id="search" type="search" placeholder="Search…" autocomplete="off">
+        <div class="spacer"></div>
+        <button id="add-btn" type="button">Add row</button>
+        <button id="paste-btn" type="button">Paste / CSV…</button>
+        <a id="csv-link" class="button" href="#" download>Export CSV</a>
+      </div>
+
+      <div id="grid-wrap">
+        <table id="grid">
+          <thead><tr id="grid-head"></tr></thead>
+          <tbody id="grid-body"></tbody>
+        </table>
+      </div>
+      <p id="grid-empty" class="muted hidden">Nothing here yet. Use <b>Add row</b> or paste from a spreadsheet.</p>
+    </main>
+
+    <aside id="issues-panel">
+      <h2>Validation</h2>
+      <div id="issues"></div>
+    </aside>
+  </div>
+
+  <dialog id="paste-dialog">
+    <form method="dialog">
+      <h2>Paste rows</h2>
+      <p class="muted">
+        First line must be a header of field names. Tab- or comma-separated, so a range copied
+        straight out of a spreadsheet works. Use <code>attributes.pace</code> for nested fields
+        and <code>a|b</code> for lists. Existing keys are overwritten.
+      </p>
+      <textarea id="paste-text" rows="12" spellcheck="false"
+                placeholder="key,name,leagueKey&#10;my-club,My Club,premier-division"></textarea>
+      <div id="paste-result"></div>
+      <menu>
+        <button value="cancel">Cancel</button>
+        <button id="paste-check" type="button">Check</button>
+        <button id="paste-apply" type="button" class="primary">Import</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <div id="toast" class="hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

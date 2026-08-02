@@ -123,8 +123,20 @@ public sealed record ContentPlayer : IContentEntity
 
     public required ContentAttributes Attributes { get; init; }
 
-    /// <summary><see cref="ContentTrait.Key"/> values assigned at generation.</summary>
-    public IReadOnlyList<string> TraitKeys { get; init; } = [];
+    /// <summary>
+    /// <see cref="ContentTrait.Key"/> values assigned at generation.
+    ///
+    /// The initializer alone is not enough: an explicit <c>"traitKeys": null</c> — which is what
+    /// a blank spreadsheet cell produces — overwrites it, and every consumer would then have to
+    /// null-check a non-nullable property. Absorb it here instead.
+    /// </summary>
+    public IReadOnlyList<string> TraitKeys
+    {
+        get => _traitKeys;
+        init => _traitKeys = value ?? [];
+    }
+
+    private readonly IReadOnlyList<string> _traitKeys = [];
 
     public DateTime? DateOfBirth { get; init; }
 

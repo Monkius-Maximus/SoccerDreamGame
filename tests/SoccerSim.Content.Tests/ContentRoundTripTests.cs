@@ -61,6 +61,39 @@ public sealed class ContentRoundTripTests
     }
 
     [Fact]
+    public void ReExportingUnchangedContent_LeavesEveryFileByteIdentical()
+    {
+        // The authoring tool writes on every edit. If a save that changed nothing still rewrote
+        // the manifest's timestamp, `git status` would be dirty after simply opening the tool.
+        using var dir = new TempDirectory();
+        ContentBundleFiles.Write(TestBundles.Minimal(), dir.Path, "first-generator");
+
+        Dictionary<string, string> before = Snapshot(dir.Path);
+        ContentBundle reloaded = ContentBundleFiles.Read(dir.Path);
+        ContentBundleFiles.Write(reloaded, dir.Path, "a-different-generator");
+
+        Assert.Equal(before, Snapshot(dir.Path));
+    }
+
+    [Fact]
+    public void ChangingContent_StampsANewBuildId()
+    {
+        using var dir = new TempDirectory();
+        ContentBundle bundle = TestBundles.Minimal();
+        ContentManifest first = ContentBundleFiles.Write(bundle, dir.Path, "tests");
+
+        ContentBundle edited = ContentBundleFiles.Read(dir.Path);
+        edited = edited with { Teams = [edited.Teams[0] with { Budget = 42 }, edited.Teams[1]] };
+        ContentManifest second = ContentBundleFiles.Write(edited, dir.Path, "tests");
+
+        Assert.NotEqual(first.ContentHash, second.ContentHash);
+    }
+
+    private static Dictionary<string, string> Snapshot(string directory) =>
+        Directory.GetFiles(directory, "*.json")
+            .ToDictionary(path => Path.GetFileName(path), File.ReadAllText, StringComparer.Ordinal);
+
+    [Fact]
     public void Sqlite_RoundTrips_EveryCategory()
     {
         ContentBundle original = TestBundles.Minimal();

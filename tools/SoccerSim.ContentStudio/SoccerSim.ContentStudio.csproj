@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SoccerSim.ContentStudio</RootNamespace>
+    <AssemblyName>SoccerSim.ContentStudio</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    The browser CRUD for authored content. Runs on loopback only and edits the same
+    content bundle the game ships, through the same SoccerSim.Content model and the
+    same validator — so the tool can never approve content the game would reject.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SoccerSim.Content\SoccerSim.Content.csproj" />
+    <ProjectReference Include="..\..\src\SoccerSim.Infrastructure.Sqlite\SoccerSim.Infrastructure.Sqlite.csproj" />
+  </ItemGroup>
+
+</Project>

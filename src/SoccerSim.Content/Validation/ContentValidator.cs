@@ -433,10 +433,20 @@ public sealed class ContentValidator
                     nameof(player.SquadNumber), $"Squad number must be between 1 and 99, got {number}."));
             }
 
-            foreach ((string name, int value) in player.Attributes.Enumerate())
+            // Attributes is `required`, but an explicit null in hand-edited JSON still gets
+            // through — and a validator that throws on bad input reports nothing at all.
+            if (player.Attributes is null)
             {
-                RequireRange(value, PlayerAttributes.MinValue, PlayerAttributes.MaxValue,
-                    ContentCategory.Players, player.Key, $"{nameof(player.Attributes)}.{name}", issues);
+                issues.Add(Error(Codes.Required, ContentCategory.Players, player.Key,
+                    nameof(player.Attributes), "Must not be empty."));
+            }
+            else
+            {
+                foreach ((string name, int value) in player.Attributes.Enumerate())
+                {
+                    RequireRange(value, PlayerAttributes.MinValue, PlayerAttributes.MaxValue,
+                        ContentCategory.Players, player.Key, $"{nameof(player.Attributes)}.{name}", issues);
+                }
             }
 
             var seenTraits = new HashSet<string>(StringComparer.Ordinal);
