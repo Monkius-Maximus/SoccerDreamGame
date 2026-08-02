@@ -2,13 +2,32 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerSim.Core", "src\SoccerSim.Core\SoccerSim.Core.csproj", "{11111111-1111-1111-1111-111111111111}"
+#
+# THIS FILE EXISTS FOR THE GODOT EDITOR AND ITS NAME IS NOT OPTIONAL.
+#
+# Godot 4's .NET integration derives both paths from [dotnet] project/assembly_name
+# in project.godot, and looks for them beside it:
+#
+#     game/<assembly_name>.sln      -> game/SoccerDreamGame.sln
+#     game/<assembly_name>.csproj   -> game/SoccerDreamGame.csproj
+#
+# If either is missing under that exact name, the editor concludes the project has
+# no C# at all: the Build button has nothing to build, no assembly is produced, every
+# script silently detaches from its node, and the game opens as a black window with
+# nothing in the log naming the cause.
+#
+# It also lists the two core projects so a build FROM THE EDITOR compiles the whole
+# dependency chain, not just the Godot layer.
+#
+# The repository root has its own SoccerDreamGame.sln — same name, different job: that
+# one also carries the xUnit test project and is what CI and `dotnet` on the command
+# line use. The editor must never build the tests, hence two files.
+#
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerSim.Core", "..\src\SoccerSim.Core\SoccerSim.Core.csproj", "{11111111-1111-1111-1111-111111111111}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerSim.Infrastructure.Sqlite", "src\SoccerSim.Infrastructure.Sqlite\SoccerSim.Infrastructure.Sqlite.csproj", "{22222222-2222-2222-2222-222222222222}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerSim.Infrastructure.Sqlite", "..\src\SoccerSim.Infrastructure.Sqlite\SoccerSim.Infrastructure.Sqlite.csproj", "{22222222-2222-2222-2222-222222222222}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerDreamGame", "game\SoccerDreamGame.csproj", "{33333333-3333-3333-3333-333333333333}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerSim.Core.Tests", "tests\SoccerSim.Core.Tests\SoccerSim.Core.Tests.csproj", "{44444444-4444-4444-4444-444444444444}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerDreamGame", "SoccerDreamGame.csproj", "{33333333-3333-3333-3333-333333333333}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,12 +54,6 @@ Global
 		{33333333-3333-3333-3333-333333333333}.ExportDebug|Any CPU.Build.0 = ExportDebug|Any CPU
 		{33333333-3333-3333-3333-333333333333}.ExportRelease|Any CPU.ActiveCfg = ExportRelease|Any CPU
 		{33333333-3333-3333-3333-333333333333}.ExportRelease|Any CPU.Build.0 = ExportRelease|Any CPU
-		{44444444-4444-4444-4444-444444444444}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{44444444-4444-4444-4444-444444444444}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{44444444-4444-4444-4444-444444444444}.ExportDebug|Any CPU.ActiveCfg = Debug|Any CPU
-		{44444444-4444-4444-4444-444444444444}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
-		{44444444-4444-4444-4444-444444444444}.ExportRelease|Any CPU.ActiveCfg = Release|Any CPU
-		{44444444-4444-4444-4444-444444444444}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

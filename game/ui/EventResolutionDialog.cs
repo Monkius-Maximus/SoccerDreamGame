@@ -1,5 +1,6 @@
 using Godot;
 using SoccerSim.Core.Events;
+using SoccerSim.Core.Localization;
 
 namespace SoccerDreamGame.Ui;
 
@@ -28,6 +29,8 @@ public partial class EventResolutionDialog : Control
 {
     private TaskCompletionSource<EventResolutionResult>? _completion;
     private GameEvent? _event;
+    private ILocalizer _text = null!;
+    private string _definitionKey = string.Empty;
 
     /// <summary>
     /// Build and show the modal, returning the task the event bus awaits. Choices the human's traits
@@ -36,13 +39,17 @@ public partial class EventResolutionDialog : Control
     public Task<EventResolutionResult> Present(
         EventResolutionRequest request,
         EventDefinition definition,
-        IReadOnlyDictionary<string, int> traitWeights)
+        IReadOnlyDictionary<string, int> traitWeights,
+        ILocalizer text)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(traitWeights);
+        ArgumentNullException.ThrowIfNull(text);
 
         _event = request.Event;
+        _text = text;
+        _definitionKey = definition.Key;
         _completion = new TaskCompletionSource<EventResolutionResult>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -81,7 +88,7 @@ public partial class EventResolutionDialog : Control
         // that will follow them.
         body.AddChild(new Label
         {
-            Text = TierCaption(definition.Tier),
+            Text = _text.Get(LocKeys.EventTier(definition.Tier)),
             ThemeTypeVariation = definition.Tier == EventTier.High
                 ? UiTheme.VariationDanger
                 : UiTheme.VariationMuted,
@@ -89,16 +96,16 @@ public partial class EventResolutionDialog : Control
 
         body.AddChild(new Label
         {
-            Text = definition.Title ?? definition.Key,
+            Text = _text.Get(definition.TitleKey),
             ThemeTypeVariation = UiTheme.VariationPanelTitle,
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         });
 
-        if (!string.IsNullOrWhiteSpace(definition.Prompt))
+        if (_text.Has(definition.PromptKey))
         {
             body.AddChild(new Label
             {
-                Text = definition.Prompt,
+                Text = _text.Get(definition.PromptKey),
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
         }
@@ -114,7 +121,7 @@ public partial class EventResolutionDialog : Control
             // A not-yet-authored event must still be dismissible, or the calendar stalls forever.
             var acknowledge = new Button
             {
-                Text = "Acknowledge",
+                Text = _text.Get(LocKeys.EventAcknowledge),
                 CustomMinimumSize = new Vector2(0, UiTokens.MinTouchTarget),
             };
             acknowledge.Pressed += () => Resolve(
@@ -134,18 +141,20 @@ public partial class EventResolutionDialog : Control
 
         var button = new Button
         {
-            Text = choice.Label,
+            Text = _text.Get(choice.LabelKey(_definitionKey)),
             CustomMinimumSize = new Vector2(0, UiTokens.MinTouchTarget),
             TooltipText = DescribeConsequences(choice),
         };
         button.Pressed += () => Resolve(choice.StatDeltas, choice.ResourceDeltas);
         wrapper.AddChild(button);
 
-        if (!string.IsNullOrWhiteSpace(choice.Description))
+        // Has() rather than Get(): an unauthored description must stay absent, not render as a raw
+        // "event.x.choice.y.desc" key underneath the button.
+        if (_text.Has(choice.DescriptionKey(_definitionKey)))
         {
             wrapper.AddChild(new Label
             {
-                Text = choice.Description,
+                Text = _text.Get(choice.DescriptionKey(_definitionKey)),
                 ThemeTypeVariation = UiTheme.VariationMuted,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
@@ -154,14 +163,7 @@ public partial class EventResolutionDialog : Control
         return wrapper;
     }
 
-    private static string TierCaption(EventTier tier) => tier switch
-    {
-        EventTier.High => "HIGH STAKES — this will follow you",
-        EventTier.Medium => "DECISION",
-        _ => "NOTICE",
-    };
-
-    private static string DescribeConsequences(EventChoice choice)
+    private string DescribeConsequences(EventChoice choice)
     {
         IEnumerable<string> stats = choice.StatDeltas
             .Select(delta => $"{(delta.Delta >= 0 ? "+" : "")}{delta.Delta} {delta.StatKey}");
@@ -169,7 +171,7 @@ public partial class EventResolutionDialog : Control
             .Select(delta => $"{(delta.Delta >= 0 ? "+" : "")}{delta.Delta:N0} {delta.ResourceKey}");
 
         string[] all = stats.Concat(resources).ToArray();
-        return all.Length == 0 ? "No direct consequence." : string.Join("   ", all);
+        return all.Length == 0 ? _text.Get(LocKeys.EventNoConsequence) : string.Join("   ", all);
     }
 
     private void Resolve(IReadOnlyList<StatDelta> stats, IReadOnlyList<ResourceDelta> resources)

@@ -1,6 +1,7 @@
 using Godot;
 using SoccerDreamGame.Ui;
 using SoccerSim.Core.LifeSim;
+using SoccerSim.Core.Localization;
 using SoccerSim.Core.Modes;
 
 namespace SoccerDreamGame.Autoload;
@@ -49,17 +50,20 @@ public partial class HudNode : Node
         _bar.SetAnchorsPreset(Control.LayoutPreset.TopWide);
         anchor.AddChild(_bar);
 
-        _bar.AddTile(HudBar.TileDate, "date");
-        _bar.AddTile(HudBar.TileRole, "career");
-        _bar.AddTile(HudBar.TileWellbeing, "wellbeing");
-        _bar.AddTile(HudBar.TileForm, "form");
+        ILocalizer text = GameBootstrap.Instance.Text;
+        _bar.UseLocalizer(text);
+        _bar.AddTile(HudBar.TileDate, text.Get(LocKeys.HudDate));
+        _bar.AddTile(HudBar.TileRole, text.Get(LocKeys.HudCareer));
+        _bar.AddTile(HudBar.TileWellbeing, text.Get(LocKeys.HudWellbeing));
+        _bar.AddTile(HudBar.TileForm, text.Get(LocKeys.HudForm));
 
         _wellbeing = GameBootstrap.Instance.Wellbeing;
         _wellbeing.Changed += OnWellbeingChanged;
         GameModeManager.Instance.ModeChanged += OnModeChanged;
+        GameBootstrap.Instance.WellbeingReplaced += OnWellbeingReplaced;
 
         _bar.SetTile(HudBar.TileRole,
-            _wellbeing.Role == CareerRole.Player ? "PLAYER" : "MANAGER",
+            text.Get(LocKeys.Role(_wellbeing.Role)).ToUpperInvariant(),
             UiTokens.Positive);
         _bar.ApplyWellbeing(_wellbeing.Snapshot);
         ApplyVisibility(GameModeManager.Instance.CurrentMode);
@@ -71,12 +75,27 @@ public partial class HudNode : Node
             _wellbeing.Changed -= OnWellbeingChanged;
         if (GameModeManager.Instance is not null)
             GameModeManager.Instance.ModeChanged -= OnModeChanged;
+        if (GameBootstrap.Instance is not null)
+            GameBootstrap.Instance.WellbeingReplaced -= OnWellbeingReplaced;
     }
 
     public override void _Process(double delta) =>
         _bar.SetTile(HudBar.TileDate, GameBootstrap.Instance.Time.CurrentDate.ToString("dd MMM yyyy"));
 
     private void OnWellbeingChanged(WellbeingSnapshot snapshot) => _bar.ApplyWellbeing(snapshot);
+
+    /// <summary>A career-role switch replaces the service; move the subscription with it.</summary>
+    private void OnWellbeingReplaced(IWellbeingService wellbeing)
+    {
+        _wellbeing.Changed -= OnWellbeingChanged;
+        _wellbeing = wellbeing;
+        _wellbeing.Changed += OnWellbeingChanged;
+
+        _bar.SetTile(HudBar.TileRole,
+            GameBootstrap.Instance.Text.Get(LocKeys.Role(_wellbeing.Role)).ToUpperInvariant(),
+            UiTokens.Positive);
+        _bar.ApplyWellbeing(_wellbeing.Snapshot);
+    }
 
     private void OnModeChanged(GameMode previous, GameMode next) => ApplyVisibility(next);
 

@@ -1,11 +1,15 @@
 using Godot;
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
+using SoccerSim.Core.Economy;
 using SoccerSim.Core.Events;
 using SoccerSim.Core.LifeSim;
+using SoccerSim.Core.Localization;
+using SoccerSim.Core.Persistence;
 using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.Time;
+using SoccerSim.Core.World;
 using SoccerSim.Infrastructure.Sqlite;
 
 namespace SoccerDreamGame.Autoload;
@@ -41,6 +45,83 @@ public partial class GameBootstrap : Node
     public IWellbeingService Wellbeing { get; private set; } = null!;
 
     /// <summary>
+    /// Resolves display text. Every string the player reads goes through here: the simulation only
+    /// ever holds keys, so the code stays in English while the game runs in pt-BR.
+    /// </summary>
+    public ILocalizer Text { get; private set; } = null!;
+
+    /// <summary>
+    /// The world's locations. Backed by <see cref="TestWorldGazetteer"/> for now — the real world is
+    /// authored in the City Searcher tool and swaps in behind this same port.
+    /// </summary>
+    public IWorldGazetteer World { get; private set; } = null!;
+
+    /// <summary>Where the human currently is. Gates which activities the action bar offers.</summary>
+    public WorldLocation CurrentLocation { get; private set; } = null!;
+
+    /// <summary>The human's own money. Backed by PlayerFinances + the Transactions ledger.</summary>
+    public IEconomyService Economy { get; private set; } = null!;
+
+    /// <summary>
+    /// The human's player aggregate. This is what <c>SyncFormMood</c> writes into, and therefore
+    /// what carries wellbeing onto the pitch through <see cref="Player.EffectiveAttributes"/>.
+    /// Null when no career exists yet.
+    /// </summary>
+    public Player? HumanPlayer { get; private set; }
+
+    /// <summary>Raised when <see cref="CurrentLocation"/> changes, so bound UI can re-filter.</summary>
+    public event Action<WorldLocation>? LocationChanged;
+
+    /// <summary>
+    /// Raised when <see cref="Wellbeing"/> is replaced — currently only by a career-role switch.
+    /// Bound UI re-binds rather than holding a stale service.
+    /// </summary>
+    public event Action<IWellbeingService>? WellbeingReplaced;
+
+    /// <summary>
+    /// Switch the career between player and manager, keeping the need gauges exactly where they
+    /// are and only re-tuning how they behave.
+    ///
+    /// <para>
+    /// This is the whole thesis made operable: the same eight needs, the same save row, a different
+    /// <see cref="NeedProfile"/>. Nothing is reset, because a manager is the same person who was
+    /// tired yesterday.
+    /// </para>
+    /// </summary>
+    public void SwitchCareerRole(CareerRole role)
+    {
+        if (Career is null || Wellbeing.Role == role)
+            return;
+
+        using (SqliteCommand command = _connection!.CreateCommand())
+        {
+            command.CommandText = "UPDATE Career SET Role = $role WHERE Id = $id;";
+            command.Parameters.AddWithValue("$role", role.ToString());
+            command.Parameters.AddWithValue("$id", ActiveCareerId);
+            command.ExecuteNonQuery();
+        }
+
+        Career = Career with { Role = role };
+
+        WellbeingState carried = WellbeingState.FromValues(role, Wellbeing.State.ToDictionary());
+        var repository = new SqliteWellbeingRepository(_connection!);
+        repository.Save(ActiveCareerId, carried);
+        Wellbeing = new WellbeingService(
+            carried, new LifeSimulator(), _rng, repository, ActiveCareerId, Economy, Career.HumanPlayerId);
+
+        GD.Print($"[GameBootstrap] Career role switched to {role}.");
+        WellbeingReplaced?.Invoke(Wellbeing);
+    }
+
+    /// <summary>Move the human to a venue. Throws on an unknown id (fail-fast).</summary>
+    public void TravelTo(string locationId)
+    {
+        CurrentLocation = World.Find(locationId)
+            ?? throw new InvalidOperationException($"Unknown world location '{locationId}'.");
+        LocationChanged?.Invoke(CurrentLocation);
+    }
+
+    /// <summary>
     /// The active career / save-state: who the human controls. Sourced from the database
     /// at startup. The player's club is the one reserved for the rendered match scene
     /// instead of background LOD resolution; null only if no career has been created yet.
@@ -58,6 +139,7 @@ public partial class GameBootstrap : Node
     // via DeterministicRng.CreateStream(MasterSeed, fixtureId, ...) once the LOD threads a seed per match.
     private IDeterministicRandom _rng = null!;
     private IFixtureGateway _gateway = null!;
+    private IPlayerStateService _playerState = null!;
     private SqliteConnection? _connection;
 
     public override void _Ready()
@@ -79,6 +161,13 @@ public partial class GameBootstrap : Node
         // hardcoded. The reserved-for-rendering club is this player's team.
         Career = new SqliteCareerService(_connection).GetActiveCareer();
         int? humanTeamId = Career?.HumanTeamId;
+
+        Text = new Localizer(StringCatalogue.DefaultLocale);
+        Economy = new SqliteEconomyService(_connection);
+        _playerState = new SqlitePlayerStateService(_connection);
+        HumanPlayer = Career is null ? null : _playerState.Load(Career.HumanPlayerId);
+        World = new TestWorldGazetteer();
+        CurrentLocation = World.Find(World.HomeLocationId)!;
 
         Events = new EventManager(BuildEventDefinitions());
         Lod = new SimulationLODManager(_gateway, new ILeagueResolver[]
@@ -132,12 +221,31 @@ public partial class GameBootstrap : Node
         // Null means this career has never been advanced; seed the default gauges and write them
         // through so the very first day advances from a known state rather than an empty table.
         WellbeingState state = repository.Load(ActiveCareerId, role) ?? WellbeingState.CreateDefault(role);
-        var service = new WellbeingService(state, new LifeSimulator(), _rng, repository, ActiveCareerId);
+        var service = new WellbeingService(
+            state, new LifeSimulator(), _rng, repository, ActiveCareerId, Economy, Career.HumanPlayerId);
         repository.Save(ActiveCareerId, state);
         return service;
     }
 
-    private void OnDayElapsed(DateTime date) => Wellbeing.AdvanceDay(date);
+    /// <summary>
+    /// Each simulated day drains the needs, and the resulting form is pushed onto the human's player
+    /// and persisted. This is the call site that makes the life-sim load-bearing: without it the
+    /// form modifier is computed and displayed but never applied to anything.
+    /// </summary>
+    private void OnDayElapsed(DateTime date)
+    {
+        Wellbeing.AdvanceDay(date);
+
+        if (HumanPlayer is null || Career is null)
+            return;
+
+        Wellbeing.SyncFormMood(HumanPlayer);
+
+        // FormMood is keyed by season. A save with no season open simply does not persist form
+        // rather than inventing a season id to hang it on.
+        if (_playerState.GetCurrentSeasonId(Career.HumanTeamId) is int seasonId)
+            _playerState.SaveFormMood(HumanPlayer.Id, seasonId, HumanPlayer.FormMood, date);
+    }
 
     /// <summary>True if a club with this id exists in the world. Used by the match-entry guard.</summary>
     public bool ClubExists(int clubId)
@@ -169,27 +277,25 @@ public partial class GameBootstrap : Node
             Wellbeing.EventProbabilityMultiplier,
             _rng);
 
+    // Definitions carry no prose: titles, prompts and choice labels are localisation keys derived
+    // from the definition/choice keys (see LocKeys) and resolved against StringCatalogue at draw
+    // time. That is what lets the game run in pt-BR while the code stays in English.
     private static IReadOnlyList<EventDefinition> BuildEventDefinitions() => new[]
     {
         new EventDefinition("contract_offer", EventTier.High, 0.01, new Dictionary<string, double>())
         {
-            Title = "Contract Offer",
-            Prompt = "Your agent has an offer on the table. How do you want to play it?",
             Choices =
             [
-                new EventChoice("sign", "Sign now")
+                new EventChoice("sign")
                 {
-                    Description = "Security today, leverage gone tomorrow.",
                     ResourceDeltas = [new ResourceDelta("money", 250_000)],
                 },
-                new EventChoice("hold", "Hold out for more")
+                new EventChoice("hold")
                 {
-                    Description = "Bet on your form. The dressing room will notice either way.",
                     StatDeltas = [new StatDelta("morale", -1)],
                 },
-                new EventChoice("walk", "Walk away")
+                new EventChoice("walk")
                 {
-                    Description = "Only a player who backs himself burns a bridge this early.",
                     RequiredTraitKey = PlayerTraitWeights.Selfishness,
                     RequiredTraitWeight = 60,
                     StatDeltas = [new StatDelta("morale", 1)],
@@ -199,23 +305,16 @@ public partial class GameBootstrap : Node
         new EventDefinition("press_conference", EventTier.Medium, 0.03,
             new Dictionary<string, double> { ["aggression"] = 0.05 })
         {
-            Title = "Press Conference",
-            Prompt = "A reporter asks about the dressing-room rumours.",
             Choices =
             [
-                new EventChoice("deflect", "Deflect the question")
+                new EventChoice("deflect"),
+                new EventChoice("back_squad")
                 {
-                    Description = "Safe, forgettable, and nobody is upset.",
-                },
-                new EventChoice("back_squad", "Back your teammates publicly")
-                {
-                    Description = "Costs you nothing but the headline.",
                     StatDeltas = [new StatDelta("morale", 1)],
                 },
                 // Trait-gated: only a hot-headed character is offered the reply that starts a fire.
-                new EventChoice("hit_back", "Hit back at the reporter")
+                new EventChoice("hit_back")
                 {
-                    Description = "Great copy. The manager will have seen it.",
                     RequiredTraitKey = PlayerTraitWeights.Aggression,
                     RequiredTraitWeight = 60,
                     StatDeltas = [new StatDelta("morale", 2)],
@@ -224,7 +323,6 @@ public partial class GameBootstrap : Node
         },
         new EventDefinition("flight_delay", EventTier.Low, 0.02, new Dictionary<string, double>())
         {
-            Title = "Flight Delay",
             LowStakesStatDeltas = new[] { new StatDelta("morale", -1) },
         },
     };

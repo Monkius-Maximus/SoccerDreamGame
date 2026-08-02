@@ -31,12 +31,20 @@ public sealed class LifeSimulator : ILifeSimulator
     /// <summary>
     /// The cross-effect graph: when <c>Driver</c> is <see cref="NeedBand.Critical"/>, <c>Dependent</c>
     /// takes <see cref="CrossEffectMultiplier"/> extra days' worth of its own decay.
+    ///
+    /// <para>
+    /// This graph is what stops the needs from being eight independent bars the player services in
+    /// isolation: neglecting one makes another cheaper to lose, so a bad week compounds. Several
+    /// drivers may feed the same dependent — each fires on its own.
+    /// </para>
     /// </summary>
     private static readonly (NeedKind Driver, NeedKind Dependent)[] CrossEffects =
     [
-        (NeedKind.Nutrition, NeedKind.Fitness),
-        (NeedKind.Energy, NeedKind.Focus),
-        (NeedKind.Social, NeedKind.Morale),
+        (NeedKind.Nutrition, NeedKind.Fitness),         // eating badly costs conditioning
+        (NeedKind.Energy, NeedKind.Focus),              // sleeplessness costs clarity
+        (NeedKind.Social, NeedKind.Morale),             // isolation costs mood
+        (NeedKind.Hygiene, NeedKind.Morale),            // letting yourself go costs mood
+        (NeedKind.MuscleCondition, NeedKind.Fitness),   // you cannot train through soreness
     ];
 
     public WellbeingSnapshot Snapshot(WellbeingState state) => WellbeingSnapshot.From(state);

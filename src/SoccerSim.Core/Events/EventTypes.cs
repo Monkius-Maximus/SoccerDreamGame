@@ -1,3 +1,5 @@
+using SoccerSim.Core.Localization;
+
 namespace SoccerSim.Core.Events;
 
 /// <summary>Resolution tier for a triggered event (GDD §4 Event &amp; Interruption System).</summary>
@@ -42,10 +44,16 @@ public readonly record struct ResourceDelta(string ResourceKey, long Delta);
 /// never sees. Gating is data, not code, so new gates need no changes to the presenter.
 /// </para>
 /// </summary>
-public sealed record EventChoice(string Key, string Label)
+public sealed record EventChoice(string Key)
 {
-    /// <summary>Optional longer body text explaining the consequence.</summary>
-    public string? Description { get; init; }
+    /// <summary>
+    /// Localisation key for the button label. Built from the owning definition's key plus this
+    /// choice's key, so the simulation never carries a sentence in any language.
+    /// </summary>
+    public string LabelKey(string definitionKey) => LocKeys.EventChoiceLabel(definitionKey, Key);
+
+    /// <summary>Localisation key for the longer body text explaining the consequence.</summary>
+    public string DescriptionKey(string definitionKey) => LocKeys.EventChoiceDescription(definitionKey, Key);
 
     /// <summary>Stat deltas applied when this choice is taken.</summary>
     public IReadOnlyList<StatDelta> StatDeltas { get; init; } = [];
@@ -81,11 +89,14 @@ public sealed record EventDefinition(
     double BaseProbability,
     IReadOnlyDictionary<string, double> TraitModifiers)
 {
-    /// <summary>Human-readable title for the resolution screen; falls back to <see cref="Key"/>.</summary>
-    public string? Title { get; init; }
+    /// <summary>Localisation key for the resolution screen's title.</summary>
+    public string TitleKey => LocKeys.EventTitle(Key);
 
-    /// <summary>The situation put to the human when a High/Medium event interrupts the calendar.</summary>
-    public string? Prompt { get; init; }
+    /// <summary>
+    /// Localisation key for the situation put to the human when a High/Medium event interrupts the
+    /// calendar.
+    /// </summary>
+    public string PromptKey => LocKeys.EventPrompt(Key);
 
     /// <summary>
     /// The choices offered for a High/Medium event. Empty means the presenter shows an

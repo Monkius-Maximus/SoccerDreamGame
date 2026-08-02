@@ -1,5 +1,6 @@
 using Godot;
 using SoccerSim.Core.LifeSim;
+using SoccerSim.Core.Localization;
 
 namespace SoccerDreamGame.Ui;
 
@@ -26,6 +27,7 @@ public partial class NeedsPanel : PanelContainer
     private readonly Dictionary<NeedKind, Label> _values = new();
 
     private IWellbeingService? _service;
+    private ILocalizer _text = null!;
     private Label _indexValue = null!;
     private Label _roleLabel = null!;
     private Label _alertLabel = null!;
@@ -34,9 +36,11 @@ public partial class NeedsPanel : PanelContainer
     /// Attach to a career's wellbeing. Safe to call before or after the node enters the tree; the
     /// controls are built on the first bind.
     /// </summary>
-    public void Bind(IWellbeingService service)
+    public void Bind(IWellbeingService service, ILocalizer text)
     {
         ArgumentNullException.ThrowIfNull(service);
+        ArgumentNullException.ThrowIfNull(text);
+        _text = text;
 
         if (_service is not null)
             _service.Changed -= OnWellbeingChanged;
@@ -69,7 +73,11 @@ public partial class NeedsPanel : PanelContainer
         header.AddThemeConstantOverride("separation", UiTokens.SpaceSm);
         root.AddChild(header);
 
-        var title = new Label { Text = "WELLBEING", ThemeTypeVariation = UiTheme.VariationPanelTitle };
+        var title = new Label
+        {
+            Text = _text.Get(LocKeys.PanelWellbeing),
+            ThemeTypeVariation = UiTheme.VariationPanelTitle,
+        };
         header.AddChild(title);
 
         _roleLabel = new Label
@@ -111,9 +119,12 @@ public partial class NeedsPanel : PanelContainer
 
         var name = new Label
         {
-            Text = need.ToString().ToUpperInvariant(),
+            Text = _text.Get(LocKeys.NeedName(need)),
+            TooltipText = _text.Get(LocKeys.NeedDescription(need)),
             ThemeTypeVariation = UiTheme.VariationMuted,
-            CustomMinimumSize = new Vector2(96, 0),
+            // Wider than the six-need version: "Condição Muscular" is the longest label and pt-BR
+            // runs longer than English almost everywhere.
+            CustomMinimumSize = new Vector2(150, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };
         row.AddChild(name);
@@ -152,7 +163,7 @@ public partial class NeedsPanel : PanelContainer
         if (_service is null)
             return;
 
-        _roleLabel.Text = snapshot.Role == CareerRole.Player ? "Player career" : "Manager career";
+        _roleLabel.Text = _text.Get(LocKeys.Role(snapshot.Role));
         _indexValue.Text = $"{snapshot.Index:0}";
         _indexValue.AddThemeColorOverride("font_color", UiTokens.NeedColor(snapshot.Index));
 
@@ -175,7 +186,8 @@ public partial class NeedsPanel : PanelContainer
         if (snapshot.HasCriticalNeed)
         {
             _alertLabel.Visible = true;
-            _alertLabel.Text = $"Critical: {string.Join(", ", snapshot.CriticalNeeds)}";
+            IEnumerable<string> names = snapshot.CriticalNeeds.Select(n => _text.Get(LocKeys.NeedName(n)));
+            _alertLabel.Text = $"{_text.Get(LocKeys.Band(NeedBand.Critical))}: {string.Join(", ", names)}";
         }
         else
         {

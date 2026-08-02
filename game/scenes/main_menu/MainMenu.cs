@@ -1,6 +1,8 @@
 using Godot;
 using SoccerDreamGame.Autoload;
 using SoccerSim.Core.Domain;
+using SoccerSim.Core.Localization;
+using SoccerDreamGame.Ui;
 
 namespace SoccerDreamGame.Scenes;
 
@@ -10,41 +12,54 @@ namespace SoccerDreamGame.Scenes;
 /// </summary>
 public partial class MainMenu : Control
 {
+    private Label _status = null!;
+
     public override void _Ready()
     {
         GD.Print("[MainMenu] Ready — separated-scene architecture entry point.");
+
+        ILocalizer text = GameBootstrap.Instance.Text;
+        Theme = UiTheme.Instance;
 
         var center = new CenterContainer();
         center.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(center);
 
         var box = new VBoxContainer();
-        box.AddThemeConstantOverride("separation", 16);
+        box.AddThemeConstantOverride("separation", UiTokens.SpaceMd);
         center.AddChild(box);
 
         var title = new Label
         {
-            Text = "Soccer Dream Game",
+            Text = text.Get(LocKeys.MainTitle),
             HorizontalAlignment = HorizontalAlignment.Center,
         };
-        title.AddThemeFontSizeOverride("font_size", 32);
+        title.AddThemeFontSizeOverride("font_size", UiTokens.FontDisplay);
         box.AddChild(title);
 
-        var playMatch = new Button
-        {
-            Text = "Play Next Fixture",
-            CustomMinimumSize = new Vector2(260, 48),
-        };
-        playMatch.Pressed += OnPlayNextFixturePressed;
-        box.AddChild(playMatch);
+        // The life-sim is the mode this project has actually built out, and until now the hub had no
+        // way into it — the two existing buttons went to a match and to the calendar.
+        box.AddChild(Entry(text.Get(LocKeys.MainLifeSim), () => GameModeManager.Instance.EnterLifeSim()));
+        box.AddChild(Entry(text.Get(LocKeys.MainPlayFixture), OnPlayNextFixturePressed));
+        box.AddChild(Entry(text.Get(LocKeys.MainAdvanceCalendar), OnAdvanceCalendarPressed));
 
-        var advance = new Button
+        _status = new Label
         {
-            Text = "Advance Calendar",
-            CustomMinimumSize = new Vector2(260, 48),
+            ThemeTypeVariation = UiTheme.VariationMuted,
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
-        advance.Pressed += OnAdvanceCalendarPressed;
-        box.AddChild(advance);
+        box.AddChild(_status);
+    }
+
+    private static Button Entry(string label, Action onPressed)
+    {
+        var button = new Button
+        {
+            Text = label,
+            CustomMinimumSize = new Vector2(280, UiTokens.MinTouchTarget),
+        };
+        button.Pressed += onPressed;
+        return button;
     }
 
     // Hand the human club's next fixture to the mode manager, which validates it (fail-fast) and
@@ -54,6 +69,8 @@ public partial class MainMenu : Control
         Match? fixture = GameBootstrap.Instance.PeekNextHumanFixture();
         if (fixture is null)
         {
+            // Say so on screen: a button that silently does nothing reads as a broken build.
+            _status.Text = GameBootstrap.Instance.Text.Get(LocKeys.MainNoFixture);
             GD.Print("[MainMenu] No unplayed fixture available for the human club.");
             return;
         }

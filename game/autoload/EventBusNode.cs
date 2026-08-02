@@ -51,6 +51,6 @@ public partial class EventBusNode : Node
         var dialog = new EventResolutionDialog();
         _overlay.AddChild(dialog);
         dialog.ProcessMode = Node.ProcessModeEnum.Always;
-        return dialog.Present(request, definition, traitWeights);
+        return dialog.Present(request, definition, traitWeights, GameBootstrap.Instance.Text);
     }
 }
