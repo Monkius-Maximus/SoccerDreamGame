@@ -1,0 +1,215 @@
+[
+  {
+    "id": 1,
+    "key": "alex-mercer",
+    "firstName": "Alex",
+    "lastName": "Mercer",
+    "teamKey": "riverside-fc",
+    "attributes": {
+      "pace": 16,
+      "stamina": 15,
+      "strength": 13,
+      "passing": 14,
+      "shooting": 17,
+      "tackling": 8,
+      "vision": 15
+    },
+    "traitKeys": [
+      "hot_headed",
+      "showboat"
+    ]
+  },
+  {
+    "id": 10,
+    "key": "bruno-ramirez",
+    "firstName": "Bruno",
+    "lastName": "Ramirez",
+    "teamKey": "hilltop-united",
+    "attributes": {
+      "pace": 13,
+      "stamina": 15,
+      "strength": 15,
+      "passing": 13,
+      "shooting": 12,
+      "tackling": 14,
+      "vision": 11
+    },
+    "traitKeys": []
+  },
+  {
+    "id": 2,
+    "key": "diego-santos",
+    "firstName": "Diego",
+    "lastName": "Santos",
+    "teamKey": "riverside-fc",
+    "attributes": {
+      "pace": 14,
+      "stamina": 16,
+      "strength": 15,
+      "passing": 13,
+      "shooting": 11,
+      "tackling": 16,
+      "vision": 12
+    },
+    "traitKeys": [
+      "team_player"
+    ]
+  },
+  {
+    "id": 8,
+    "key": "hiroshi-tanaka",
+    "firstName": "Hiroshi",
+    "lastName": "Tanaka",
+    "teamKey": "hilltop-united",
+    "attributes": {
+      "pace": 14,
+      "stamina": 14,
+      "strength": 12,
+      "passing": 15,
+      "shooting": 13,
+      "tackling": 12,
+      "vision": 15
+    },
+    "traitKeys": []
+  },
+  {
+    "id": 6,
+    "key": "kwame-osei",
+    "firstName": "Kwame",
+    "lastName": "Osei",
+    "teamKey": "riverside-fc",
+    "attributes": {
+      "pace": 15,
+      "stamina": 13,
+      "strength": 16,
+      "passing": 11,
+      "shooting": 10,
+      "tackling": 15,
+      "vision": 10
+    },
+    "traitKeys": []
+  },
+  {
+    "id": 7,
+    "key": "lucas-berg",
+    "firstName": "Lucas",
+    "lastName": "Berg",
+    "teamKey": "riverside-fc",
+    "attributes": {
+      "pace": 12,
+      "stamina": 15,
+      "strength": 13,
+      "passing": 14,
+      "shooting": 13,
+      "tackling": 12,
+      "vision": 13
+    },
+    "traitKeys": []
+  },
+  {
+    "id": 5,
+    "key": "mateo-bianchi",
+    "firstName": "Mateo",
+    "lastName": "Bianchi",
+    "teamKey": "riverside-fc",
+    "attributes": {
+      "pace": 13,
+      "stamina": 14,
+      "strength": 12,
+      "passing": 15,
+      "shooting": 14,
+      "tackling": 11,
+      "vision": 14
+    },
+    "traitKeys": []
+  },
+  {
+    "id": 12,
+    "key": "noah-whitfield",
+    "firstName": "Noah",
+    "lastName": "Whitfield",
+    "teamKey": "hilltop-united",
+    "attributes": {
+      "pace": 12,
+      "stamina": 16,
+      "strength": 14,
+      "passing": 13,
+      "shooting": 11,
+      "tackling": 15,
+      "vision": 12
+    },
+    "traitKeys": []
+  },
+  {
+    "id": 9,
+    "key": "owen-pryce",
+    "firstName": "Owen",
+    "lastName": "Pryce",
+    "teamKey": "hilltop-united",
+    "attributes": {
+      "pace": 16,
+      "stamina": 13,
+      "strength": 14,
+      "passing": 12,
+      "shooting": 15,
+      "tackling": 10,
+      "vision": 12
+    },
+    "traitKeys": []
+  },
+  {
+    "id": 3,
+    "key": "ravi-kapoor",
+    "firstName": "Ravi",
+    "lastName": "Kapoor",
+    "teamKey": "costa-real",
+    "attributes": {
+      "pace": 17,
+      "stamina": 14,
+      "strength": 12,
+      "passing": 16,
+      "shooting": 15,
+      "tackling": 9,
+      "vision": 17
+    },
+    "traitKeys": [
+      "showboat"
+    ]
+  },
+  {
+    "id": 11,
+    "key": "sami-haidar",
+    "firstName": "Sami",
+    "lastName": "Haidar",
+    "teamKey": "hilltop-united",
+    "attributes": {
+      "pace": 15,
+      "stamina": 14,
+      "strength": 13,
+      "passing": 14,
+      "shooting": 14,
+      "tackling": 11,
+      "vision": 13
+    },
+    "traitKeys": []
+  },
+  {
+    "id": 4,
+    "key": "tom-fielder",
+    "firstName": "Tom",
+    "lastName": "Fielder",
+    "teamKey": "north-rovers",
+    "attributes": {
+      "pace": 11,
+      "stamina": 13,
+      "strength": 14,
+      "passing": 10,
+      "shooting": 9,
+      "tackling": 13,
+      "vision": 9
+    },
+    "traitKeys": [
+      "team_player"
+    ]
+  }
+]

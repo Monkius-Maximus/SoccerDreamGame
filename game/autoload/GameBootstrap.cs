@@ -1,11 +1,14 @@
 using Godot;
 using Microsoft.Data.Sqlite;
+using SoccerSim.Content;
+using SoccerSim.Content.Serialization;
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Events;
 using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.Time;
 using SoccerSim.Infrastructure.Sqlite;
+using SoccerSim.Infrastructure.Sqlite.Content;
 
 namespace SoccerDreamGame.Autoload;
 
@@ -16,6 +19,12 @@ namespace SoccerDreamGame.Autoload;
 /// </summary>
 public partial class GameBootstrap : Node
 {
+    /// <summary>
+    /// Resource-name prefix the content bundle is embedded under; see the EmbeddedResource
+    /// item in game.csproj.
+    /// </summary>
+    private const string ContentResourcePrefix = "SoccerDreamGame.content";
+
     public static GameBootstrap Instance { get; private set; } = null!;
 
     public ITimeManager Time { get; private set; } = null!;
@@ -54,10 +63,14 @@ public partial class GameBootstrap : Node
         // user:// resolves to a writable per-user directory on every desktop platform.
         string databasePath = ProjectSettings.GlobalizePath("user://save.db");
         var factory = SqliteConnectionFactory.ForFile(databasePath);
-        // Dev: apply the seed migration too so a fresh save has a world (teams, players,
-        // and a Tier 1 fixture) to simulate. Recorded once, so it is a no-op thereafter.
-        new MigrationRunner(factory).Migrate(includeSeeds: true);
+        new MigrationRunner(factory).Migrate();
         _connection = factory.Open();
+
+        // The world (clubs, players, traits, the opening fixtures) comes from the authored
+        // content bundle rather than hand-written SQL. Importing is a no-op once a save already
+        // holds this build, so this runs in full exactly once per save file.
+        ContentBundle content = ContentBundleResources.Read(typeof(GameBootstrap).Assembly, ContentResourcePrefix);
+        ContentImportReport import = new SqliteContentImporter(_connection).EnsureImported(content);
 
         _rng = DeterministicRng.Create(MasterSeed);
         _gateway = new SqliteFixtureGateway(_connection);
@@ -79,6 +92,7 @@ public partial class GameBootstrap : Node
 
         string human = Career is null ? "(none)" : $"player {Career.HumanPlayerId}, team {Career.HumanTeamId}";
         GD.Print($"[GameBootstrap] Core initialised. Save database: {databasePath}. Human: {human}");
+        GD.Print($"[GameBootstrap] {import.Describe()}");
     }
 
     public override void _ExitTree() => _connection?.Dispose();

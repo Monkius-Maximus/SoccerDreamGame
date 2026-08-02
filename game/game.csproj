@@ -14,7 +14,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\src\SoccerSim.Core\SoccerSim.Core.csproj" />
+    <ProjectReference Include="..\src\SoccerSim.Content\SoccerSim.Content.csproj" />
     <ProjectReference Include="..\src\SoccerSim.Infrastructure.Sqlite\SoccerSim.Infrastructure.Sqlite.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The authored world, embedded into the assembly rather than copied next to the
+      executable. In an exported Godot build res:// lives inside the .pck and is not a
+      real file, so a path-based load would work in the editor and fail once exported.
+      Resources become SoccerDreamGame.content.<file>.json — see ContentBundleResources.
+    -->
+    <EmbeddedResource Include="..\content\dev\*.json" LogicalName="SoccerDreamGame.content.%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

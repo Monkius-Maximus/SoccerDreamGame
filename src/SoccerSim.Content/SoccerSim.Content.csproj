@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <!--
+    Deliberately depends on SoccerSim.Core ONLY (which itself depends on nothing).
+    No Godot, no SQLite, no NuGet: this library is the shared vocabulary for authored
+    content, so both the game and the external authoring tool can validate against the
+    exact same rules. Persisting a bundle is somebody else's job — see
+    SoccerSim.Infrastructure.Sqlite/Content.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\SoccerSim.Core\SoccerSim.Core.csproj" />
+  </ItemGroup>
+
+</Project>

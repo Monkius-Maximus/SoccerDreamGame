@@ -22,6 +22,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SoccerSim.Core\SoccerSim.Core.csproj" />
+    <!-- Content/ maps authored bundles onto these tables; the bundle model itself stays
+         engine- and database-agnostic in SoccerSim.Content. -->
+    <ProjectReference Include="..\SoccerSim.Content\SoccerSim.Content.csproj" />
   </ItemGroup>
 
   <ItemGroup>

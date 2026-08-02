@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "key": "basic_bed",
+    "name": "Basic Bed",
+    "cost": 0,
+    "statKey": "stamina_recovery",
+    "yieldMultiplier": 1
+  },
+  {
+    "id": 3,
+    "key": "home_gym",
+    "name": "Home Gym",
+    "cost": 75000,
+    "statKey": "strength_training",
+    "yieldMultiplier": 1.5
+  },
+  {
+    "id": 2,
+    "key": "orthopedic_bed",
+    "name": "Orthopedic Bed",
+    "cost": 40000,
+    "statKey": "stamina_recovery",
+    "yieldMultiplier": 1.4
+  }
+]

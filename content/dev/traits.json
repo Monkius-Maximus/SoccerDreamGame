@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "key": "hot_headed",
+    "displayName": "Hot-Headed",
+    "aggression": 85,
+    "selfishness": 40,
+    "eventWeightBias": 10
+  },
+  {
+    "id": 3,
+    "key": "showboat",
+    "displayName": "Showboat",
+    "aggression": 50,
+    "selfishness": 80,
+    "eventWeightBias": 15
+  },
+  {
+    "id": 2,
+    "key": "team_player",
+    "displayName": "Team Player",
+    "aggression": 30,
+    "selfishness": 10,
+    "eventWeightBias": -5
+  }
+]

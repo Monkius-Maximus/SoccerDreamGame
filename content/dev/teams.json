@@ -1,0 +1,50 @@
+[
+  {
+    "id": 4,
+    "key": "atletico-sur",
+    "name": "Atletico Sur",
+    "leagueKey": "la-liga-mayor",
+    "budget": 7500000,
+    "eloRating": 1668
+  },
+  {
+    "id": 3,
+    "key": "costa-real",
+    "name": "Costa Real",
+    "leagueKey": "la-liga-mayor",
+    "budget": 9000000,
+    "eloRating": 1710
+  },
+  {
+    "id": 2,
+    "key": "hilltop-united",
+    "name": "Hilltop United",
+    "leagueKey": "premier-division",
+    "budget": 4200000,
+    "eloRating": 1555
+  },
+  {
+    "id": 6,
+    "key": "lakeside-town",
+    "name": "Lakeside Town",
+    "leagueKey": "regional-north",
+    "budget": 120000,
+    "eloRating": 1390
+  },
+  {
+    "id": 5,
+    "key": "north-rovers",
+    "name": "North Rovers",
+    "leagueKey": "regional-north",
+    "budget": 150000,
+    "eloRating": 1420
+  },
+  {
+    "id": 1,
+    "key": "riverside-fc",
+    "name": "Riverside FC",
+    "leagueKey": "premier-division",
+    "budget": 5000000,
+    "eloRating": 1620
+  }
+]

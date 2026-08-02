@@ -30,3 +30,6 @@ data_*/
 Thumbs.db
 *.swp
 .idea/
+
+# ---- Content build artifacts (the JSON bundle in content/ is the source of truth) ----
+/build/

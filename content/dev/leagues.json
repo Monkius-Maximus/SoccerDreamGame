@@ -1,0 +1,23 @@
+[
+  {
+    "id": 2,
+    "key": "la-liga-mayor",
+    "name": "La Liga Mayor",
+    "country": "Iberia",
+    "tier": "MajorForeign"
+  },
+  {
+    "id": 1,
+    "key": "premier-division",
+    "name": "Premier Division",
+    "country": "Homeland",
+    "tier": "ActiveHuman"
+  },
+  {
+    "id": 3,
+    "key": "regional-north",
+    "name": "Regional North",
+    "country": "Homeland",
+    "tier": "Minor"
+  }
+]

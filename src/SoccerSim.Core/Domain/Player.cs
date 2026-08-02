@@ -13,10 +13,20 @@ public readonly record struct PlayerAttributes(
     int Tackling,
     int Vision)
 {
+    /// <summary>
+    /// Inclusive bounds of every base attribute. Named constants rather than inline literals
+    /// because three places must agree: this clamp, the <c>CHECK</c> constraints in
+    /// <c>sql/0001_initial_schema.sql</c>, and the authoring-time content validator. Drift
+    /// between them surfaces as an opaque constraint violation at import time.
+    /// </summary>
+    public const int MinValue = 1;
+
+    public const int MaxValue = 20;
+
     /// <summary>Apply a FormMood modifier to every attribute, clamped to the 1–20 range.</summary>
     public PlayerAttributes WithModifier(FormMood mood)
     {
-        static int Apply(int value, int delta) => Math.Clamp(value + delta, 1, 20);
+        static int Apply(int value, int delta) => Math.Clamp(value + delta, MinValue, MaxValue);
         int m = mood.Value;
         return new PlayerAttributes(
             Apply(Pace, m),

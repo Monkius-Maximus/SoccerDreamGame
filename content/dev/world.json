@@ -1,0 +1,70 @@
+{
+  "startDate": "2026-08-01T00:00:00",
+  "seasons": [
+    {
+      "id": 2,
+      "key": "la-liga-mayor-2026-27",
+      "leagueKey": "la-liga-mayor",
+      "startDate": "2026-08-15T00:00:00",
+      "endDate": "2027-05-24T00:00:00",
+      "isCurrent": true
+    },
+    {
+      "id": 1,
+      "key": "premier-division-2026-27",
+      "leagueKey": "premier-division",
+      "startDate": "2026-08-01T00:00:00",
+      "endDate": "2027-05-31T00:00:00",
+      "isCurrent": true
+    },
+    {
+      "id": 3,
+      "key": "regional-north-2026-27",
+      "leagueKey": "regional-north",
+      "startDate": "2026-09-01T00:00:00",
+      "endDate": "2027-04-30T00:00:00",
+      "isCurrent": true
+    }
+  ],
+  "fixtures": [
+    {
+      "id": 2,
+      "key": "hilltop-united-vs-riverside-fc-2026-08-15",
+      "seasonKey": "premier-division-2026-27",
+      "homeTeamKey": "hilltop-united",
+      "awayTeamKey": "riverside-fc",
+      "kickoffDate": "2026-08-15T15:00:00"
+    },
+    {
+      "id": 1,
+      "key": "riverside-fc-vs-hilltop-united-2026-08-08",
+      "seasonKey": "premier-division-2026-27",
+      "homeTeamKey": "riverside-fc",
+      "awayTeamKey": "hilltop-united",
+      "kickoffDate": "2026-08-08T15:00:00"
+    }
+  ],
+  "finances": [
+    {
+      "playerKey": "alex-mercer",
+      "balance": 250000,
+      "baseSalaryWeekly": 35000
+    },
+    {
+      "playerKey": "diego-santos",
+      "balance": 180000,
+      "baseSalaryWeekly": 28000
+    },
+    {
+      "playerKey": "ravi-kapoor",
+      "balance": 600000,
+      "baseSalaryWeekly": 60000
+    },
+    {
+      "playerKey": "tom-fielder",
+      "balance": 12000,
+      "baseSalaryWeekly": 3500
+    }
+  ],
+  "humanPlayerKey": "alex-mercer"
+}

@@ -1,0 +1,155 @@
+using SoccerSim.Content.Model;
+using SoccerSim.Content.Validation;
+
+namespace SoccerSim.Content.Serialization;
+
+/// <summary>
+/// Reads and writes a bundle as a directory of JSON files — one per category, plus a manifest.
+///
+/// One file per category rather than one big file, because that is what makes the content
+/// reviewable: a PR that adds a club touches <c>teams.json</c> and nothing else. Entities are
+/// written sorted by key so the diff shows only what actually changed.
+/// </summary>
+public static class ContentBundleFiles
+{
+    public const string ManifestFileName = "manifest.json";
+
+    public static string FileNameFor(string category) => category + ".json";
+
+    /// <summary>
+    /// Writes the bundle to <paramref name="directory"/>, creating it if needed, and returns the
+    /// manifest actually written (with the freshly computed hash and counts).
+    /// </summary>
+    public static ContentManifest Write(ContentBundle bundle, string directory, string generator)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+
+        Directory.CreateDirectory(directory);
+
+        // Payloads in a fixed category order so the hash is stable regardless of dictionary
+        // enumeration order.
+        var payloads = new List<(string File, string Json)>
+        {
+            (FileNameFor(ContentCategory.Traits), ContentJson.Serialize(Sorted(bundle.Traits))),
+            (FileNameFor(ContentCategory.Leagues), ContentJson.Serialize(Sorted(bundle.Leagues))),
+            (FileNameFor(ContentCategory.Teams), ContentJson.Serialize(Sorted(bundle.Teams))),
+            (FileNameFor(ContentCategory.Players), ContentJson.Serialize(Sorted(bundle.Players))),
+            (FileNameFor(ContentCategory.HousingItems), ContentJson.Serialize(Sorted(bundle.HousingItems))),
+            (FileNameFor(ContentCategory.World), ContentJson.Serialize(SortWorld(bundle.World))),
+        };
+
+        var manifest = new ContentManifest
+        {
+            FormatVersion = ContentSchema.FormatVersion,
+            ContentVersion = ContentSchema.CurrentVersion,
+            BuildId = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            Generator = generator,
+            ContentHash = ContentJson.Hash(payloads.Select(p => p.File + "\n" + p.Json)),
+            Counts = bundle.CountByCategory(),
+        };
+
+        foreach ((string file, string json) in payloads)
+            File.WriteAllText(Path.Combine(directory, file), json + Environment.NewLine);
+
+        File.WriteAllText(
+            Path.Combine(directory, ManifestFileName),
+            ContentJson.Serialize(manifest) + Environment.NewLine);
+
+        return manifest;
+    }
+
+    /// <summary>
+    /// Reads a bundle from <paramref name="directory"/>. Throws <see cref="ContentFormatException"/>
+    /// if the manifest is missing or declares a version this build cannot read — never returns a
+    /// partially understood bundle.
+    /// </summary>
+    public static ContentBundle Read(string directory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+
+        return Read(
+            fileName =>
+            {
+                string path = Path.Combine(directory, fileName);
+                return File.Exists(path) ? File.ReadAllText(path) : null;
+            },
+            directory);
+    }
+
+    /// <summary>
+    /// Reads a bundle from any source of named JSON documents — a directory, embedded assembly
+    /// resources, a zip. <paramref name="readText"/> returns null for a file that is not there.
+    /// <paramref name="sourceName"/> only appears in error messages.
+    /// </summary>
+    public static ContentBundle Read(Func<string, string?> readText, string sourceName)
+    {
+        ArgumentNullException.ThrowIfNull(readText);
+
+        string manifestJson = readText(ManifestFileName)
+            ?? throw new ContentFormatException(
+                $"No {ManifestFileName} in '{sourceName}'. Point at a content bundle, "
+                + "or generate one with the content tool.");
+
+        ContentManifest manifest = ContentJson.Deserialize<ContentManifest>(manifestJson, ManifestFileName);
+        ContentCompatibilityCheck.Validate(manifest);
+
+        return new ContentBundle
+        {
+            Manifest = manifest,
+            Traits = ReadList<ContentTrait>(readText, ContentCategory.Traits),
+            Leagues = ReadList<ContentLeague>(readText, ContentCategory.Leagues),
+            Teams = ReadList<ContentTeam>(readText, ContentCategory.Teams),
+            Players = ReadList<ContentPlayer>(readText, ContentCategory.Players),
+            HousingItems = ReadList<ContentHousingItem>(readText, ContentCategory.HousingItems),
+            World = ReadOne<ContentWorld>(readText, ContentCategory.World) ?? new ContentWorld(),
+        };
+    }
+
+    /// <summary>
+    /// Recomputes the hash of what is on disk and compares it to the manifest. Catches a JSON
+    /// file hand-edited without re-running the export.
+    /// </summary>
+    public static bool HashMatches(string directory)
+    {
+        ContentBundle bundle = Read(directory);
+        var payloads = new List<string>
+        {
+            Payload(directory, ContentCategory.Traits),
+            Payload(directory, ContentCategory.Leagues),
+            Payload(directory, ContentCategory.Teams),
+            Payload(directory, ContentCategory.Players),
+            Payload(directory, ContentCategory.HousingItems),
+            Payload(directory, ContentCategory.World),
+        };
+
+        return string.Equals(ContentJson.Hash(payloads), bundle.Manifest.ContentHash, StringComparison.Ordinal);
+    }
+
+    private static string Payload(string directory, string category)
+    {
+        string path = Path.Combine(directory, FileNameFor(category));
+        string json = File.Exists(path) ? File.ReadAllText(path) : string.Empty;
+        return FileNameFor(category) + "\n" + json.TrimEnd('\r', '\n');
+    }
+
+    private static IReadOnlyList<T> ReadList<T>(Func<string, string?> readText, string category)
+        => ReadOne<List<T>>(readText, category) ?? [];
+
+    private static T? ReadOne<T>(Func<string, string?> readText, string category) where T : class
+    {
+        string fileName = FileNameFor(category);
+        string? json = readText(fileName);
+        return json is null ? null : ContentJson.Deserialize<T>(json, fileName);
+    }
+
+    private static List<T> Sorted<T>(IReadOnlyList<T> entities) where T : IContentEntity
+        => entities.OrderBy(e => e.Key, StringComparer.Ordinal).ToList();
+
+    private static ContentWorld SortWorld(ContentWorld world) => world with
+    {
+        Seasons = world.Seasons.OrderBy(s => s.Key, StringComparer.Ordinal).ToList(),
+        Fixtures = world.Fixtures.OrderBy(f => f.Key, StringComparer.Ordinal).ToList(),
+        Finances = world.Finances.OrderBy(f => f.PlayerKey, StringComparer.Ordinal).ToList(),
+    };
+}
