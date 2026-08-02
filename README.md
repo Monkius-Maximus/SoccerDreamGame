@@ -61,20 +61,11 @@ dotnet test tests/SoccerSim.Core.Tests
 
 # 2. Build everything via the solution.
 dotnet build SoccerDreamGame.sln
-
-# 3. Open the game in the Godot 4.6 (.NET) editor.
-#    Import the `game/` folder, then Run. The autoloads create user://save.db,
-#    apply the SQL migrations, and wire the core services on first launch.
 ```
 
-## Running in the Godot editor
-
-```bash
-# Headless first — this catches compile errors without the editor.
-dotnet test tests/SoccerSim.Core.Tests
-```
-
-Then import the **`game/`** folder in Godot 4.6 (.NET) and press Build, then Run.
+Then import the **`game/`** folder in the Godot 4.6 (.NET) editor and press Build, then Run. The
+autoloads create `user://save.db`, apply the SQL migrations, and wire the core services on first
+launch.
 
 ### If the window is blank
 
@@ -102,11 +93,11 @@ opens the quick menu (where the career role can be switched).
 
 ## Off-pitch life simulation
 
-Six needs — Energy, Nutrition, Fitness, Morale, Social, Focus — drain each simulated day for
-whoever the human controls. **A player career and a manager career share one simulation**, not
-two: the needs are identical (a manager still sleeps, eats and needs company) and only the
-`NeedProfile` tuning differs — an athlete's life weights conditioning, a manager's weights
-clarity and the dressing room.
+Eight needs — Energy, Nutrition, Hygiene, Fitness, MuscleCondition, Morale, Social, Focus — drain
+each simulated day for whoever the human controls. **A player career and a manager career share one
+simulation**, not two: the needs are identical (a manager still sleeps, eats and needs company) and
+only the `NeedProfile` tuning differs — an athlete's life weights conditioning and muscle freshness,
+a manager's weights clarity and the dressing room.
 
 The gauges are load-bearing, not cosmetic. `WellbeingSnapshot` is the single read point, and its
 fields feed systems that already existed: form (and therefore effective attributes) via
