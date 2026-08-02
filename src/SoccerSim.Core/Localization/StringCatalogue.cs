@@ -207,6 +207,11 @@ public static class StringCatalogue
         ["menu.career_role"] = "Carreira atual",
         ["menu.role_hint"] = "Trocar de carreira mantém suas necessidades exatamente onde estão — só muda o peso de cada uma. Você continua sendo a mesma pessoa que dormiu mal ontem.",
         ["menu.resume"] = "Continuar",
+        ["menu.main.title"] = "Soccer Dream Game",
+        ["menu.main.life_sim"] = "Viver o Dia a Dia",
+        ["menu.main.play_fixture"] = "Jogar a Próxima Partida",
+        ["menu.main.advance_calendar"] = "Avançar o Calendário",
+        ["menu.main.no_fixture"] = "Nenhuma partida pendente para o seu clube.",
         ["activity.unaffordable"] = "Saldo insuficiente",
 
         // ── Valores derivados ───────────────────────────────────────────────────────────
@@ -372,6 +377,11 @@ public static class StringCatalogue
         ["menu.career_role"] = "Current career",
         ["menu.role_hint"] = "Switching career keeps your needs exactly where they are — only their weighting changes. You are still the person who slept badly last night.",
         ["menu.resume"] = "Resume",
+        ["menu.main.title"] = "Soccer Dream Game",
+        ["menu.main.life_sim"] = "Live the Day",
+        ["menu.main.play_fixture"] = "Play Next Fixture",
+        ["menu.main.advance_calendar"] = "Advance Calendar",
+        ["menu.main.no_fixture"] = "No unplayed fixture for your club.",
         ["activity.unaffordable"] = "Insufficient balance",
 
         ["derived.injury_risk"] = "Injury Risk",

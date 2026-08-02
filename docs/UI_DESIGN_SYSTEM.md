@@ -304,10 +304,11 @@ exists.** The phone must never become the place where state secretly lives.
 
 ## Open items
 
-- **Match presentation is undecided.** The concept's match screen is decision cards over an SVG
-  pitch; the core already has `PitchSimulation` (~22 steering + utility brains at 60 Hz). These are
-  different games and the choice should be deliberate, not settled by whichever screen gets built
-  first.
+- ~~Match presentation is undecided.~~ **Decided: `PitchSimulation`.** The rendered match will draw
+  the existing tick simulation (~22 steering + utility brains at 60 Hz) rather than the concept's
+  decision-cards-over-an-SVG screen. The minute-by-minute `MatchEngine` stays as the Tier 1
+  background resolver; the match *scene* renders `PitchSimulation`. Not yet built — `MatchScene` is
+  still a stub.
 - **The world is a placeholder.** `TestWorldGazetteer` is scaffolding; the real world comes from the
   City Searcher tool in its own sprint. See [`WORLD_INTEGRATION.md`](WORLD_INTEGRATION.md) for the
   seam that was built to receive it and the ordered merge sequence.

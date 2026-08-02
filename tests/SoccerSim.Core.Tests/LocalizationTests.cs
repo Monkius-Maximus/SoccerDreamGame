@@ -83,6 +83,11 @@ public sealed class LocalizationTests
         yield return LocKeys.MenuCareerRole;
         yield return LocKeys.MenuRoleHint;
         yield return LocKeys.MenuResume;
+        yield return LocKeys.MainTitle;
+        yield return LocKeys.MainLifeSim;
+        yield return LocKeys.MainPlayFixture;
+        yield return LocKeys.MainAdvanceCalendar;
+        yield return LocKeys.MainNoFixture;
         yield return LocKeys.ActivityUnaffordable;
         yield return LocKeys.DerivedInjuryRisk;
         yield return LocKeys.DerivedStress;

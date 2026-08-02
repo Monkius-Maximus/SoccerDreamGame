@@ -29,7 +29,7 @@ public partial class PhoneOverlay : Control
     private readonly List<PhoneApp> _apps = [];
 
     private ILocalizer _text = null!;
-    private PanelContainer _shell = null!;
+    private PanelContainer? _shell;
     private VBoxContainer _body = null!;
     private Label _title = null!;
     private Button _back = null!;
@@ -40,6 +40,11 @@ public partial class PhoneOverlay : Control
     /// <summary>True while an app is open rather than the home screen.</summary>
     public bool IsInsideApp { get; private set; }
 
+    /// <summary>
+    /// Attach the localizer and the app list. Safe to call again — a career-role switch re-configures
+    /// so the apps bind to the replacement services, and rebuilding the shell each time would stack
+    /// a second phone on top of the first.
+    /// </summary>
     public void Configure(ILocalizer text, IEnumerable<PhoneApp> apps)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -49,7 +54,9 @@ public partial class PhoneOverlay : Control
         _apps.Clear();
         _apps.AddRange(apps);
 
-        BuildShell();
+        if (_shell is null || !IsInstanceValid(_shell))
+            BuildShell();
+
         ShowHome();
         Visible = false;
     }
@@ -105,14 +112,24 @@ public partial class PhoneOverlay : Control
         // Right-anchored and phone-shaped: it should read as a device the character is holding, not
         // as a modal dialog the game threw at them.
         var margin = new MarginContainer();
-        margin.SetAnchorsPreset(LayoutPreset.RightWide);
+        margin.SetAnchorsPreset(LayoutPreset.FullRect);
         margin.AddThemeConstantOverride("margin_right", UiTokens.SpaceXl);
         margin.AddThemeConstantOverride("margin_top", UiTokens.HudBarHeight + UiTokens.SpaceXl);
         margin.AddThemeConstantOverride("margin_bottom", UiTokens.SpaceXl);
         AddChild(margin);
 
-        _shell = new PanelContainer { CustomMinimumSize = new Vector2(380, 0) };
-        margin.AddChild(_shell);
+        // A full-rect container with an end-aligned row, rather than a RightWide preset: that preset
+        // collapses to zero width and grows rightward off-screen, which is the kind of bug that only
+        // appears once the thing is actually rendered.
+        var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End };
+        margin.AddChild(row);
+
+        _shell = new PanelContainer
+        {
+            CustomMinimumSize = new Vector2(380, 0),
+            SizeFlagsVertical = SizeFlags.ExpandFill,
+        };
+        row.AddChild(_shell);
 
         var column = new VBoxContainer();
         column.AddThemeConstantOverride("separation", UiTokens.SpaceMd);

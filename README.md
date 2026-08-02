@@ -67,6 +67,39 @@ dotnet build SoccerDreamGame.sln
 #    apply the SQL migrations, and wire the core services on first launch.
 ```
 
+## Running in the Godot editor
+
+```bash
+# Headless first — this catches compile errors without the editor.
+dotnet test tests/SoccerSim.Core.Tests
+```
+
+Then import the **`game/`** folder in Godot 4.6 (.NET) and press Build, then Run.
+
+### If the window is blank
+
+The symptom of a C# assembly that failed to load is a black window with no obvious error: every
+script silently detaches from its node, so no autoload runs and the main scene renders as an empty
+`Control`. Two things cause it, and both are invisible to `dotnet build`:
+
+1. **Assembly-name mismatch.** `game/game.csproj`'s `<AssemblyName>` MUST equal
+   `[dotnet] project/assembly_name` in `project.godot` (both are `SoccerDreamGame`). Without an
+   explicit `<AssemblyName>`, MSBuild names the assembly after the project *file* — `game.dll` —
+   and Godot looks for `SoccerDreamGame.dll` and finds nothing.
+2. **Stale build output.** Godot builds into `game/.godot/mono/temp/bin/<Config>/`, which is
+   git-ignored. After changing the assembly name, or when switching branches, an old DLL can linger.
+   Delete `game/.godot/mono/` and rebuild.
+
+Check Godot's **Output** panel on launch: a healthy start prints `[GameBootstrap] Core initialised.`
+followed by the other autoloads. If those lines are absent, the assembly did not load — it is not a
+scene or UI problem.
+
+### Where to look once it runs
+
+The hub menu offers **Viver o Dia a Dia** (the life-sim: needs, activities, travel),
+**Jogar a Próxima Partida**, and **Avançar o Calendário**. In-game, `P` opens the phone and `Esc`
+opens the quick menu (where the career role can be switched).
+
 ## Off-pitch life simulation
 
 Six needs — Energy, Nutrition, Fitness, Morale, Social, Focus — drain each simulated day for

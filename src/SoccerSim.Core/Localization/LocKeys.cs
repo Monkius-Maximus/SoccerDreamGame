@@ -106,6 +106,14 @@ public static class LocKeys
     public const string MenuRoleHint = "menu.role_hint";
     public const string MenuResume = "menu.resume";
 
+    // ── Main menu (the hub scene) ───────────────────────────────────────────────────────
+
+    public const string MainTitle = "menu.main.title";
+    public const string MainLifeSim = "menu.main.life_sim";
+    public const string MainPlayFixture = "menu.main.play_fixture";
+    public const string MainAdvanceCalendar = "menu.main.advance_calendar";
+    public const string MainNoFixture = "menu.main.no_fixture";
+
     // ── Contextual input prompts ────────────────────────────────────────────────────────
 
     public const string PromptSelect = "prompt.select";

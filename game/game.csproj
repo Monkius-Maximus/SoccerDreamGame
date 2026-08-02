@@ -10,6 +10,16 @@
     <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>SoccerDreamGame</RootNamespace>
+    <!--
+      MUST match [dotnet] project/assembly_name in project.godot.
+
+      Without this the assembly name defaults to the project FILE name ("game"), producing
+      game.dll while Godot looks for SoccerDreamGame.dll. Godot then loads no C# assembly at
+      all: every script silently detaches from its node, no autoload runs, and the main scene
+      renders as an empty Control — a black window with no error that points at the cause.
+      `dotnet build` succeeds either way, so only opening the editor reveals it.
+    -->
+    <AssemblyName>SoccerDreamGame</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
