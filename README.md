@@ -50,6 +50,8 @@ would be compiled twice. Keeping it in `src/` avoids that.
 | `tests/SoccerSim.Core.Tests/` | Headless xUnit tests proving the core runs without the engine. |
 | `docs/ARCHITECTURE.md` | Design notes + the three required design artifacts (interfaces, schema, EventTrigger pseudo-code). |
 | `docs/UI_DESIGN_SYSTEM.md` | Interface tokens, contrast/type rules, and what changed from the UI concept. |
+| `docs/WORLD_INTEGRATION.md` | The City Searcher seam and the ordered merge sequence for the real world. |
+| `docs/ROADMAP.md` | Sprint breakdown, technical debt register, and what is out of scope. |
 
 ## Build & run
 
