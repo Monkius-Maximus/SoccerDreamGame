@@ -65,6 +65,13 @@ dotnet test tests/SoccerSim.Core.Tests
 dotnet build SoccerDreamGame.sln
 ```
 
+There are **two** solution files, deliberately:
+
+| File | Contains | Used by |
+| --- | --- | --- |
+| `SoccerDreamGame.sln` (root) | core, infra, game, **tests** | CI and the command line |
+| `game/SoccerDreamGame.sln` | core, infra, game | **the Godot editor**, which requires this exact name and location |
+
 Then import the **`game/`** folder in the Godot 4.6 (.NET) editor and press Build, then Run. The
 autoloads create `user://save.db`, apply the SQL migrations, and wire the core services on first
 launch.
@@ -73,15 +80,30 @@ launch.
 
 The symptom of a C# assembly that failed to load is a black window with no obvious error: every
 script silently detaches from its node, so no autoload runs and the main scene renders as an empty
-`Control`. Two things cause it, and both are invisible to `dotnet build`:
+`Control`. Three things cause it, and none is visible to `dotnet build`:
 
-1. **Assembly-name mismatch.** `game/game.csproj`'s `<AssemblyName>` MUST equal
-   `[dotnet] project/assembly_name` in `project.godot` (both are `SoccerDreamGame`). Without an
-   explicit `<AssemblyName>`, MSBuild names the assembly after the project *file* — `game.dll` —
-   and Godot looks for `SoccerDreamGame.dll` and finds nothing.
-2. **Stale build output.** Godot builds into `game/.godot/mono/temp/bin/<Config>/`, which is
-   git-ignored. After changing the assembly name, or when switching branches, an old DLL can linger.
+1. **File names Godot expects.** Godot 4 derives the C# project paths from
+   `[dotnet] project/assembly_name` and looks for them *beside* `project.godot`:
+
+   | Godot looks for | Must be |
+   | --- | --- |
+   | `game/<assembly_name>.sln` | `game/SoccerDreamGame.sln` |
+   | `game/<assembly_name>.csproj` | `game/SoccerDreamGame.csproj` |
+
+   Miss either name and the editor concludes there is **no C# project at all** — the Build button
+   has nothing to build. This is the most confusing failure of the three, because the command line
+   builds happily the whole time.
+
+2. **Assembly-name mismatch.** `<AssemblyName>` in the csproj must equal `assembly_name` in
+   `project.godot`. Without an explicit `<AssemblyName>`, MSBuild names the assembly after the
+   project *file*, so a differently-named csproj produces a DLL Godot will not look for.
+
+3. **Stale build output.** Godot builds into `game/.godot/mono/temp/bin/<Config>/`, which is
+   git-ignored. After any of the above changes, or when switching branches, an old DLL can linger.
    Delete `game/.godot/mono/` and rebuild.
+
+All three collapse into one rule: **the Godot project folder, its `.sln`, its `.csproj` and
+`assembly_name` all say `SoccerDreamGame`.** Change one, change all of them.
 
 Check Godot's **Output** panel on launch: a healthy start prints `[GameBootstrap] Core initialised.`
 followed by the other autoloads. If those lines are absent, the assembly did not load — it is not a

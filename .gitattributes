@@ -1,0 +1,21 @@
+# Normalize line endings. The project is edited on Windows (Godot editor) and on
+# Linux (CI, agents), and Godot's own generated files assume LF.
+* text=auto eol=lf
+
+# Godot text resources and .NET project files are text, always.
+*.tscn   text eol=lf
+*.tres   text eol=lf
+*.godot  text eol=lf
+*.import text eol=lf
+*.cs     text eol=lf
+*.csproj text eol=lf
+*.sln    text eol=lf
+*.sql    text eol=lf
+
+# Binary assets must never be munged.
+*.png binary
+*.jpg binary
+*.ttf binary
+*.otf binary
+*.wav binary
+*.ogg binary
