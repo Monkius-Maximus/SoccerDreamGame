@@ -82,9 +82,8 @@ public sealed class SimulationLodReservationTests
     [Fact]
     public void CalendarAdvance_DoesNotResolve_HumanTeamFixtures()
     {
-        var factory = SqliteConnectionFactory.InMemoryShared($"db-{Guid.NewGuid():N}");
-        using SqliteConnection keepAlive = factory.Open();
-        new MigrationRunner(factory).Migrate(includeSeeds: true);
+        (SqliteConnectionFactory factory, SqliteConnection keepAlive) = TestWorld.New(withContent: true);
+        using SqliteConnection _ = keepAlive;
 
         using SqliteConnection connection = factory.Open();
         var gateway = new SqliteFixtureGateway(connection);

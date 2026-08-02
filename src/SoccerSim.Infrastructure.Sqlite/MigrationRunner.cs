@@ -6,8 +6,11 @@ namespace SoccerSim.Infrastructure.Sqlite;
 
 /// <summary>
 /// Applies the embedded, numbered .sql migrations (from /sql) in order, recording
-/// each in a SchemaVersions table so it runs exactly once. Seed files (those whose
-/// name contains "seed") are skipped unless explicitly requested.
+/// each in a SchemaVersions table so it runs exactly once.
+///
+/// Migrations carry SCHEMA only. Game content arrives separately, through
+/// <see cref="Content.SqliteContentImporter"/> from an authored bundle — which is why the
+/// old includeSeeds switch and sql/9999_seed_dev.sql are gone.
 /// </summary>
 public sealed class MigrationRunner
 {
@@ -17,7 +20,7 @@ public sealed class MigrationRunner
 
     public MigrationRunner(SqliteConnectionFactory factory) => _factory = factory;
 
-    public void Migrate(bool includeSeeds = false)
+    public void Migrate()
     {
         using SqliteConnection connection = _factory.Open();
         EnsureVersionTable(connection);
@@ -26,7 +29,6 @@ public sealed class MigrationRunner
         Assembly assembly = typeof(MigrationRunner).Assembly;
         IEnumerable<string> resources = assembly.GetManifestResourceNames()
             .Where(name => name.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
-            .Where(name => includeSeeds || !name.Contains("seed", StringComparison.OrdinalIgnoreCase))
             .OrderBy(name => name, StringComparer.Ordinal);
 
         foreach (string resource in resources)

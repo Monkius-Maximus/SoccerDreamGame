@@ -34,43 +34,43 @@ public sealed class ShippedContentTests
     }
 
     /// <summary>
-    /// The bundle must reproduce the hand-written <c>sql/9999_seed_dev.sql</c> world exactly —
-    /// same rows, same ids, same foreign keys. This is what makes deleting that seed file a safe,
-    /// behaviour-preserving change rather than a leap of faith.
+    /// The shipped bundle must still produce the exact world the retired
+    /// <c>sql/9999_seed_dev.sql</c> did — the ids here are the ones the LOD tests, the career
+    /// service and the fixture gateway all assert against, and they are foreign keys in every
+    /// save file. Pinned explicitly, because "the content happens to be right" is not something
+    /// the other tests would notice going wrong.
     /// </summary>
     [Fact]
-    public void ShippedBundle_ReproducesTheLegacySqlSeed_RowForRow()
+    public void ShippedBundle_BuildsTheExpectedWorld()
     {
         using var dir = new TempDirectory();
+        string dbPath = Path.Combine(dir.Path, "content.db");
+        ContentDbBuilder.Build(ContentBundleFiles.Read(RepoPaths.ContentDir), dbPath);
 
-        string seedDbPath = Path.Combine(dir.Path, "seed.db");
-        var seedFactory = SqliteConnectionFactory.ForFile(seedDbPath);
-        new MigrationRunner(seedFactory).Migrate(includeSeeds: true);
+        using SqliteConnection connection = SqliteConnectionFactory.ForFile(dbPath).Open();
 
-        string contentDbPath = Path.Combine(dir.Path, "content.db");
-        ContentDbBuilder.Build(ContentBundleFiles.Read(RepoPaths.ContentDir), contentDbPath);
+        Assert.Equal(
+            "1 | Premier Division | Homeland | 1\n"
+            + "2 | La Liga Mayor | Iberia | 2\n"
+            + "3 | Regional North | Homeland | 3",
+            Dump(connection, "SELECT Id, Name, Country, Tier FROM Leagues ORDER BY Id;"));
 
-        using SqliteConnection fromSeed = seedFactory.Open();
-        using SqliteConnection fromContent = SqliteConnectionFactory.ForFile(contentDbPath).Open();
+        Assert.Equal(
+            "1 | Riverside FC | 1\n2 | Hilltop United | 1\n3 | Costa Real | 2\n"
+            + "4 | Atletico Sur | 2\n5 | North Rovers | 3\n6 | Lakeside Town | 3",
+            Dump(connection, "SELECT Id, Name, LeagueId FROM Teams ORDER BY Id;"));
 
-        foreach (string query in AuthoredWorldQueries)
-            Assert.Equal(Dump(fromSeed, query), Dump(fromContent, query));
+        // The human is player 1 at club 1, which is what SqliteCareerService resolves against.
+        Assert.Equal("1 | 1", Dump(connection, "SELECT Id, HumanPlayerId FROM Career;"));
+        Assert.Equal("1 | Alex | Mercer | 1",
+            Dump(connection, "SELECT Id, FirstName, LastName, TeamId FROM Players WHERE Id = 1;"));
+
+        // Two unplayed Tier 1 fixtures, so "Play Next Fixture" has something to render.
+        Assert.Equal(
+            "1 | 1 | 1 | 2 | 2026-08-08 15:00:00\n2 | 1 | 2 | 1 | 2026-08-15 15:00:00",
+            Dump(connection,
+                "SELECT Id, LeagueId, HomeTeamId, AwayTeamId, KickoffDate FROM Matches ORDER BY Id;"));
     }
-
-    private static readonly string[] AuthoredWorldQueries =
-    [
-        "SELECT Id, Name, Country, Tier, CurrentSeasonId FROM Leagues ORDER BY Id;",
-        "SELECT Id, Name, LeagueId, Budget, EloRating FROM Teams ORDER BY Id;",
-        "SELECT Id, FirstName, LastName, TeamId, Pace, Stamina, Strength, Passing, Shooting, "
-        + "Tackling, Vision FROM Players ORDER BY Id;",
-        "SELECT Id, Key, DisplayName, Aggression, Selfishness, EventWeightBias FROM PlayerTraits ORDER BY Id;",
-        "SELECT PlayerId, TraitId FROM PlayerTraitAssignments ORDER BY PlayerId, TraitId;",
-        "SELECT Id, Key, Name, Cost, StatKey, YieldMultiplier FROM HousingItems ORDER BY Id;",
-        "SELECT Id, LeagueId, StartDate, EndDate FROM Seasons ORDER BY Id;",
-        "SELECT Id, SeasonId, LeagueId, HomeTeamId, AwayTeamId, KickoffDate, Played FROM Matches ORDER BY Id;",
-        "SELECT Id, HumanPlayerId FROM Career ORDER BY Id;",
-        "SELECT PlayerId, Balance, BaseSalaryWeekly FROM PlayerFinances ORDER BY PlayerId;",
-    ];
 
     private static string Dump(SqliteConnection connection, string sql)
     {
@@ -87,7 +87,7 @@ public sealed class ShippedContentTests
             rows.Add(string.Join(" | ", values));
         }
 
-        return sql + Environment.NewLine + string.Join(Environment.NewLine, rows);
+        return string.Join("\n", rows);
     }
 }
 

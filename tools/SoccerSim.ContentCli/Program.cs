@@ -1,9 +1,6 @@
-using Microsoft.Data.Sqlite;
 using SoccerSim.Content;
 using SoccerSim.Content.Serialization;
 using SoccerSim.Content.Validation;
-using SoccerSim.ContentCli;
-using SoccerSim.Infrastructure.Sqlite;
 using SoccerSim.Infrastructure.Sqlite.Content;
 
 const string Generator = "SoccerSim.ContentCli 0.1.0";
@@ -24,7 +21,6 @@ try
         "build" => BuildDb(Arg(args, "--content", DefaultContentDir), Arg(args, "--out", DefaultOutputDb)),
         "stats" => Stats(Arg(args, "--content", DefaultContentDir)),
         "reexport" => Reexport(Arg(args, "--content", DefaultContentDir)),
-        "import-legacy" => ImportLegacy(Arg(args, "--out", DefaultContentDir)),
         _ => Unknown(args[0]),
     };
 }
@@ -99,41 +95,6 @@ static int Stats(string contentDir)
     return 0;
 }
 
-static int ImportLegacy(string outputDir)
-{
-    // Build a throwaway database with the old hand-written seed applied, read it back as a
-    // bundle, and write the JSON. This is the last call site of includeSeeds: true.
-    string scratch = Path.Combine(Path.GetTempPath(), $"legacy-seed-{Guid.NewGuid():N}.db");
-    try
-    {
-        var factory = SqliteConnectionFactory.ForFile(scratch);
-        new MigrationRunner(factory).Migrate(includeSeeds: true);
-
-        using SqliteConnection connection = factory.Open();
-        ContentBundle bundle = LegacySeedReader.Read(connection);
-
-        ContentValidationResult result = ContentValidator.Default.Validate(bundle);
-        foreach (ContentIssue issue in result.Issues)
-            Console.WriteLine(issue);
-        result.ThrowIfInvalid();
-
-        ContentManifest manifest = ContentBundleFiles.Write(bundle, outputDir, Generator);
-        Console.WriteLine($"Wrote {outputDir}: build {manifest.BuildId} ({manifest.ContentHash})");
-        foreach ((string category, int count) in manifest.Counts.OrderBy(c => c.Key, StringComparer.Ordinal))
-            Console.WriteLine($"  {count,6}  {category}");
-        return 0;
-    }
-    finally
-    {
-        SqliteConnection.ClearAllPools();
-        foreach (string suffix in new[] { "", "-wal", "-shm" })
-        {
-            if (File.Exists(scratch + suffix))
-                File.Delete(scratch + suffix);
-        }
-    }
-}
-
 static int Unknown(string verb)
 {
     Console.Error.WriteLine($"Unknown command '{verb}'.");
@@ -155,7 +116,6 @@ static void PrintUsage() => Console.WriteLine(
       build          [--content <dir>] [--out <db>] Validate, then build a playable content.db.
       stats          [--content <dir>]              Row counts per category.
       reexport       [--content <dir>]              Re-normalise and re-hash a hand-edited bundle.
-      import-legacy  [--out <dir>]                  One-shot port of sql/9999_seed_dev.sql to JSON.
 
     Defaults: --content content/dev, --out build/content/content.db
     """);

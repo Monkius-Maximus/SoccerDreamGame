@@ -14,8 +14,13 @@ artifacts:
 
 - **`SoccerSim.Core`** depends on nothing (no Godot, no NuGet). It holds the managers,
   domain models, and **persistence _ports_** (interfaces).
-- **`SoccerSim.Infrastructure.Sqlite`** depends on Core + `Microsoft.Data.Sqlite` and
-  _implements_ the ports. It is the only database-aware project.
+- **`SoccerSim.Content`** depends on Core only (no Godot, no database, no NuGet). It holds
+  the authored-content model, the manifest, and the **validator** — the single definition of
+  "is this content usable?", shared by the authoring tool and the game.
+- **`SoccerSim.Infrastructure.Sqlite`** depends on Core + Content + `Microsoft.Data.Sqlite`
+  and _implements_ the ports. It is the only database-aware project.
+- **`tools/`** (ContentStudio, ContentCli) depend on Content + Infrastructure. Nothing depends
+  on them.
 - **`game/`** (Godot) depends on both, but only through interfaces. Godot code is
   confined to thin autoload wrappers and scenes.
 - Dependencies point **inward**: Godot → Core ← Infrastructure. Nothing points at Godot.
@@ -119,7 +124,16 @@ CREATE TABLE PlayerTraits (                         -- STATIC personality catalo
 );
 -- + PlayerTraitAssignments (M:N), Seasons, Matches, Goals, Standings,
 --   FormMood (dynamic, keyed by PlayerId+SeasonId), and the §5 economy tables.
+-- 0006 adds a stable Key to every authored table plus the ContentBuilds stamp;
+-- 0007 adds Nations, Stadiums, Competitions, Coaches and Contracts.
 ```
+
+**On `Leagues`.** The table is a **division**, not a tournament: `Matches.LeagueId` points at
+it and `Leagues.Tier` drives the entire LOD path (`SqliteFixtureGateway`,
+`SimulationLODManager`). Migration 0007 therefore added `Competitions` as a *parent* rather
+than renaming `Leagues` — renaming would have put the tournament's name on the routing unit.
+A cup competition owns exactly one division so its fixtures still have a `LeagueId` to route
+on; that invariant spans two tables, so the content validator enforces it, not SQL.
 
 **Portability:** `INTEGER PRIMARY KEY` (rowid alias), ISO-8601 `TEXT` timestamps, and
 `INTEGER` booleans all map 1:1 to PostgreSQL. Only the connection factory + identity
@@ -262,13 +276,64 @@ trajectories, low decision-switch rates, and tactics measurably changing behavio
 closer defenders in build-up, directness ⇒ longer passes, mentality ⇒ higher anchors, selfishness
 ⇒ shooting over passing).
 
+## Content pipeline
+
+Game content is **authored data, not code**. Until migration 0006 the entire world lived in a
+hand-written `sql/9999_seed_dev.sql`; that file is gone, and the world now comes from a
+versioned JSON bundle in `content/dev/`.
+
+```
+  Content Studio  ->  content/dev/*.json  ->  validate  ->  build/content/content.db
+   (browser CRUD)      committed to git       shared          playable artifact
+                       = source of truth      validator
+                              |
+                              +--> embedded into game.dll --> imported into user://save.db
+```
+
+- **The bundle** ([`ContentBundle`](../src/SoccerSim.Content/ContentBundle.cs)) is one JSON
+  file per category plus a [`ContentManifest`](../src/SoccerSim.Content/ContentManifest.cs)
+  carrying format/content versions and a SHA-256 over the canonical payload. The hash is
+  computed over the **JSON**, never over the generated `.db` — SQLite page layout varies
+  between writes, so an identical build would otherwise look changed.
+- **Identity.** Every entity carries a stable numeric `Id` *and* a textual `Key`. Ids are what
+  save-file foreign keys point at, so they must never shift; keys are what the JSON
+  cross-references, because numbers make a merge unreadable. Deriving ids from sorted key
+  position was considered and rejected — inserting one entity would renumber everything after
+  it, silently repointing `Matches`, `Standings` and `Career` in existing saves.
+- **Static vs save state.** The bundle carries authored content (nations, competitions, clubs,
+  players, coaches, contracts, traits, housing items) plus a `world` section holding the
+  *initial* seasons, fixtures, balances and career — the starting position a new save is built
+  from. Once a career is running, the game owns those tables.
+- **One validator.** [`ContentValidator`](../src/SoccerSim.Content/Validation/ContentValidator.cs)
+  is called by the authoring tool while you type, by `contentcli validate` in CI, and again by
+  [`SqliteContentImporter`](../src/SoccerSim.Infrastructure.Sqlite/Content/SqliteContentImporter.cs)
+  before it touches the database. It **gates the build, not each keystroke** — a half-entered
+  squad must stay editable, so "fewer than 11 players" is a warning while a dangling reference
+  is an error. Rules carry stable codes (`REF_DANGLING`, `ID_DUPLICATE`, `CONTRACT_OVERLAP`, …)
+  that the UI links to and the tests assert on.
+- **Version skew.** A bundle declaring a newer format or content version than the running build
+  **throws** with an actionable message rather than loading a half-understood world — the same
+  fail-fast rule as `MatchEntryGuard` and the tactics validation.
+- **Shipping.** The bundle is an **embedded assembly resource**, not a `res://` file: in an
+  exported Godot build `res://` lives inside the `.pck` and is not a real path, so a
+  file-based load would work in the editor and fail once exported.
+  `GameBootstrap._Ready()` migrates, then calls `EnsureImported`, which is a no-op once the
+  save already holds that content hash.
+
 ## Verification
 
+- `dotnet test tests/SoccerSim.Content.Tests` exercises the content pipeline: JSON and SQLite
+  round-trips (the only proof the column mapping is lossless in both directions), every
+  validator rule, the version-compatibility matrix, CSV round-trip and error reporting, and
+  that the shipped bundle validates and builds the expected world.
 - `dotnet test tests/SoccerSim.Core.Tests` exercises the clock multipliers, task skip,
   the calendar advance, the trait-weighted roll, the High-event **interrupt → resume**
   cycle, the Tier 1/2/3 resolvers, the Tier 1 **minute-by-minute `MatchEngine`**
   (determinism, scoreline/scorer invariants, attribute-weighted finishing), and an
   end-to-end SQLite migration + LOD write.
 - `dotnet build SoccerDreamGame.sln` builds all four projects.
+- `dotnet run --project tools/SoccerSim.ContentCli -- validate` checks the shipped bundle and
+  that its manifest hash still matches the files on disk.
 - Opening `game/` in the Godot 4.6 (.NET) editor and running creates `user://save.db`,
-  applies migrations, and prints the bootstrap/autoload log lines.
+  applies migrations, imports the embedded content build, and prints the bootstrap/autoload
+  log lines including the content hash and per-category counts.

@@ -10,20 +10,13 @@ namespace SoccerSim.Core.Tests;
 
 public sealed class SqlitePersistenceTests
 {
-    // A shared in-memory DB lives only while at least one connection is open, so each
-    // test holds a keep-alive connection for the duration.
-    private static (SqliteConnectionFactory Factory, SqliteConnection KeepAlive) NewMigratedDb(bool includeSeeds)
-    {
-        var factory = SqliteConnectionFactory.InMemoryShared($"db-{Guid.NewGuid():N}");
-        SqliteConnection keepAlive = factory.Open();
-        new MigrationRunner(factory).Migrate(includeSeeds);
-        return (factory, keepAlive);
-    }
+    private static (SqliteConnectionFactory Factory, SqliteConnection KeepAlive) NewMigratedDb(bool withContent)
+        => TestWorld.New(withContent);
 
     [Fact]
     public void Migrations_Apply_AndSeedLoads()
     {
-        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(includeSeeds: true);
+        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(withContent: true);
         using SqliteConnection connection = keepAlive;
 
         using SqliteCommand command = connection.CreateCommand();
@@ -34,7 +27,7 @@ public sealed class SqlitePersistenceTests
     [Fact]
     public async Task Player_RoundTrips_WithStaticTraits()
     {
-        (SqliteConnectionFactory factory, SqliteConnection keepAlive) = NewMigratedDb(includeSeeds: true);
+        (SqliteConnectionFactory factory, SqliteConnection keepAlive) = NewMigratedDb(withContent: true);
         using SqliteConnection _ = keepAlive;
 
         await using var unitOfWork = new SqliteUnitOfWork(factory.Open());
@@ -48,7 +41,7 @@ public sealed class SqlitePersistenceTests
     [Fact]
     public void Lod_ResolvesTier3Match_AndUpdatesStandings()
     {
-        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(includeSeeds: true);
+        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(withContent: true);
         using SqliteConnection connection = keepAlive;
 
         // Schedule a Tier 3 fixture between the two seeded minor-league teams (5 and 6).

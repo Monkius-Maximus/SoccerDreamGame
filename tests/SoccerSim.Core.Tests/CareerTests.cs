@@ -8,15 +8,8 @@ namespace SoccerSim.Core.Tests;
 
 public sealed class CareerTests
 {
-    // A shared in-memory DB lives only while at least one connection is open, so each
-    // test holds a keep-alive connection for the duration.
-    private static (SqliteConnectionFactory Factory, SqliteConnection KeepAlive) NewMigratedDb(bool includeSeeds)
-    {
-        var factory = SqliteConnectionFactory.InMemoryShared($"db-{Guid.NewGuid():N}");
-        SqliteConnection keepAlive = factory.Open();
-        new MigrationRunner(factory).Migrate(includeSeeds);
-        return (factory, keepAlive);
-    }
+    private static (SqliteConnectionFactory Factory, SqliteConnection KeepAlive) NewMigratedDb(bool withContent)
+        => TestWorld.New(withContent);
 
     [Fact]
     public void TraitWeights_TakeStrongestDimensionAcrossTraits()
@@ -42,7 +35,7 @@ public sealed class CareerTests
     [Fact]
     public void GetActiveCareer_ResolvesSeededHuman_PlayerTeamAndTraitWeights()
     {
-        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(includeSeeds: true);
+        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(withContent: true);
         using SqliteConnection connection = keepAlive;
 
         CareerState? career = new SqliteCareerService(connection).GetActiveCareer();
@@ -57,7 +50,7 @@ public sealed class CareerTests
     [Fact]
     public void GetActiveCareer_WithoutSeed_ReturnsNull()
     {
-        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(includeSeeds: false);
+        (SqliteConnectionFactory _, SqliteConnection keepAlive) = NewMigratedDb(withContent: false);
         using SqliteConnection connection = keepAlive;
 
         Assert.Null(new SqliteCareerService(connection).GetActiveCareer());
