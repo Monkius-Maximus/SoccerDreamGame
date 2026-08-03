@@ -55,58 +55,67 @@ would be compiled twice. Keeping it in `src/` avoids that.
 | `src/SoccerSim.Infrastructure.Sqlite/` | SQLite implementation of the persistence ports, the migration runner, and the content importer/exporter. |
 | `sql/` | Canonical, numbered, ANSI-portable **schema** migrations (embedded into the infra assembly). No content. |
 | `content/dev/` | **The authored game world**, as versioned JSON. This is the source of truth for clubs, players, coaches and competitions. |
-| `tools/SoccerSim.ContentStudio/` | Browser CRUD for editing `content/` — see [Authoring content](#authoring-content). |
+| `tools/SoccerSim.ContentStudio/` | Development-only browser CRUD for editing `content/` — see [`docs/CONTENT-STUDIO.md`](docs/CONTENT-STUDIO.md). |
 | `tools/SoccerSim.ContentCli/` | Headless `validate` / `build` / `stats` / `reexport`, for CI. |
 | `game/` | The Godot 4 C# project: autoloads + scenes. |
 | `tests/SoccerSim.Core.Tests/` | Headless xUnit tests proving the core runs without the engine. |
 | `tests/SoccerSim.Content.Tests/` | Tests for the content pipeline: validation, JSON/CSV/SQLite round-trips. |
 | `docs/ARCHITECTURE.md` | Design notes + the three required design artifacts (interfaces, schema, EventTrigger pseudo-code). |
+| `docs/CONTENT-STUDIO.md` | Step-by-step guide to the authoring tool (in Portuguese). |
 
-## Build & run
+## Run the game
 
-Prerequisites: **.NET 8 SDK** and **Godot 4.6 (.NET/Mono build)**.
+Requires **.NET 8 SDK** and **Godot 4.6 (.NET/Mono build)** — this is the only step that
+needs Godot.
+
+Open the `game/` folder in the Godot 4.6 (.NET) editor and press Run. On first launch the
+autoloads create `user://save.db`, apply the SQL migrations, import the embedded content
+bundle, and wire the core services together.
+
+## Develop
+
+Everything below runs headlessly — no Godot involved.
 
 ```bash
-# 1. Headless: build + run the core/infra/test suite (no Godot needed).
-dotnet test tests/SoccerSim.Core.Tests
-
-# 2. Build everything via the solution.
-dotnet build SoccerDreamGame.sln
-
-# 3. Open the game in the Godot 4.6 (.NET) editor.
-#    Import the `game/` folder, then Run. The autoloads create user://save.db,
-#    apply the SQL migrations, import the embedded content bundle, and wire the
-#    core services on first launch.
+dotnet build SoccerDreamGame.sln        # core + content + infra + tools + the Godot project
+dotnet test tests/SoccerSim.Core.Tests  # the core runs without the engine
+dotnet test tests/SoccerSim.Content.Tests
 ```
 
 ## Authoring content
 
 Game content — clubs, players, coaches, competitions, stadiums, contracts — is **not**
-written in SQL or C#. It lives in `content/dev/` as versioned JSON and is edited through a
-local browser tool:
+written in SQL or C#. It lives in `content/dev/` as versioned JSON, edited through a local
+browser tool that ships in this repo as a development utility (it is not part of the game
+and is not distributed with it):
 
 ```bash
 dotnet run --project tools/SoccerSim.ContentStudio     # then open http://127.0.0.1:5099
 ```
 
-Edit in the grid, paste ranges straight out of a spreadsheet, watch the validation panel,
-then press **Build content.db**. Headless equivalents for CI:
-
-```bash
-dotnet run --project tools/SoccerSim.ContentCli -- validate   # exits non-zero on any error
-dotnet run --project tools/SoccerSim.ContentCli -- build      # -> build/content/content.db
-dotnet run --project tools/SoccerSim.ContentCli -- stats
-```
+**→ [`docs/CONTENT-STUDIO.md`](docs/CONTENT-STUDIO.md) is the step-by-step guide** (in
+Portuguese): the grid, bulk paste from a spreadsheet, what blocks a build, and — the part
+that is easy to get wrong — how an edit actually reaches the running game.
 
 How it fits together:
 
 ```
   Content Studio  ->  content/dev/*.json  ->  validate  ->  build/content/content.db
-   (browser CRUD)      committed to git       shared          playable artifact
-                       = source of truth      validator
+   (browser CRUD)      committed to git       shared          pre-flight check
+                       = source of truth      validator       (not loaded by the game)
                               |
                               +--> embedded into game.dll --> imported into user://save.db
 ```
+
+Note the two arrows out of the JSON. `content.db` proves the bundle imports cleanly into a
+real schema; **the game loads the embedded JSON**, not that file. So a content edit reaches
+the game by rebuilding, not by rebuilding `content.db`.
+
+Because the JSON is embedded at compile time, **editing content requires rebuilding the
+game**, and the previous save then holds a different content build. In a debug build the
+game rebuilds that save automatically (and warns that the career is gone); a save with
+played matches is never discarded — it fails the boot with the file to delete named in the
+message. See `SaveDatabase.Open`.
 
 Two rules make this safe. **The validator is shared with the game**, so the tool cannot
 approve content the game would reject. And **entities carry both a stable numeric `id`**

@@ -163,9 +163,16 @@ public sealed class ContentRoundTripTests
         using SqliteConnection connection = SqliteConnectionFactory.ForFile(dbPath).Open();
         var importer = new SqliteContentImporter(connection);
 
-        InvalidOperationException error =
-            Assert.Throws<InvalidOperationException>(() => importer.EnsureImported(other));
+        ContentBuildMismatchException error =
+            Assert.Throws<ContentBuildMismatchException>(() => importer.EnsureImported(other));
         Assert.Contains("not supported", error.Message, StringComparison.OrdinalIgnoreCase);
+
+        // The message is the only guidance a player gets when the boot fails, so it has to
+        // name the file to delete rather than just saying "start a new save".
+        Assert.Contains(dbPath, error.Message, StringComparison.Ordinal);
+        Assert.Equal(dbPath, error.DatabasePath);
+        Assert.Equal(bundle.Manifest.ContentHash, error.ExistingContentHash);
+        Assert.Equal(other.Manifest.ContentHash, error.IncomingContentHash);
     }
 
     /// <summary>Everything except the manifest, which is provenance rather than content.</summary>

@@ -345,7 +345,8 @@ function escapeHtml(text) {
 async function build() {
   try {
     const result = await api('build', { method: 'POST' });
-    toast(`Built ${result.built}`);
+    // The artifact is a check, not something the game loads: the game imports the JSON.
+    toast(`Bundle imports cleanly — wrote ${result.built}`);
   } catch (error) {
     toast(error.message, true);
   }

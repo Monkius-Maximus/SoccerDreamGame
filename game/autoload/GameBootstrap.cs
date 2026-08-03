@@ -54,7 +54,9 @@ public partial class GameBootstrap : Node
     // via DeterministicRng.CreateStream(MasterSeed, fixtureId, ...) once the LOD threads a seed per match.
     private IDeterministicRandom _rng = null!;
     private IFixtureGateway _gateway = null!;
-    private SqliteConnection? _connection;
+    private SaveDatabase? _save;
+
+    private SqliteConnection Connection => _save!.Connection;
 
     public override void _Ready()
     {
@@ -62,22 +64,30 @@ public partial class GameBootstrap : Node
 
         // user:// resolves to a writable per-user directory on every desktop platform.
         string databasePath = ProjectSettings.GlobalizePath("user://save.db");
-        var factory = SqliteConnectionFactory.ForFile(databasePath);
-        new MigrationRunner(factory).Migrate();
-        _connection = factory.Open();
 
         // The world (clubs, players, traits, the opening fixtures) comes from the authored
         // content bundle rather than hand-written SQL. Importing is a no-op once a save already
         // holds this build, so this runs in full exactly once per save file.
+        //
+        // While the game is in development the authoring loop is: edit in Content Studio,
+        // rebuild, run. That leaves the previous save holding stale content, which cannot be
+        // reconciled in place — so an untouched save is rebuilt rather than failing the boot.
+        // A save with played matches still throws; see SaveDatabase.Open.
         ContentBundle content = ContentBundleResources.Read(typeof(GameBootstrap).Assembly, ContentResourcePrefix);
-        ContentImportReport import = new SqliteContentImporter(_connection).EnsureImported(content);
+        _save = SaveDatabase.Open(
+            databasePath,
+            content,
+            resetWhenContentChanged: OS.IsDebugBuild(),
+            log: message => GD.PushWarning($"[GameBootstrap] {message}"));
+
+        ContentImportReport import = _save.Import;
 
         _rng = DeterministicRng.Create(MasterSeed);
-        _gateway = new SqliteFixtureGateway(_connection);
+        _gateway = new SqliteFixtureGateway(Connection);
 
         // Who the human controls — sourced from the persisted career save-state rather than
         // hardcoded. The reserved-for-rendering club is this player's team.
-        Career = new SqliteCareerService(_connection).GetActiveCareer();
+        Career = new SqliteCareerService(Connection).GetActiveCareer();
         int? humanTeamId = Career?.HumanTeamId;
 
         Events = new EventManager(BuildEventDefinitions());
@@ -95,12 +105,12 @@ public partial class GameBootstrap : Node
         GD.Print($"[GameBootstrap] {import.Describe()}");
     }
 
-    public override void _ExitTree() => _connection?.Dispose();
+    public override void _ExitTree() => _save?.Dispose();
 
     /// <summary>True if a club with this id exists in the world. Used by the match-entry guard.</summary>
     public bool ClubExists(int clubId)
     {
-        using SqliteCommand command = _connection!.CreateCommand();
+        using SqliteCommand command = Connection.CreateCommand();
         command.CommandText = "SELECT EXISTS(SELECT 1 FROM Teams WHERE Id = $id);";
         command.Parameters.AddWithValue("$id", clubId);
         return Convert.ToInt64(command.ExecuteScalar()) != 0;

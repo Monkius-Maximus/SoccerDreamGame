@@ -40,10 +40,15 @@ public sealed class SqliteContentImporter
             // Re-importing different content over a live save would renumber rows that Matches,
             // Standings and Career already point at. Replacing content in place is a Phase 4
             // concern with its own merge rules; refusing is the honest behaviour until then.
-            throw new InvalidOperationException(
-                $"This database already holds content build '{existing.BuildId}' ({existing.ContentHash}). "
-                + $"Importing a different build ('{bundle.Manifest.ContentHash}') over an existing save is "
-                + "not supported — start a new save instead.");
+            throw new ContentBuildMismatchException(
+                existing.ContentHash,
+                bundle.Manifest.ContentHash,
+                _connection.DataSource,
+                $"The database '{_connection.DataSource}' already holds content build "
+                + $"'{existing.BuildId}' ({existing.ContentHash}). Importing a different build "
+                + $"('{bundle.Manifest.ContentHash}') over an existing save is not supported, because "
+                + "the ids that Matches, Standings and Career point at would be renumbered. "
+                + "Delete that file to start a new save from the current content.");
         }
 
         ContentValidator.Default.Validate(bundle).ThrowIfInvalid();
@@ -416,6 +421,35 @@ public sealed class SqliteContentImporter
             command.Parameters.AddWithValue(name, value);
         command.ExecuteNonQuery();
     }
+}
+
+/// <summary>
+/// Thrown when a database already holds a different content build. Distinct from a plain
+/// <see cref="InvalidOperationException"/> so the authoring loop can recognise exactly this
+/// case — content edited, save stale — and rebuild the file instead of failing the boot.
+/// </summary>
+public sealed class ContentBuildMismatchException : InvalidOperationException
+{
+    public ContentBuildMismatchException(
+        string existingContentHash,
+        string incomingContentHash,
+        string databasePath,
+        string message)
+        : base(message)
+    {
+        ExistingContentHash = existingContentHash;
+        IncomingContentHash = incomingContentHash;
+        DatabasePath = databasePath;
+    }
+
+    /// <summary>The content hash the database was populated from.</summary>
+    public string ExistingContentHash { get; }
+
+    /// <summary>The content hash of the bundle that was refused.</summary>
+    public string IncomingContentHash { get; }
+
+    /// <summary>The file to delete to start over, as SQLite knows it.</summary>
+    public string DatabasePath { get; }
 }
 
 /// <summary>What an import did, for the boot log and the tool's summary.</summary>
