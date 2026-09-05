@@ -1,0 +1,32 @@
+<!--
+  SoccerSim.WorldBuilder: the ASP.NET Core Minimal API host for the world-authoring tool
+  (ROADMAP.md D-01 — design_handoff_ferramenta_de_mundo/). Standalone on purpose for now: a
+  separate deployable outside the Godot game, so dense tables/forms don't have to fight Godot's
+  UI toolkit. References Core (domain/validation/economy) and Infrastructure.Sqlite
+  (persistence) so the tool and the game share the same trusted logic.
+
+  This project lives OUTSIDE game/ for the same reason SoccerSim.Core does: the Godot.NET.Sdk
+  file globbing must never see these files.
+
+  See docs/adr/0001-world-authoring-tool.md for the decision and for the planned fold-in once
+  the game's own Team/Player/Manager core is finalized (kept as a moddable/customization layer
+  at that point, not discarded).
+-->
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SoccerSim.WorldBuilder</RootNamespace>
+    <AssemblyName>SoccerSim.WorldBuilder</AssemblyName>
+    <!-- Framework-dependent only: no native apphost, so build doesn't need a
+         Microsoft.NETCore.App.Host.<RID> package for whatever OS happens to build it.
+         Run as `dotnet SoccerSim.WorldBuilder.dll`. -->
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SoccerSim.Core\SoccerSim.Core.csproj" />
+    <ProjectReference Include="..\..\src\SoccerSim.Infrastructure.Sqlite\SoccerSim.Infrastructure.Sqlite.csproj" />
+  </ItemGroup>
+
+</Project>

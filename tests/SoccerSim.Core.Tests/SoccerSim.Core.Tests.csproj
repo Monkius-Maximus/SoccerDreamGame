@@ -25,4 +25,12 @@
     <ProjectReference Include="..\..\src\SoccerSim.Infrastructure.Sqlite\SoccerSim.Infrastructure.Sqlite.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- World Builder Sprint 1 fixture: 20 clubs / 688 players extracted from the source
+         spreadsheet, used by EconomyTests/ColorMathTests to gate the ported formulas. -->
+    <None Include="TestData\world.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

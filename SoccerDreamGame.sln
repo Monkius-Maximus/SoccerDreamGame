@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -9,6 +9,12 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "game", "game\game.csproj", "{33333333-3333-3333-3333-333333333333}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SoccerSim.Core.Tests", "tests\SoccerSim.Core.Tests\SoccerSim.Core.Tests.csproj", "{44444444-4444-4444-4444-444444444444}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{448F6BD9-85D6-49CF-88FD-DC5203C49E82}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoccerSim.WorldBuilder", "tools\SoccerSim.WorldBuilder\SoccerSim.WorldBuilder.csproj", "{CE51762B-253E-48DE-8418-C58A32E775CF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoccerSim.WorldBuilder.Tests", "tools\SoccerSim.WorldBuilder.Tests\SoccerSim.WorldBuilder.Tests.csproj", "{1607D9FA-9C6B-42D5-8390-602B15B926F5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,8 +47,24 @@ Global
 		{44444444-4444-4444-4444-444444444444}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
 		{44444444-4444-4444-4444-444444444444}.ExportRelease|Any CPU.ActiveCfg = Release|Any CPU
 		{44444444-4444-4444-4444-444444444444}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
+		{CE51762B-253E-48DE-8418-C58A32E775CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE51762B-253E-48DE-8418-C58A32E775CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE51762B-253E-48DE-8418-C58A32E775CF}.ExportDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE51762B-253E-48DE-8418-C58A32E775CF}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
+		{CE51762B-253E-48DE-8418-C58A32E775CF}.ExportRelease|Any CPU.ActiveCfg = Release|Any CPU
+		{CE51762B-253E-48DE-8418-C58A32E775CF}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
+		{1607D9FA-9C6B-42D5-8390-602B15B926F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1607D9FA-9C6B-42D5-8390-602B15B926F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1607D9FA-9C6B-42D5-8390-602B15B926F5}.ExportDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1607D9FA-9C6B-42D5-8390-602B15B926F5}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
+		{1607D9FA-9C6B-42D5-8390-602B15B926F5}.ExportRelease|Any CPU.ActiveCfg = Release|Any CPU
+		{1607D9FA-9C6B-42D5-8390-602B15B926F5}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{CE51762B-253E-48DE-8418-C58A32E775CF} = {448F6BD9-85D6-49CF-88FD-DC5203C49E82}
+		{1607D9FA-9C6B-42D5-8390-602B15B926F5} = {448F6BD9-85D6-49CF-88FD-DC5203C49E82}
 	EndGlobalSection
 EndGlobal
