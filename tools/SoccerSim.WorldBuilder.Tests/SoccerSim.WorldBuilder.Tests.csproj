@@ -1,7 +1,7 @@
 <!--
-  Headless test project for the World Builder host (ROADMAP.md Sprint 0: "vazio mas rodando no
-  CI" — empty for now, but wired into the build and test run). Sprint 3+ adds real API contract
-  tests here as the /api/world surface grows.
+  Headless test project for the World Builder host. Sprint 3 adds API contract tests and a
+  front-end smoke test; heavier UI testing is deliberately out of scope while the screens are
+  still changing (ROADMAP.md Sprint 3: "Não invista em teste de UI aqui").
 -->
 <Project Sdk="Microsoft.NET.Sdk">
 
@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
@@ -22,6 +23,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SoccerSim.WorldBuilder\SoccerSim.WorldBuilder.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same 20-club/688-player document the Core tests use, linked rather than copied so
+         there is one fixture in the repository, not two that can drift. -->
+    <None Include="..\..\tests\SoccerSim.Core.Tests\TestData\world.json" Link="TestData\world.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

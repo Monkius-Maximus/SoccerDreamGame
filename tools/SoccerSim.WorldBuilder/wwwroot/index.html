@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280">
+  <title>Terra Paralela — Ferramenta de Mundo</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <!--
+    The shell is markup; everything inside the rail and the content panel is
+    rendered by app.js from the API. The tool is a desktop tool (>= 1280px) and
+    says so in the viewport: responsiveness is not a requirement here, and
+    pretending otherwise would cost density.
+  -->
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-title">Terra Paralela</div>
+        <div class="brand-sub">Base de mundo · <span id="schema-version">ClubIdentity v2</span></div>
+      </div>
+
+      <!-- Only the screens that exist are listed. Sprints add tabs as they add
+           screens; a tab that does nothing is worse than no tab. -->
+      <nav class="tabs" id="tabs">
+        <button class="tab" type="button" aria-current="page" data-view="clube">
+          <span class="tab-num">01</span>
+          <span class="tab-label">Clube</span>
+        </button>
+      </nav>
+
+      <div class="topbar-spacer"></div>
+
+      <div class="topbar-actions">
+        <span class="readonly-note" title="Sprint 3 entrega a leitura completa da ficha; a edição chega no Sprint 4.">somente leitura</span>
+      </div>
+    </header>
+
+    <div class="body">
+      <aside class="rail">
+        <div class="rail-filters">
+          <input class="tpin" type="search" id="filter-text" placeholder="Filtrar clube, cidade, código…" autocomplete="off">
+          <div class="rail-filter-row">
+            <select class="tpin" id="filter-band" aria-label="Filtrar por banda"></select>
+            <select class="tpin" id="filter-city" aria-label="Filtrar por cidade"></select>
+          </div>
+          <div class="rail-count-row">
+            <span class="rail-count" id="rail-count">— clubes</span>
+          </div>
+        </div>
+        <div class="rail-list tpscroll" id="rail-list"></div>
+      </aside>
+
+      <main class="content tpscroll" id="content"></main>
+    </div>
+  </div>
+
+  <div class="overlay" id="loading">Carregando base de mundo…</div>
+
+  <script src="app.js"></script>
+</body>
+</html>

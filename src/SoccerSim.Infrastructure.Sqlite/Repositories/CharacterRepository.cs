@@ -50,15 +50,16 @@ internal sealed class CharacterRepository : SqliteRepositoryBase, ICharacterRepo
     public Task<IReadOnlyList<CharacterRecord>> ListAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(Query($"SELECT {SelectColumns} FROM Characters ORDER BY PlayerId;", bind: null));
+        return Task.FromResult(Query(filter: string.Empty, order: "PlayerId", bind: null));
     }
 
     public Task<IReadOnlyList<CharacterRecord>> ListByClubAsync(string clubId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(Query(
-            $"SELECT {SelectColumns} FROM Characters WHERE ClubId = $cid ORDER BY ShirtNumber;",
-            command => command.Parameters.AddWithValue("$cid", clubId)));
+            filter: "WHERE ClubId = $cid",
+            order: "ShirtNumber",
+            bind: command => command.Parameters.AddWithValue("$cid", clubId)));
     }
 
     public Task<string> AddAsync(CharacterRecord entity, CancellationToken cancellationToken = default)
@@ -133,10 +134,17 @@ internal sealed class CharacterRepository : SqliteRepositoryBase, ICharacterRepo
         return WorldDerivations.Recalculate(character, Enum.Parse<PrestigeBand>(bandText), _calibration());
     }
 
-    private IReadOnlyList<CharacterRecord> Query(string sql, Action<SqliteCommand>? bind)
+    /// <summary>
+    /// Reads a filtered set of characters in three queries — the rows, then all their attributes,
+    /// then all their audits — rather than two follow-up queries per character. Loading the whole
+    /// batch was 1,377 round trips; it is 3. The children reuse the caller's filter as a subquery
+    /// instead of an id list, so the query count does not depend on the result size and there is
+    /// no parameter-count ceiling.
+    /// </summary>
+    private IReadOnlyList<CharacterRecord> Query(string filter, string order, Action<SqliteCommand>? bind)
     {
         var shells = new List<CharacterRecord>();
-        using (SqliteCommand command = CreateCommand(sql))
+        using (SqliteCommand command = CreateCommand($"SELECT {SelectColumns} FROM Characters {filter} ORDER BY {order};"))
         {
             bind?.Invoke(command);
             using SqliteDataReader reader = command.ExecuteReader();
@@ -144,16 +152,71 @@ internal sealed class CharacterRepository : SqliteRepositoryBase, ICharacterRepo
                 shells.Add(Map(reader));
         }
 
-        // Same shape as the legacy PlayerRepository: the reader must close before the per-record
-        // attribute/audit queries can reuse the connection.
+        if (shells.Count == 0)
+            return [];
+
+        string matching = $"(SELECT PlayerId FROM Characters {filter})";
+        Dictionary<string, Dictionary<Attr, int>> attributes = LoadAttributesFor(matching, bind);
+        Dictionary<string, CharacterDeviationAudit> audits = LoadAuditsFor(matching, bind);
+
         var characters = new List<CharacterRecord>(shells.Count);
         foreach (CharacterRecord shell in shells)
-            characters.Add(Complete(shell));
+        {
+            if (!attributes.TryGetValue(shell.PlayerId, out Dictionary<Attr, int>? attrs))
+                throw new InvalidOperationException($"Character '{shell.PlayerId}' has no attribute rows.");
+            if (!audits.TryGetValue(shell.PlayerId, out CharacterDeviationAudit? audit))
+                throw new InvalidOperationException($"Character '{shell.PlayerId}' has no deviation audit row.");
+
+            characters.Add(shell with { Attrs = attrs, Audit = audit });
+        }
+
         return characters;
     }
 
     private CharacterRecord Complete(CharacterRecord shell) =>
         shell with { Attrs = LoadAttributes(shell.PlayerId), Audit = LoadAudit(shell.PlayerId) };
+
+    private Dictionary<string, Dictionary<Attr, int>> LoadAttributesFor(string matching, Action<SqliteCommand>? bind)
+    {
+        var byPlayer = new Dictionary<string, Dictionary<Attr, int>>();
+        using SqliteCommand command = CreateCommand(
+            $"SELECT PlayerId, Attr, Value FROM CharacterAttributes WHERE PlayerId IN {matching};");
+        bind?.Invoke(command);
+        using SqliteDataReader reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            string playerId = reader.GetString(0);
+            if (!byPlayer.TryGetValue(playerId, out Dictionary<Attr, int>? attrs))
+                byPlayer[playerId] = attrs = [];
+            attrs[WorldRow.Enum<Attr>(reader, 1)] = reader.GetInt32(2);
+        }
+
+        return byPlayer;
+    }
+
+    private Dictionary<string, CharacterDeviationAudit> LoadAuditsFor(string matching, Action<SqliteCommand>? bind)
+    {
+        var byPlayer = new Dictionary<string, CharacterDeviationAudit>();
+        using SqliteCommand command = CreateCommand(
+            $@"SELECT PlayerId, AnchorPlayerName, AnchorNationality, DeviationFromSurname, GeneratedSurname,
+                      PhoneticSimilarity, DeviationMethod, AnchorFactsVerified
+               FROM CharacterDeviationAudit WHERE PlayerId IN {matching};");
+        bind?.Invoke(command);
+        using SqliteDataReader reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            byPlayer[reader.GetString(0)] = new CharacterDeviationAudit(
+                WorldRow.NullableString(reader, 1),
+                WorldRow.NullableString(reader, 2),
+                WorldRow.NullableString(reader, 3),
+                WorldRow.NullableString(reader, 4),
+                WorldRow.NullableDouble(reader, 5),
+                WorldRow.NullableString(reader, 6),
+                WorldRow.Flag(reader, 7));
+        }
+
+        return byPlayer;
+    }
 
     private IReadOnlyDictionary<Attr, int> LoadAttributes(string playerId)
     {

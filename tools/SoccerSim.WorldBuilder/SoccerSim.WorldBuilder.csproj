@@ -29,4 +29,12 @@
     <ProjectReference Include="..\..\src\SoccerSim.Infrastructure.Sqlite\SoccerSim.Infrastructure.Sqlite.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Copy the UI next to the binary rather than relying on the static web assets
+         manifest: the tool sets its content root to the assembly directory so it can be
+         launched from any working directory (the database path is the user's, the assets
+         are ours), and a manifest pointing back at the source tree would not survive that. -->
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

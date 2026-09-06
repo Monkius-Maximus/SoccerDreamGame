@@ -2,6 +2,8 @@ using SoccerSim.Core.World.Color;
 
 namespace SoccerSim.Core.World.Validation;
 
+/// <summary>Severity, in ascending order. <see cref="WorstLevel"/> compares these by ordinal, so
+/// the order is part of the contract — do not reorder the members.</summary>
 public enum FindingLevel { Ok, Warning, Error }
 
 /// <summary>One invariant result. <see cref="Code"/> is the stable identifier findings are
@@ -26,6 +28,22 @@ public static class ClubInvariants
         CheckStadiumCapacity(club, calibration),
         CheckEnumsClosed(club),
     ];
+
+    /// <summary>
+    /// A club's health is the worst of its checks — one error makes the club an error however
+    /// many checks passed. This is the level the rail badge, the competition table and the grid
+    /// all colour by, so it is computed here rather than in each of them.
+    /// </summary>
+    public static FindingLevel WorstLevel(IEnumerable<Finding> findings)
+    {
+        FindingLevel worst = FindingLevel.Ok;
+        foreach (Finding finding in findings)
+        {
+            if (finding.Level > worst)
+                worst = finding.Level;
+        }
+        return worst;
+    }
 
     /// <summary>#1 — audit.anchorFactsVerified = 1. Error if not.</summary>
     private static Finding CheckAnchorFactsVerified(ClubIdentity club) =>

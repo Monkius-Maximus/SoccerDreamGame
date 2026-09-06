@@ -14,13 +14,21 @@ internal static class WorldBuilderCommands
 {
     private const string DefaultDatabase = "world.db";
 
+    private static readonly string[] Verbs = ["import", "help", "--help", "-h"];
+
+    /// <summary>
+    /// Whether these arguments are one of the tool's own commands. Everything else — including
+    /// the host arguments a test or a launch profile passes — belongs to the web host, so the
+    /// command line does not have to know about every ASP.NET Core switch to avoid eating it.
+    /// </summary>
+    public static bool IsCommand(string[] args) => args.Length > 0 && Verbs.Contains(args[0]);
+
     public static async Task<int> RunAsync(string[] args)
     {
         return args[0] switch
         {
             "import" => await ImportAsync(args),
-            "--help" or "-h" or "help" => Usage(exitCode: 0),
-            _ => Usage(exitCode: 1, $"Unknown command '{args[0]}'."),
+            _ => Usage(exitCode: 0),
         };
     }
 

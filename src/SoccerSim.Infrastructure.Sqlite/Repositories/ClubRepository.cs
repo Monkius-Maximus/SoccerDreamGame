@@ -66,15 +66,15 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
     public Task<IReadOnlyList<ClubIdentity>> ListAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(Query($"SELECT {SelectColumns} FROM Clubs ORDER BY ClubId;", bind: null));
+        return Task.FromResult(Query(filter: string.Empty, bind: null));
     }
 
     public Task<IReadOnlyList<ClubIdentity>> ListByGeoNodeAsync(string geoNodeId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(Query(
-            $"SELECT {SelectColumns} FROM Clubs WHERE GeoNodeId = $gid ORDER BY ClubId;",
-            command => command.Parameters.AddWithValue("$gid", geoNodeId)));
+            filter: "WHERE GeoNodeId = $gid",
+            bind: command => command.Parameters.AddWithValue("$gid", geoNodeId)));
     }
 
     public Task<string> AddAsync(ClubIdentity entity, CancellationToken cancellationToken = default)
@@ -154,10 +154,13 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
         return Task.CompletedTask;
     }
 
-    private IReadOnlyList<ClubIdentity> Query(string sql, Action<SqliteCommand>? bind)
+    /// <summary>Two queries — the clubs, then all their audit rows — rather than one audit query
+    /// per club. The audit reuses the caller's filter as a subquery, so the query count does not
+    /// grow with the result size.</summary>
+    private IReadOnlyList<ClubIdentity> Query(string filter, Action<SqliteCommand>? bind)
     {
         var rows = new List<ClubRow>();
-        using (SqliteCommand command = CreateCommand(sql))
+        using (SqliteCommand command = CreateCommand($"SELECT {SelectColumns} FROM Clubs {filter} ORDER BY ClubId;"))
         {
             bind?.Invoke(command);
             using SqliteDataReader reader = command.ExecuteReader();
@@ -165,11 +168,32 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
                 rows.Add(ReadRow(reader));
         }
 
-        // The reader is closed, so the per-club audit queries can reuse the connection.
+        if (rows.Count == 0)
+            return [];
+
+        Dictionary<string, ClubDeviationAudit> audits = LoadAuditsFor($"(SELECT ClubId FROM Clubs {filter})", bind);
+
         var clubs = new List<ClubIdentity>(rows.Count);
         foreach (ClubRow row in rows)
-            clubs.Add(row.ToClub(LoadAudit(row.ClubId)));
+        {
+            if (!audits.TryGetValue(row.ClubId, out ClubDeviationAudit? audit))
+                throw new InvalidOperationException($"Club '{row.ClubId}' has no deviation audit row; the two are written together.");
+            clubs.Add(row.ToClub(audit));
+        }
+
         return clubs;
+    }
+
+    private Dictionary<string, ClubDeviationAudit> LoadAuditsFor(string matching, Action<SqliteCommand>? bind)
+    {
+        var byClub = new Dictionary<string, ClubDeviationAudit>();
+        using SqliteCommand command = CreateCommand(
+            $"SELECT {AuditColumns} FROM ClubDeviationAudit WHERE ClubId IN {matching};");
+        bind?.Invoke(command);
+        using SqliteDataReader reader = command.ExecuteReader();
+        while (reader.Read())
+            byClub[reader.GetString(0)] = MapAudit(reader);
+        return byClub;
     }
 
     private ClubDeviationAudit LoadAudit(string clubId)
@@ -181,7 +205,11 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
         if (!reader.Read())
             throw new InvalidOperationException($"Club '{clubId}' has no deviation audit row; the two are written together.");
 
-        return new ClubDeviationAudit(
+        return MapAudit(reader);
+    }
+
+    private static ClubDeviationAudit MapAudit(SqliteDataReader reader) =>
+        new(
             ClubId: reader.GetString(0),
             AnchorClubName: reader.GetString(1),
             AnchorCityName: reader.GetString(2),
@@ -207,7 +235,6 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
             ReviewedBy: reader.GetString(22),
             ReviewDate: reader.GetString(23),
             Note: WorldRow.NullableString(reader, 24));
-    }
 
     private void WriteAudit(ClubDeviationAudit audit, bool insert)
     {
