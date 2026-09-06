@@ -21,6 +21,16 @@ public interface IGeoNodeRepository : IRepository<GeoNode, string>
 public interface IClubRepository : IRepository<ClubIdentity, string>
 {
     Task<IReadOnlyList<ClubIdentity>> ListByGeoNodeAsync(string geoNodeId, CancellationToken cancellationToken = default);
+
+    /// <summary>The club's current concurrency token, or 0 if there is no such club.</summary>
+    Task<long> GetVersionAsync(string clubId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes the club only if it is still at <paramref name="expectedVersion"/>, and returns the
+    /// new version. Throws <see cref="WorldConcurrencyException"/> if the row moved on since the
+    /// caller read it — a second tab's edit is not something to silently overwrite.
+    /// </summary>
+    Task<long> UpdateAsync(ClubIdentity club, long expectedVersion, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -30,6 +40,55 @@ public interface IClubRepository : IRepository<ClubIdentity, string>
 public interface ICharacterRepository : IRepository<CharacterRecord, string>
 {
     Task<IReadOnlyList<CharacterRecord>> ListByClubAsync(string clubId, CancellationToken cancellationToken = default);
+
+    Task<long> GetVersionAsync(string playerId, CancellationToken cancellationToken = default);
+
+    /// <summary>See <see cref="IClubRepository.UpdateAsync(ClubIdentity, long, CancellationToken)"/>.</summary>
+    Task<long> UpdateAsync(CharacterRecord character, long expectedVersion, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The record of what has been edited and what has not yet been exported. The counter in the top
+/// bar is the number of pending entries; Sprint 7's export is what clears them.
+/// </summary>
+public interface IWorldEditLog
+{
+    Task RecordAsync(WorldEdit edit, CancellationToken cancellationToken = default);
+
+    Task<int> CountPendingAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Most recent first — the edit history, newest at the top.</summary>
+    Task<IReadOnlyList<WorldEdit>> ListRecentAsync(int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>Stamps every pending entry as exported and returns how many were cleared.</summary>
+    Task<int> MarkExportedAsync(DateTime exportedAt, CancellationToken cancellationToken = default);
+}
+
+public enum WorldEntityType { Club, Character }
+
+public sealed record WorldEdit(
+    WorldEntityType EntityType,
+    string EntityId,
+    string FieldPath,
+    string? OldValue,
+    string? NewValue,
+    DateTime EditedAt);
+
+/// <summary>Thrown when a write loses a race: the row changed between the read and the write.
+/// The API turns this into a 409 so the client can re-read and decide, rather than clobbering.</summary>
+public sealed class WorldConcurrencyException : Exception
+{
+    public WorldConcurrencyException(string entityId, long expectedVersion, long actualVersion)
+        : base($"'{entityId}' has moved on: expected version {expectedVersion}, found {actualVersion}.")
+    {
+        EntityId = entityId;
+        ExpectedVersion = expectedVersion;
+        ActualVersion = actualVersion;
+    }
+
+    public string EntityId { get; }
+    public long ExpectedVersion { get; }
+    public long ActualVersion { get; }
 }
 
 public interface ICompetitionRepository : IRepository<Competition, string>
@@ -79,6 +138,7 @@ public interface IWorldUnitOfWork : IAsyncDisposable
     ICompetitionRepository Competitions { get; }
     ICalibrationRepository Calibration { get; }
     IWorldSourceRepository Sources { get; }
+    IWorldEditLog Edits { get; }
 
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
 

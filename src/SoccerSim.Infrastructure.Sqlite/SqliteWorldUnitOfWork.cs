@@ -30,6 +30,7 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
         Competitions = new CompetitionRepository(connection, transaction);
         Calibration = calibration;
         Sources = new WorldSourceRepository(connection, transaction);
+        Edits = new WorldEditLog(connection, transaction);
     }
 
     public IGeoNodeRepository GeoNodes { get; }
@@ -38,6 +39,7 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
     public ICompetitionRepository Competitions { get; }
     public ICalibrationRepository Calibration { get; }
     public IWorldSourceRepository Sources { get; }
+    public IWorldEditLog Edits { get; }
 
     public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {

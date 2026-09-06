@@ -85,11 +85,32 @@ internal sealed class CharacterRepository : SqliteRepositoryBase, ICharacterRepo
         return Task.FromResult(character.PlayerId);
     }
 
+    public Task<long> GetVersionAsync(string playerId, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ReadVersion(playerId));
+    }
+
     public Task UpdateAsync(CharacterRecord entity, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        CharacterRecord character = Recalculate(entity);
+        Write(entity, expectedVersion: null);
+        return Task.CompletedTask;
+    }
 
+    /// <summary>Guarded update: the row must still be at the version the caller read.</summary>
+    public Task<long> UpdateAsync(CharacterRecord character, long expectedVersion, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(Write(character, expectedVersion));
+    }
+
+    private long Write(CharacterRecord entity, long? expectedVersion)
+    {
+        CharacterRecord character = Recalculate(entity);
+        string guard = expectedVersion is null ? string.Empty : " AND RowVersion = $expectedVersion";
+
+        int affected;
         using (SqliteCommand command = CreateCommand(
             @"UPDATE Characters SET ClubId = $club, ShirtNumber = $shirt, FirstName = $first, LastName = $last,
                   ShirtName = $shirtName, Nationality = $nat, SecondNationality = $nat2, DateOfBirth = $dob,
@@ -97,16 +118,29 @@ internal sealed class CharacterRepository : SqliteRepositoryBase, ICharacterRepo
                   SecondaryPositions = $secondary, PreferredFoot = $foot, WeakFootRating = $weakFoot,
                   SkillMovesRating = $skillMoves, Height = $height, BuildType = $build, PotentialGap = $gap,
                   Provenance = $provenance, Overall = $overall, PotentialOverall = $potential,
-                  MarketValueEur = $value, SalaryMonthlyBrl = $salary
-              WHERE PlayerId = $id;"))
+                  MarketValueEur = $value, SalaryMonthlyBrl = $salary,
+                  RowVersion = RowVersion + 1
+              WHERE PlayerId = $id" + guard + ";"))
         {
             Bind(command, character);
-            command.ExecuteNonQuery();
+            if (expectedVersion is not null)
+                command.Parameters.AddWithValue("$expectedVersion", expectedVersion.Value);
+            affected = command.ExecuteNonQuery();
         }
+
+        if (affected == 0 && expectedVersion is not null)
+            throw new WorldConcurrencyException(character.PlayerId, expectedVersion.Value, ReadVersion(character.PlayerId));
 
         WriteAttributes(character);
         WriteAudit(character, insert: false);
-        return Task.CompletedTask;
+        return ReadVersion(character.PlayerId);
+    }
+
+    private long ReadVersion(string playerId)
+    {
+        using SqliteCommand command = CreateCommand("SELECT RowVersion FROM Characters WHERE PlayerId = $id;");
+        command.Parameters.AddWithValue("$id", playerId);
+        return command.ExecuteScalar() is { } value ? Convert.ToInt64(value) : 0;
     }
 
     public Task DeleteAsync(string id, CancellationToken cancellationToken = default)

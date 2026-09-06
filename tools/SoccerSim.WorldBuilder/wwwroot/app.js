@@ -13,9 +13,11 @@
 const state = {
   clubs: [],          // rail rows, from /api/clubs
   world: null,        // counts, enums, calibration
+  fields: null,       // /api/fields — the form definition AND the server's validation surface
   clubId: null,
   page: null,         // /api/clubs/{id}
   squad: [],
+  player: null,       // /api/characters/{id}, when the modal is open
   filters: { text: '', band: '', city: '' },
   squadSort: 'ovr',
 };
@@ -127,6 +129,55 @@ async function getJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url} → ${response.status}`);
   return response.json();
+}
+
+/**
+ * Sends one field change. Writes are immediate — there is no Save button — so the
+ * result of a patch is either a new version or a reason, and the caller shows the
+ * reason on the field that caused it.
+ *
+ * Returns { ok: true, version, pendingEdits } or { ok: false, status, message }.
+ */
+async function sendPatch(url, path, value, version, method = 'PATCH') {
+  const response = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, value, version }),
+  });
+
+  if (response.ok) {
+    const body = await response.json();
+    setPending(body.pendingEdits);
+    return { ok: true, ...body };
+  }
+
+  let message = `${response.status}`;
+  try {
+    const body = await response.json();
+    message = body.error || message;
+  } catch {
+    // A response without a JSON body (a 500 page, a dropped connection) still needs to say
+    // something the user can act on.
+  }
+
+  return { ok: false, status: response.status, message };
+}
+
+function setPending(count) {
+  const element = document.getElementById('pending');
+  element.dataset.pending = count > 0;
+  document.getElementById('pending-label').textContent =
+    count > 0 ? `${count} não exportada${count === 1 ? '' : 's'}` : 'em dia';
+}
+
+let toastTimer = null;
+
+function toast(message) {
+  const element = document.getElementById('toast');
+  element.textContent = message;
+  element.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { element.hidden = true; }, 6000);
 }
 
 // ------------------------------------------------------------------ the rail
@@ -290,7 +341,7 @@ function squadTableHtml() {
       </thead>
       <tbody>
         ${rows.map((player) => `
-          <tr>
+          <tr class="squad-row" data-player="${esc(player.playerId)}" style="cursor: pointer">
             <td class="num"><span class="squad-shirt">${player.shirtNumber}</span></td>
             <td>
               <span class="squad-name">${esc(player.firstName)} ${esc(player.lastName)}</span>
@@ -440,7 +491,7 @@ function clubPageHtml(page) {
 
       <div class="section-head">
         <h2>Elenco</h2>
-        <span class="section-note">${page.metrics.playerCount} jogadores</span>
+        <span class="section-note">${page.metrics.playerCount} jogadores · clique para abrir a ficha</span>
         <span class="grow"></span>
         ${state.squad.length ? `
           <select class="tpin" id="squad-sort" style="width: 190px" aria-label="Ordenar elenco">
@@ -460,6 +511,8 @@ function clubPageHtml(page) {
             competição não consegue avaliá-lo. O gerador de elenco chega no Sprint 5.
           </div>
         </div>`}
+
+      ${fieldGroupsHtml(state.fields.club, readPaths(club, state.fields.club), 'club')}
     </div>`;
 }
 
@@ -513,6 +566,220 @@ function errorHtml(message) {
   return `<div class="page"><div class="error-banner">${esc(message)}</div></div>`;
 }
 
+// ------------------------------------------------------------- editable fields
+
+const SEAL_LABEL = { Authored: 'autorado', Derived: 'derivado', Sampled: 'amostrado', Calculated: 'calculado' };
+
+/** Renders one field's control from the catalog's description of it. The control is chosen
+ *  by kind, so adding a field to the catalog is enough to make it appear and be editable. */
+function fieldControl(field, value, scope) {
+  const path = field.path;
+  const common = `class="tpin" data-path="${esc(path)}" data-scope="${scope}"`;
+
+  if (!field.editable) {
+    return `<input ${common} value="${esc(value ?? '')}" readonly tabindex="-1">`;
+  }
+
+  if (field.kind === 'Enum') {
+    const options = (state.world.enums[field.enumName] || []).map((option) =>
+      `<option value="${esc(option)}"${option === value ? ' selected' : ''}>${esc(option)}</option>`).join('');
+    return `<select ${common}>${options}</select>`;
+  }
+
+  if (field.kind === 'Color') {
+    // A picker for choosing and a text box for pasting a known hex — the data is authored
+    // both ways.
+    return `<span class="field-color-row">
+      <input type="color" data-path="${esc(path)}" data-scope="${scope}" value="${esc(value || '#000000')}">
+      <input ${common} value="${esc(value ?? '')}" spellcheck="false">
+    </span>`;
+  }
+
+  if (field.kind === 'LongText') {
+    return `<input ${common} value="${esc(value ?? '')}" title="${esc(value ?? '')}">`;
+  }
+
+  const type = field.kind === 'Int' || field.kind === 'Float' ? 'number' : 'text';
+  const step = field.kind === 'Float' ? ' step="any"' : '';
+  return `<input ${common} type="${type}"${step} value="${esc(value ?? '')}">`;
+}
+
+function fieldHtml(field, value, scope) {
+  return `
+    <label class="field">
+      <span class="field-head">
+        <span class="field-label">${esc(field.label)}</span>
+        <span class="seal seal-${field.provenance.toLowerCase()}">${SEAL_LABEL[field.provenance]}</span>
+      </span>
+      ${fieldControl(field, value, scope)}
+      <span class="field-path">${esc(field.path)}</span>
+    </label>`;
+}
+
+/** The nine groups of the club sheet, rendered from the same catalog the server validates
+ *  against — a form built from one list and checked against another drifts silently. */
+function fieldGroupsHtml(groups, values, scope) {
+  return `<div class="field-groups">${groups.map((group) => `
+    <section class="field-group">
+      <div class="field-group-head">
+        <span class="field-group-title">${esc(group.name)}</span>
+        <span class="field-group-rule"></span>
+        <span class="field-group-id">${esc(group.id)}</span>
+      </div>
+      <div class="fields">
+        ${group.fields.map((field) => fieldHtml(field, values[field.path], scope)).join('')}
+      </div>
+    </section>`).join('')}</div>`;
+}
+
+/** Reads every catalogued path out of a record so the form can be filled without a second
+ *  request. Mirrors the server's readers; the paths are the contract. */
+function readPaths(source, groups) {
+  const values = {};
+  for (const group of groups) {
+    for (const field of group.fields) {
+      values[field.path] = readPath(source, field.path);
+    }
+  }
+  return values;
+}
+
+function readPath(source, path) {
+  let current = source;
+  for (const part of path.split('.')) {
+    if (current === null || current === undefined) return null;
+    current = current[part];
+  }
+
+  if (current === null || current === undefined) return null;
+  if (Array.isArray(current)) return current.join(path === 'secondaryPositions' ? '|' : ', ');
+  if (typeof current === 'boolean') return current ? '1' : '0';
+  return String(current);
+}
+
+// ----------------------------------------------------------------- player modal
+
+function playerModalHtml(page) {
+  const player = page.character;
+  const club = state.page.club;
+  const values = readPaths(player, state.fields.character);
+
+  const metrics = [
+    ['OVR', player.overall, page.recalculated.overall],
+    ['Potencial', player.potentialOverall, page.recalculated.potentialOverall],
+    ['Idade', player.age, null],
+    ['Valor', fmtEur(player.marketValueEur), fmtEur(page.recalculated.marketValueEur)],
+    ['Salário', fmtBrl(player.salaryMonthlyBrl), fmtBrl(page.recalculated.salaryMonthlyBrl)],
+    ['Altura', `${player.height} cm`, null],
+  ];
+
+  return `
+    <div class="dialog" role="dialog" aria-label="Ficha do jogador">
+      <button class="dialog-close" type="button" id="player-close" aria-label="Fechar">✕</button>
+
+      <div class="dialog-head">
+        <span class="player-badge" style="background: ${esc(club.palette.primary)}; color: ${inkOn(club.palette.primary, 0.55)}">
+          ${player.shirtNumber}
+        </span>
+        <div style="flex: 1; min-width: 0">
+          <div class="player-id">${esc(player.playerId)}</div>
+          <h2 class="player-name">${esc(player.firstName)} ${esc(player.lastName)}</h2>
+          <div class="club-tags">
+            <span class="tag tag-accent">${esc(player.primaryPosition)}</span>
+            <span class="tag tag-outline">${esc(squadRoleLabel(player.squadRole))}</span>
+            <span class="tag tag-outline">${esc(player.phase)}</span>
+            <span class="tag tag-outline">${esc(player.nationality)}</span>
+            <span class="tag tag-outline">${esc(club.identity.shortName)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics">
+        ${metrics.map(([label, stored, fresh]) => {
+          const diverges = fresh !== null && String(stored) !== String(fresh);
+          return `<div class="metric">
+            <span class="metric-label">${esc(label)}</span>
+            <span class="metric-value">${esc(stored)}</span>
+            <span class="metric-note${diverges ? ' diverges' : ''}">${diverges ? `calculado ${esc(fresh)}` : 'confere'}</span>
+          </div>`;
+        }).join('')}
+      </div>
+
+      ${page.economyDiverges ? `
+        <div class="recalc-bar">
+          <span class="grow">
+            Os valores gravados não batem com a calibração atual — uma re-fitagem envelheceu este
+            registro. Recalcular reescreve OVR, valor e salário a partir dos atributos.
+          </span>
+          <button class="btn btn-secondary" type="button" id="player-recalc">Recalcular OVR, valor e salário</button>
+        </div>` : ''}
+
+      ${state.fields.character.map((group) => group.id === 'attrs'
+        ? attributeGroupHtml(group, player, page.positionWeights)
+        : `<section class="field-group">
+             <div class="field-group-head">
+               <span class="field-group-title">${esc(group.name)}</span>
+               <span class="field-group-rule"></span>
+               <span class="field-group-id">${esc(group.id)}</span>
+             </div>
+             <div class="fields">
+               ${group.fields.map((field) => fieldHtml(field, values[field.path], 'character')).join('')}
+             </div>
+           </section>`).join('')}
+    </div>`;
+}
+
+/** The twelve attributes, each with a bar for its size and the weight it carries in this
+ *  player's position. The weight column is the point: it shows which attributes actually
+ *  decide this player's overall and which are decoration. */
+function attributeGroupHtml(group, player, weights) {
+  return `
+    <section class="field-group">
+      <div class="field-group-head">
+        <span class="field-group-title">${esc(group.name)}</span>
+        <span class="field-group-rule"></span>
+        <span class="field-group-id">peso na posição ${esc(player.primaryPosition)}</span>
+      </div>
+      <div class="fields">
+        ${group.fields.map((field) => {
+          const attr = field.path.slice('attrs.'.length);
+          const value = player.attrs[attr];
+          const weight = weights[attr] || 0;
+          return `
+            <label class="field">
+              <span class="field-head">
+                <span class="field-label">${esc(field.label)}</span>
+              </span>
+              <span class="attr-row">
+                <input class="tpin" type="number" min="1" max="99"
+                       data-path="${esc(field.path)}" data-scope="character" value="${value}">
+                <span class="attr-bar"><span style="width: ${Math.max(0, Math.min(100, value))}%"></span></span>
+                <span class="attr-weight${weight > 0 ? ' matters' : ''}">×${decimal(weight, 2)}</span>
+              </span>
+            </label>`;
+        }).join('')}
+      </div>
+    </section>`;
+}
+
+async function openPlayer(playerId) {
+  try {
+    state.player = await getJson(`/api/characters/${encodeURIComponent(playerId)}`);
+  } catch (error) {
+    toast(`Não foi possível abrir a ficha: ${error.message}`);
+    return;
+  }
+
+  const modal = document.getElementById('player-modal');
+  modal.innerHTML = playerModalHtml(state.player);
+  modal.hidden = false;
+}
+
+function closePlayer() {
+  document.getElementById('player-modal').hidden = true;
+  state.player = null;
+}
+
 // ------------------------------------------------------------------ wiring
 
 async function selectClub(clubId) {
@@ -555,13 +822,106 @@ function bindEvents() {
     renderRail();
   });
 
-  // The sort select is re-rendered with the page, so the handler lives on the
-  // container rather than the control.
-  document.getElementById('content').addEventListener('change', (event) => {
-    if (event.target.id !== 'squad-sort') return;
-    state.squadSort = event.target.value;
-    document.querySelector('.squad-table').outerHTML = squadTableHtml();
+  const content = document.getElementById('content');
+
+  // The sort select and every field control are re-rendered with the page, so the handlers
+  // live on the container rather than the controls.
+  content.addEventListener('change', (event) => {
+    if (event.target.id === 'squad-sort') {
+      state.squadSort = event.target.value;
+      document.querySelector('.squad-table').outerHTML = squadTableHtml();
+      return;
+    }
+
+    // Commit on change, never on keystroke: an edit is a decision, not every character of
+    // typing one (design README, "Interactions & Behavior").
+    if (event.target.dataset.path) commitField(event.target);
   });
+
+  content.addEventListener('click', (event) => {
+    const row = event.target.closest('[data-player]');
+    if (row) openPlayer(row.dataset.player);
+  });
+
+  const modal = document.getElementById('player-modal');
+
+  modal.addEventListener('change', (event) => {
+    if (event.target.dataset.path) commitField(event.target);
+  });
+
+  modal.addEventListener('click', (event) => {
+    // Clicking the backdrop closes; clicking inside the dialog does not.
+    if (event.target === modal || event.target.id === 'player-close') {
+      closePlayer();
+      return;
+    }
+    if (event.target.id === 'player-recalc') recalculatePlayer();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !modal.hidden) closePlayer();
+  });
+}
+
+/**
+ * Writes one field and reconciles the screen with what the server actually stored.
+ *
+ * A rejected value is put back rather than left on screen: showing a value the database
+ * does not hold is how a user comes to trust a number that was never saved.
+ */
+async function commitField(control) {
+  const path = control.dataset.path;
+  const scope = control.dataset.scope;
+  const value = control.value;
+
+  const isClub = scope === 'club';
+  const url = isClub
+    ? `/api/clubs/${encodeURIComponent(state.clubId)}`
+    : `/api/characters/${encodeURIComponent(state.player.character.playerId)}`;
+  const version = isClub ? state.page.version : state.player.version;
+
+  control.classList.add('saving');
+  const result = await sendPatch(url, path, value, version);
+  control.classList.remove('saving');
+
+  if (!result.ok) {
+    control.classList.add('rejected');
+    toast(result.status === 409
+      ? 'Este registro mudou desde que a página foi aberta. Recarregando para não sobrescrever a outra edição.'
+      : result.message);
+
+    // A conflict means our copy is stale, so re-read rather than letting the user keep
+    // editing against a version the server has already moved past.
+    if (result.status === 409) {
+      if (isClub) await selectClub(state.clubId);
+      else await openPlayer(state.player.character.playerId);
+    }
+    return;
+  }
+
+  // Re-read so every derived value the edit moved (ΔE, the overall, the invariant badge)
+  // is the server's, not a guess made here.
+  const playerId = state.player?.character?.playerId;
+  await selectClub(state.clubId);
+  if (!isClub && playerId) await openPlayer(playerId);
+}
+
+async function recalculatePlayer() {
+  const playerId = state.player.character.playerId;
+  const result = await sendPatch(
+    `/api/characters/${encodeURIComponent(playerId)}/recalculate`,
+    'economy',
+    null,
+    state.player.version,
+    'POST');
+
+  if (!result.ok) {
+    toast(result.message);
+    return;
+  }
+
+  await selectClub(state.clubId);
+  await openPlayer(playerId);
 }
 
 async function init() {
@@ -569,11 +929,18 @@ async function init() {
   const content = document.getElementById('content');
 
   try {
-    const [world, clubs] = await Promise.all([getJson('/api/world'), getJson('/api/clubs')]);
+    const [world, clubs, fields, pending] = await Promise.all([
+      getJson('/api/world'),
+      getJson('/api/clubs'),
+      getJson('/api/fields'),
+      getJson('/api/pending'),
+    ]);
     state.world = world;
     state.clubs = clubs;
+    state.fields = fields;
 
     document.getElementById('schema-version').textContent = world.schemaVersion;
+    setPending(pending);
 
     if (!world.loaded) {
       content.innerHTML = introHtml();

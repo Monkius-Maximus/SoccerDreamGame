@@ -99,6 +99,7 @@ internal static class WorldEndpoints
 
         return Results.Ok(new ClubPageDto(
             Club: club,
+            Version: await unitOfWork.Clubs.GetVersionAsync(clubId, cancellationToken),
             GeoPath: await BuildGeoPathAsync(club.Geography.GeoNodeId, unitOfWork, cancellationToken),
             Findings: findings,
             InvariantLevel: ClubInvariants.WorstLevel(findings),
@@ -161,11 +162,21 @@ internal static class WorldEndpoints
             "No calibration is loaded. Run `worldbuilder import <file>` before serving the tool — "
             + "invariants and squad metrics cannot be computed without it.");
 
-    /// <summary>The closed enums, straight from the C# types, so the UI's filter options and
-    /// position ordering cannot drift from the schema.</summary>
+    /// <summary>
+    /// The closed enums, straight from the C# types, so the UI's filter options and position
+    /// ordering cannot drift from the schema.
+    ///
+    /// <para>
+    /// Every enum a field catalog names must be here: the form builds its options from this
+    /// dictionary, and a missing entry renders an empty select that silently cannot be set.
+    /// <c>FieldCatalogEnumTests</c> pins that.
+    /// </para>
+    /// </summary>
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> ClosedEnums =
         new Dictionary<string, IReadOnlyList<string>>
         {
+            [nameof(PreferredFoot)] = Enum.GetNames<PreferredFoot>(),
+            [nameof(TacticalStyleProvenance)] = Enum.GetNames<TacticalStyleProvenance>(),
             [nameof(Position)] = Enum.GetNames<Position>(),
             [nameof(Attr)] = Enum.GetNames<Attr>(),
             [nameof(PrestigeBand)] = Enum.GetNames<PrestigeBand>(),

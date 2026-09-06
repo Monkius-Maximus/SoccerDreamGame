@@ -32,7 +32,12 @@
       <div class="topbar-spacer"></div>
 
       <div class="topbar-actions">
-        <span class="readonly-note" title="Sprint 3 entrega a leitura completa da ficha; a edição chega no Sprint 4.">somente leitura</span>
+        <!-- Pending edits: filled by app.js after every write. Not a save button — writes are
+             immediate; this says what has not been exported yet. -->
+        <div class="pending" id="pending" title="Edições gravadas que ainda não foram exportadas">
+          <span class="pending-dot"></span>
+          <span class="pending-label" id="pending-label">em dia</span>
+        </div>
       </div>
     </header>
 
@@ -56,6 +61,12 @@
   </div>
 
   <div class="overlay" id="loading">Carregando base de mundo…</div>
+
+  <!-- The player sheet. Clicking the backdrop closes; clicking the dialog does not. -->
+  <div class="dialog-backdrop" id="player-modal" hidden></div>
+
+  <!-- Transient message for a write that failed (a rejected value, a stale version). -->
+  <div class="toast" id="toast" hidden></div>
 
   <script src="app.js"></script>
 </body>

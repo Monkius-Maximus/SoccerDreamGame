@@ -49,6 +49,7 @@ var webRoot = new PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "w
 app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = webRoot });
 app.UseStaticFiles(new StaticFileOptions { FileProvider = webRoot });
 app.MapWorldApi();
+app.MapEditApi();
 
 app.Run();
 return 0;

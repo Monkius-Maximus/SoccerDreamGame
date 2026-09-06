@@ -636,3 +636,165 @@ input.tpin, select.tpin {
   font-size: 13px;
   margin-bottom: var(--space-6);
 }
+
+/* ---------- Pending-export indicator ---------- */
+/* There is no Save button: every edit is written immediately. What the user needs
+   to know is not "is it saved" but "is it exported", which is what this says. */
+.pending { display: flex; align-items: center; gap: 7px; color: var(--color-neutral-500); }
+.pending[data-pending="true"] { color: var(--level-error-text); }
+.pending-dot { width: 7px; height: 7px; background: currentColor; display: block; }
+.pending-label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+
+/* ---------- Editable field groups ---------- */
+.field-groups { margin-top: var(--space-8); }
+.field-group { margin-bottom: var(--space-6); }
+.field-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.field-group-title {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+/* A dotted rule carrying the group's id to the right edge — the drawing-sheet language. */
+.field-group-rule { flex: 1; border-bottom: 1px dotted var(--color-divider); }
+.field-group-id { font-family: var(--font-mono); font-size: 9.5px; color: var(--color-neutral-500); }
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(206px, 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.field-head { display: flex; align-items: center; gap: 6px; }
+.field-label { font-size: 11.5px; }
+
+/* The provenance seal. Authored values are the ones a person chose, so they carry the
+   accent; everything else is muted — the point is to see at a glance which numbers are
+   somebody's decision and which merely followed. */
+.seal {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0 4px;
+  border: 1px solid var(--color-neutral-300);
+  color: var(--color-neutral-500);
+  flex: none;
+}
+.seal-authored { color: var(--color-accent-700); border-color: var(--color-accent-400); }
+
+.field-path { font-family: var(--font-mono); font-size: 9.5px; color: var(--color-neutral-500); }
+.field input[readonly] { background: var(--color-neutral-200); color: var(--color-neutral-600); }
+.field input.saving { outline: 2px solid var(--color-accent-300); outline-offset: 1px; }
+.field input.rejected { outline: 2px solid var(--level-error-text); outline-offset: 1px; }
+.field-color-row { display: flex; gap: 4px; align-items: center; }
+.field-color-row input[type="color"] {
+  padding: 0;
+  width: 34px;
+  height: 27px;
+  flex: none;
+  border: 1px solid var(--color-divider);
+  background: none;
+  cursor: pointer;
+}
+
+/* ---------- Player modal ---------- */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+}
+.dialog-backdrop[hidden] { display: none; }
+.dialog {
+  width: 860px;
+  max-width: 100%;
+  background: var(--color-neutral-100);
+  border: 1px solid var(--color-text);
+  border-radius: 0;
+  padding: var(--space-6);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+}
+.dialog-head { display: flex; align-items: flex-start; gap: var(--space-4); }
+.player-badge {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading);
+  font-size: 24px;
+  border: 1px solid var(--color-text);
+}
+.player-id { font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-neutral-600); }
+.player-name { font-size: 30px; line-height: 1; margin: 2px 0 6px; text-transform: uppercase; }
+.dialog-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  font-family: var(--font-heading);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 8px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--color-divider);
+}
+
+/* A stored value that no longer matches what the calibration would produce. Shown, never
+   silently corrected: it is how a user learns a re-fit aged the batch. */
+.recalc-bar {
+  border: 1px solid var(--color-divider);
+  background: var(--color-accent-100);
+  padding: var(--space-3);
+  margin-top: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: 12.5px;
+}
+.recalc-bar .grow { flex: 1; }
+.metric-note.diverges { color: var(--level-error-text); }
+
+/* Attribute row: the value, a bar for its size, and the weight it carries in this
+   player's position — which is what tells you whether editing it matters at all. */
+.attr-row { display: flex; align-items: center; gap: 7px; }
+.attr-row input { width: 56px; flex: none; }
+.attr-bar { flex: 1; height: 7px; background: var(--color-neutral-300); display: block; min-width: 20px; }
+.attr-bar span { display: block; height: 100%; background: var(--color-accent); }
+.attr-weight {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  width: 38px;
+  flex: none;
+  text-align: right;
+  color: var(--color-neutral-400);
+}
+.attr-weight.matters { color: var(--color-accent-700); }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: 640px;
+  padding: var(--space-3) var(--space-4);
+  font-size: 12.5px;
+  border: 1px solid var(--level-error-text);
+  background: var(--level-error-bg);
+  color: var(--level-error-fg);
+}
+.toast[hidden] { display: none; }

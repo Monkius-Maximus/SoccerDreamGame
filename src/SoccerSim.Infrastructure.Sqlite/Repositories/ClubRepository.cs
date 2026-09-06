@@ -114,11 +114,35 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
         return Task.FromResult(club.ClubId);
     }
 
+    public Task<long> GetVersionAsync(string clubId, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ReadVersion(clubId));
+    }
+
     public Task UpdateAsync(ClubIdentity entity, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        Write(entity, expectedVersion: null);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Guarded update: the row must still be at the version the caller read.</summary>
+    public Task<long> UpdateAsync(ClubIdentity club, long expectedVersion, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(Write(club, expectedVersion));
+    }
+
+    private long Write(ClubIdentity entity, long? expectedVersion)
+    {
         ClubIdentity club = WorldDerivations.Recalculate(entity, _calibration());
 
+        // The version guard rides along in the WHERE clause, so checking and writing are one
+        // atomic statement — a read-then-write would have a race of its own.
+        string guard = expectedVersion is null ? string.Empty : " AND RowVersion = $expectedVersion";
+
+        int affected;
         using (SqliteCommand command = CreateCommand(
             @"UPDATE Clubs SET DisplayCode = $code, OfficialName = $official, ShortName = $short,
                   Nickname = $nick, FoundingYear = $founded,
@@ -134,15 +158,31 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
                   StadiumName = $stadium, StadiumCapacity = $capacity,
                   AtmosphereArchetype = $atmosphere, PitchSurface = $pitch,
                   DefaultTacticalStyle = $tactical, TacticalStyleProvenance = $tacticalProv,
-                  HomeAdvantageModifier = $homeAdv, DerbyRivalClubId = $rival
-              WHERE ClubId = $id;"))
+                  HomeAdvantageModifier = $homeAdv, DerbyRivalClubId = $rival,
+                  RowVersion = RowVersion + 1
+              WHERE ClubId = $id" + guard + ";"))
         {
             Bind(command, club);
-            command.ExecuteNonQuery();
+            if (expectedVersion is not null)
+                command.Parameters.AddWithValue("$expectedVersion", expectedVersion.Value);
+            affected = command.ExecuteNonQuery();
+        }
+
+        if (affected == 0 && expectedVersion is not null)
+        {
+            // Either the row moved on or it is gone; both mean the caller's copy is stale.
+            throw new WorldConcurrencyException(club.ClubId, expectedVersion.Value, ReadVersion(club.ClubId));
         }
 
         WriteAudit(club.Audit, insert: false);
-        return Task.CompletedTask;
+        return ReadVersion(club.ClubId);
+    }
+
+    private long ReadVersion(string clubId)
+    {
+        using SqliteCommand command = CreateCommand("SELECT RowVersion FROM Clubs WHERE ClubId = $id;");
+        command.Parameters.AddWithValue("$id", clubId);
+        return command.ExecuteScalar() is { } value ? Convert.ToInt64(value) : 0;
     }
 
     public Task DeleteAsync(string id, CancellationToken cancellationToken = default)

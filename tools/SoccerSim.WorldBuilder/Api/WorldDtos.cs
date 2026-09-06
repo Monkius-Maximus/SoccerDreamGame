@@ -34,6 +34,9 @@ public sealed record ClubListItemDto(
 /// a club is one page, so it is also one request.</summary>
 public sealed record ClubPageDto(
     ClubIdentity Club,
+    /// <summary>The concurrency token the form patches with — it travels with the page so an
+    /// edit can say which version of the club it was made against.</summary>
+    long Version,
     IReadOnlyList<string> GeoPath,
     IReadOnlyList<Finding> Findings,
     FindingLevel InvariantLevel,
