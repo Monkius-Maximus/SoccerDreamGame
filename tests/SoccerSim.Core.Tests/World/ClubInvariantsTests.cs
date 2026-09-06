@@ -19,50 +19,9 @@ public sealed class ClubInvariantsTests
         },
         PositionWeights: new Dictionary<Position, IReadOnlyDictionary<Attr, double>>());
 
-    private static ClubIdentity ValidClub() => new(
-        ClubId: "clb_test_001",
-        DisplayCode: "TST",
-        Identity: new ClubIdentityInfo("Test FC", "Test", "Testers", 1900),
-        Geography: new ClubGeography("Test City", "TS", "BRA", "geo_test", DistrictArchetype.Affluent),
-        World: new ClubWorldProfile(PrestigeBand.B2, ClubStrength: 0.8, SquadSize: 30, NamingRule.Toponymic),
-        Crest: new ClubCrest(ShieldShape.Round, "Test Charge", "Test Motto", ["#D50A0A", "#000000", "#FFFFFF"]),
-        Palette: new ClubPalette("#D50A0A", "#000000", "#FFFFFF", TypographyStyle.ModernSans),
-        Kits: new ClubKits(
-            CollarStyle.Crew,
-            FitStyle.Slim,
-            Home: new HomeKit(FabricPattern.Solid, "#D50A0A", "#000000", "#000000", Luminance: 0.1439),
-            Away: new AwayKit(FabricPattern.Solid, "#FFFFFF", "#FFFFFF", "#D50A0A"),
-            DeltaE: 104.6,
-            DeltaEThreshold: 25,
-            PolarityRule: "titular escura -> reserva no polo claro da palette"),
-        Stadium: new ClubStadium("Test Arena", Capacity: 27000, AtmosphereArchetype.Cauldron, PitchSurface.Pristine),
-        AiProfile: new ClubAiProfile(TacticalStyle.HighPress, TacticalStyleProvenance.Derived, HomeAdvantageModifier: 0.17, DerbyRivalClubId: null),
-        Audit: new ClubDeviationAudit(
-            ClubId: "clb_test_001",
-            AnchorClubName: "Anchor FC",
-            AnchorCityName: "Test City",
-            AnchorFoundingYear: 1898,
-            GeneratedFoundingYear: 1900,
-            FoundingDecadePreserved: 1890,
-            FoundingSourceCitation: "https://example.com/founding",
-            AnchorNickname: "Anchor",
-            NicknameCommercialLevel: 0,
-            NicknameTrademarked: true,
-            NicknameEvidence: "https://example.com/nickname",
-            NamingRule: NamingRule.Toponymic,
-            NamingRuleReason: "Cond.1 FALSA · Cond.2 FALSA",
-            PhoneticSimilarity: null,
-            CrestOriginalChargeReplaced: "não",
-            CrestSubstituteCharge: "Test Charge",
-            CrestSourceCitation: "https://example.com/crest",
-            DistrictSourceCitation: "https://example.com/district",
-            TacticalStyleProvenance: TacticalStyleProvenance.Derived,
-            TacticalStyleEvidence: "https://example.com/tactics",
-            ChromaticPolicy: "policy",
-            AnchorFactsVerified: true,
-            ReviewedBy: "tester",
-            ReviewDate: "2026-01-01",
-            Note: null));
+    // The known-good club lives in WorldSamples so the persistence tests break the same
+    // record in their own ways without a second copy drifting from this one.
+    private static ClubIdentity ValidClub() => WorldSamples.Club();
 
     private static Finding Find(IReadOnlyList<Finding> findings, string code) =>
         findings.Single(f => f.Code == code);

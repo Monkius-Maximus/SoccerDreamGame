@@ -12,16 +12,15 @@ namespace SoccerSim.Core.Tests.World;
 /// </summary>
 internal static class WorldFixture
 {
-    private static readonly Lazy<JsonObject> Cached = new(Load);
+    private static readonly Lazy<string> CachedJson = new(
+        () => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "world.json")));
+
+    private static readonly Lazy<JsonObject> Cached = new(() => JsonNode.Parse(Json)!.AsObject());
+
+    /// <summary>The raw document, for tests that exercise the importer end to end.</summary>
+    public static string Json => CachedJson.Value;
 
     public static JsonObject Data => Cached.Value;
-
-    private static JsonObject Load()
-    {
-        string path = Path.Combine(AppContext.BaseDirectory, "TestData", "world.json");
-        string json = File.ReadAllText(path);
-        return JsonNode.Parse(json)!.AsObject();
-    }
 
     public static WorldCalibration BuildCalibration()
     {
