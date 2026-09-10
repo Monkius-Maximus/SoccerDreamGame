@@ -8,6 +8,10 @@ namespace SoccerSim.Core.World;
 public sealed record SquadMetrics(
     int PlayerCount,
     int Overall,
+    /// <summary>The mean over the WHOLE squad rather than the eleven best. The generator panel
+    /// shows it next to <see cref="Overall"/> because depth is precisely what the two differ
+    /// on: raising the squad size moves this number and leaves the other one alone.</summary>
+    int AverageOverall,
     long TotalMarketValueEur,
     long TotalMonthlyWageBrl,
     double AverageAge,
@@ -33,6 +37,7 @@ public sealed record SquadMetrics(
         return new SquadMetrics(
             PlayerCount: squad.Count,
             Overall: overall,
+            AverageOverall: (int)Math.Round(squad.Average(player => player.Overall), MidpointRounding.AwayFromZero),
             TotalMarketValueEur: squad.Sum(player => (long)player.MarketValueEur),
             TotalMonthlyWageBrl: squad.Sum(player => (long)player.SalaryMonthlyBrl),
             AverageAge: squad.Average(player => player.Age),
@@ -48,6 +53,7 @@ public sealed record SquadMetrics(
     public static SquadMetrics Empty { get; } = new(
         PlayerCount: 0,
         Overall: 0,
+        AverageOverall: 0,
         TotalMarketValueEur: 0,
         TotalMonthlyWageBrl: 0,
         AverageAge: 0,

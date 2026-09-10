@@ -31,6 +31,8 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
         Calibration = calibration;
         Sources = new WorldSourceRepository(connection, transaction);
         Edits = new WorldEditLog(connection, transaction);
+        GenerationProfiles = new GenerationProfileRepository(connection, transaction);
+        Settings = new WorldSettingsRepository(connection, transaction);
     }
 
     public IGeoNodeRepository GeoNodes { get; }
@@ -40,6 +42,8 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
     public ICalibrationRepository Calibration { get; }
     public IWorldSourceRepository Sources { get; }
     public IWorldEditLog Edits { get; }
+    public IGenerationProfileRepository GenerationProfiles { get; }
+    public IWorldSettingsRepository Settings { get; }
 
     public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {

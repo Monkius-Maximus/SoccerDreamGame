@@ -41,10 +41,24 @@ public static class WorldJsonReader
         IReadOnlyList<Competition> competitions = ReadMany(errors, cursor, "competitions", ReadCompetition);
         IReadOnlyList<WorldSource> sources = ReadMany(errors, cursor, "sources", ReadSource);
 
+        WorldMeta? meta = ReadOne(errors, () => ReadMeta(cursor));
+
         if (errors.Count > 0)
             throw new WorldImportException(errors);
 
-        return new WorldSnapshot(geoNodes, calibration!, clubs, characters, competitions, sources);
+        return new WorldSnapshot(geoNodes, calibration!, clubs, characters, competitions, sources, meta!);
+    }
+
+    /// <summary>The document's meta block. The master seed is required: without it the world has
+    /// no reproducible root for generation, and defaulting one would produce squads that differ
+    /// between databases built from the same document.</summary>
+    private static WorldMeta ReadMeta(JsonCursor root)
+    {
+        JsonCursor meta = root.Object("meta");
+        return new WorldMeta(
+            MasterSeed: meta.Int(WorldMeta.MasterSeedKey),
+            SchemaVersion: meta.String(WorldMeta.SchemaVersionKey),
+            SourceFile: meta.OptionalString(WorldMeta.SourceFileKey));
     }
 
     // ---------------------------------------------------------------- sections

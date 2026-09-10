@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using SoccerSim.Core.World.Import;
+using SoccerSim.Core.World.Serialization;
 using SoccerSim.Infrastructure.Sqlite;
 
 namespace SoccerSim.WorldBuilder.Tests;
@@ -39,10 +40,18 @@ public sealed class WorldBuilderApp : WebApplicationFactory<Program>
             return;
 
         string json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "world.json"));
+        string profiles = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "gen_profiles.json"));
         var unitOfWork = new SqliteWorldUnitOfWork(factory.Open());
         try
         {
             new WorldImporter(unitOfWork).ImportAsync(json).GetAwaiter().GetResult();
+
+            // The other half of the same setup a user does: `import`, then `import-profiles`.
+            // Without the profiles the generation endpoints are — correctly — unusable.
+            unitOfWork.BeginTransactionAsync().GetAwaiter().GetResult();
+            unitOfWork.GenerationProfiles.SaveAsync(GenerationProfilesReader.Read(profiles))
+                .GetAwaiter().GetResult();
+            unitOfWork.CommitAsync().GetAwaiter().GetResult();
         }
         finally
         {

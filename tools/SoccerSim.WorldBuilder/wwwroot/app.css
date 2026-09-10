@@ -137,6 +137,9 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: 600; margin: 0; }
   border-radius: 0;
   padding: var(--space-2) calc(var(--space-3) * 1.2);
 }
+.btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-bg); }
+.btn-primary:hover { background: var(--color-accent-600); }
+.btn-primary:active { background: var(--color-accent-700); }
 .btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .btn-ghost { color: var(--color-accent); border-color: transparent; padding-inline: var(--space-1); }
 .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
@@ -573,6 +576,81 @@ input.tpin, select.tpin {
   max-width: 52ch;
   line-height: 1.5;
 }
+.empty-squad .btn { margin-top: var(--space-4); }
+
+/* ---------- Squad generator ---------- */
+.gen-panel { margin-bottom: var(--space-6); }
+.gen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+}
+
+.gen-controls { display: flex; flex-direction: column; gap: var(--space-3); }
+.gen-control { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.gen-control-label { font-size: 11.5px; }
+.gen-control-hint { font-size: 10px; color: var(--color-neutral-500); }
+.gen-controls .btn-ghost { align-self: flex-start; }
+
+/* Composition bars. Seven players fill a bar; the count to the right is the fact. */
+.gen-bars { display: flex; flex-direction: column; gap: 4px; margin-top: var(--space-2); }
+.gen-bar-row { display: flex; align-items: center; gap: var(--space-2); }
+.gen-bar-key { width: 24px; font-size: 12px; color: var(--color-neutral-700); }
+.gen-bar-track { flex: 1; height: 9px; background: var(--color-neutral-200); }
+.gen-bar-fill { display: block; height: 100%; background: var(--color-accent); }
+.gen-bar-count { width: 16px; text-align: right; font-family: var(--font-heading); font-size: 13px; }
+
+.gen-preview { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.gen-metrics { margin: 0; }
+
+/* The XI, drawn on a pitch of painted lines rather than listed. */
+.gen-pitch {
+  border: 1px solid var(--color-divider);
+  background: repeating-linear-gradient(180deg, transparent 0 47px, var(--color-neutral-200) 47px 48px);
+  padding: var(--space-2);
+}
+.gen-line { display: flex; justify-content: center; gap: 6px; height: 48px; align-items: center; }
+/* The slot has to fit inside its 48px band, or the four lines climb over each other. */
+.gen-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid var(--color-text);
+  background: var(--color-neutral-100);
+  padding: 3px 8px;
+  min-width: 70px;
+  max-width: 96px;
+}
+.gen-slot-pos {
+  font-size: 9px;
+  line-height: 1.1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600);
+}
+.gen-slot-name {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  line-height: 1.1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gen-slot-ovr { font-family: var(--font-heading); font-size: 15px; line-height: 1; color: var(--color-accent-800); }
+
+.gen-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-divider);
+}
+.gen-note { flex: 1; min-width: 220px; font-size: 11.5px; line-height: 1.45; color: var(--color-neutral-600); }
+.gen-note-alarm { color: var(--level-error-text); }
 
 /* ---------- Loading and empty states ---------- */
 .overlay {

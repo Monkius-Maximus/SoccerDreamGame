@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using SoccerSim.Core.World.Generation;
 using SoccerSim.Core.World.Import;
 using SoccerSim.Core.World.Serialization;
 using SoccerSim.Infrastructure.Sqlite;
@@ -14,7 +15,7 @@ internal static class WorldBuilderCommands
 {
     private const string DefaultDatabase = "world.db";
 
-    private static readonly string[] Verbs = ["import", "help", "--help", "-h"];
+    private static readonly string[] Verbs = ["import", "import-profiles", "help", "--help", "-h"];
 
     /// <summary>
     /// Whether these arguments are one of the tool's own commands. Everything else — including
@@ -28,8 +29,60 @@ internal static class WorldBuilderCommands
         return args[0] switch
         {
             "import" => await ImportAsync(args),
+            "import-profiles" => await ImportProfilesAsync(args),
             _ => Usage(exitCode: 0),
         };
+    }
+
+    /// <summary>
+    /// worldbuilder import-profiles &lt;gen_profiles.json&gt; [database]
+    ///
+    /// <para>A separate command from <c>import</c> because it is a separate measurement: the
+    /// attribute shapes and name pools can be re-measured from a larger batch without touching
+    /// the world, and re-importing a world should not silently discard them.</para>
+    /// </summary>
+    private static async Task<int> ImportProfilesAsync(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            return Usage(exitCode: 1,
+                "import-profiles needs a profile document: worldbuilder import-profiles <file.json> [database]");
+        }
+
+        string documentPath = args[1];
+        string databasePath = args.Length > 2 ? args[2] : DefaultDatabase;
+
+        if (!File.Exists(documentPath))
+        {
+            Console.Error.WriteLine($"Profile document not found: {documentPath}");
+            return 1;
+        }
+
+        string json = await File.ReadAllTextAsync(documentPath);
+
+        var factory = SqliteConnectionFactory.ForFile(databasePath);
+        new MigrationRunner(factory).Migrate();
+
+        await using var unitOfWork = new SqliteWorldUnitOfWork(factory.Open());
+
+        try
+        {
+            GenerationProfiles profiles = GenerationProfilesReader.Read(json);
+
+            await unitOfWork.BeginTransactionAsync();
+            await unitOfWork.GenerationProfiles.SaveAsync(profiles);
+            await unitOfWork.CommitAsync();
+
+            Console.WriteLine(
+                $"Imported generation profiles for {profiles.Attributes.Count} positions, "
+                + $"{profiles.FirstNames.Count} first names and {profiles.LastNames.Count} surnames into {databasePath}.");
+            return 0;
+        }
+        catch (WorldImportException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
     }
 
     /// <summary>worldbuilder import &lt;file.json&gt; [database]</summary>
@@ -81,6 +134,7 @@ internal static class WorldBuilderCommands
 
               worldbuilder                              start the web tool
               worldbuilder import <file.json> [db]      load a world document (default db: world.db)
+              worldbuilder import-profiles <f> [db]     load the squad-generation profiles
 
             Importing is all-or-nothing: a document with any malformed record is rejected in full,
             with one message per record, and nothing is written.

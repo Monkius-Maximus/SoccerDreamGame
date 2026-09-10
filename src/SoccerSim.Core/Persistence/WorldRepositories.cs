@@ -1,4 +1,5 @@
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Generation;
 
 namespace SoccerSim.Core.Persistence;
 
@@ -119,6 +120,33 @@ public interface IWorldSourceRepository
 }
 
 /// <summary>
+/// The squad generator's measured inputs. Replace-all, like the calibration: the attribute shapes
+/// and the name pools are one measurement, and half of a newer one mixed with half of an older
+/// one describes no batch that ever existed.
+/// </summary>
+public interface IGenerationProfileRepository
+{
+    /// <summary>The stored profiles, or null when none have been imported.</summary>
+    Task<GenerationProfiles?> GetAsync(CancellationToken cancellationToken = default);
+
+    Task SaveAsync(GenerationProfiles profiles, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// World-level facts from the document's meta block — the master seed every deterministic stream
+/// derives from, and the schema version. Kept with the world rather than in configuration, so a
+/// database always carries the seed that produced it.
+/// </summary>
+public interface IWorldSettingsRepository
+{
+    Task<IReadOnlyDictionary<string, string>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    Task<string?> GetAsync(string key, CancellationToken cancellationToken = default);
+
+    Task SetAsync(string key, string value, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Transaction boundary for the world-authoring schema.
 ///
 /// <para>
@@ -139,6 +167,8 @@ public interface IWorldUnitOfWork : IAsyncDisposable
     ICalibrationRepository Calibration { get; }
     IWorldSourceRepository Sources { get; }
     IWorldEditLog Edits { get; }
+    IGenerationProfileRepository GenerationProfiles { get; }
+    IWorldSettingsRepository Settings { get; }
 
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
 

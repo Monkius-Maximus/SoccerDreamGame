@@ -20,6 +20,7 @@ const state = {
   player: null,       // /api/characters/{id}, when the modal is open
   filters: { text: '', band: '', city: '' },
   squadSort: 'ovr',
+  gen: null,          // the generator panel: { options, preview } while it is open
 };
 
 // ---------------------------------------------------------------- formatting
@@ -361,6 +362,145 @@ function squadTableHtml() {
     </table>`;
 }
 
+// ------------------------------------------------------------ squad generator
+
+const FORMATIONS = ['4-3-3', '4-2-3-1', '4-4-2', '3-5-2'];
+
+const AGE_PROFILES = [['Balanced', 'Equilibrado'], ['Young', 'Jovem'], ['Experienced', 'Experiente']];
+
+const XI_LINES = ['Goleiro', 'Defesa', 'Meio', 'Frente'];
+
+/** A position with seven players fills its bar. Above that the bar simply stays full —
+ *  the number to its right is the fact, the bar is only the shape. */
+const BAR_FULL = 7;
+
+function genControl(label, hint, control) {
+  return `
+    <label class="gen-control">
+      <span class="gen-control-label">${esc(label)}</span>
+      ${control}
+      <span class="gen-control-hint">${esc(hint)}</span>
+    </label>`;
+}
+
+function generatorControlsHtml() {
+  const options = state.gen.options;
+  const club = state.page.club;
+
+  const select = (key, entries) => `
+    <select class="tpin" data-gen="${key}">
+      ${entries.map(([value, label]) => `
+        <option value="${esc(value)}"${options[key] === value ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+    </select>`;
+
+  return `
+    <div class="gen-controls">
+      ${genControl('Tamanho do elenco', 'entre 28 e 40 jogadores',
+        `<input class="tpin" type="number" min="28" max="40" step="1" data-gen="squadSize" value="${options.squadSize}">`)}
+
+      ${genControl('Formação do XI', 'define quantos de cada posição são titulares',
+        select('formation', FORMATIONS.map((formation) => [formation, formation])))}
+
+      ${genControl('OVR alvo', `derivado da força ${decimal(club.world.clubStrength, 2)}`,
+        `<input class="tpin" type="number" min="40" max="95" step="1" data-gen="targetOverall" value="${options.targetOverall}">`)}
+
+      ${genControl('Perfil de idade', 'desloca a curva etária do elenco inteiro',
+        select('ageProfile', AGE_PROFILES))}
+
+      ${genControl('Semente', 'mesma semente, mesmo elenco',
+        `<input class="tpin" type="number" min="1" step="1" data-gen="seed" value="${options.seed}">`)}
+
+      <button type="button" class="btn btn-ghost" id="gen-reseed">↺ Nova semente</button>
+
+      <div class="gen-bars">
+        ${state.world.enums.Position.map((position) => {
+          const count = state.gen.preview.composition[position] || 0;
+          return `
+            <div class="gen-bar-row">
+              <span class="gen-bar-key">${esc(position)}</span>
+              <span class="gen-bar-track">
+                <span class="gen-bar-fill" style="width: ${Math.min(100, (count / BAR_FULL) * 100)}%"></span>
+              </span>
+              <span class="gen-bar-count">${count}</span>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function generatorPreviewHtml() {
+  const preview = state.gen.preview;
+  const metrics = preview.metrics;
+
+  const cells = [
+    ['OVR do XI', preview.xiOverall, `alvo ${state.gen.options.targetOverall}`],
+    ['OVR do elenco', metrics.averageOverall, `${metrics.playerCount} jogadores`],
+    ['Valor', fmtEur(metrics.totalMarketValueEur), 'somado'],
+    ['Folha mensal', fmtBrl(metrics.totalMonthlyWageBrl), 'somada'],
+    ['Idade média', decimal(metrics.averageAge, 1), state.gen.options.ageProfile === 'Balanced'
+      ? 'perfil equilibrado' : 'perfil deslocado'],
+    ['Promessas', metrics.countByRole.Promessa, 'papel Promessa'],
+  ];
+
+  return `
+    <div class="gen-preview">
+      <div class="metrics gen-metrics">${cells.map(([label, value, note]) => `
+        <div class="metric">
+          <span class="metric-label">${esc(label)}</span>
+          <span class="metric-value">${esc(value)}</span>
+          <span class="metric-note">${esc(note)}</span>
+        </div>`).join('')}</div>
+
+      <div class="gen-pitch">
+        ${XI_LINES.map((label, line) => `
+          <div class="gen-line" aria-label="${esc(label)}">
+            ${preview.startingXi.filter((slot) => slot.line === line).map((slot) => `
+              <span class="gen-slot">
+                <span class="gen-slot-pos">${esc(slot.position)}</span>
+                <span class="gen-slot-name">${esc(slot.lastName)}</span>
+                <span class="gen-slot-ovr">${slot.overall}</span>
+              </span>`).join('')}
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+/**
+ * The panel. Nothing here has been written: the squad on screen exists only in this
+ * response, and the same seed produces it again when the user confirms.
+ */
+function generatorHtml() {
+  const preview = state.gen.preview;
+  const replacing = preview.existingPlayers > 0;
+
+  const note = replacing
+    ? `Isto substitui os ${preview.existingPlayers} jogadores atuais do clube${preview.existingAnchored > 0
+        ? `, dos quais ${preview.existingAnchored} ${preview.existingAnchored === 1 ? 'está ancorado' : 'estão ancorados'}
+           em pessoas reais — essa pesquisa se perde e não volta.`
+        : '.'}`
+    : 'Todos os jogadores gerados nascem com proveniência Regen e sem âncora: nenhum deles afirma '
+      + 'nada sobre uma pessoa real.';
+
+  return `
+    <div class="card blueprint gen-panel">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div class="card-kicker">Gerador de elenco · generator</div>
+
+      <div class="gen-grid">
+        ${generatorControlsHtml()}
+        ${generatorPreviewHtml()}
+      </div>
+
+      <div class="gen-foot">
+        <button type="button" class="btn btn-primary" id="gen-write"${state.gen.busy ? ' disabled' : ''}>
+          ${replacing ? 'Substituir elenco' : 'Gravar elenco'}
+        </button>
+        <button type="button" class="btn btn-secondary" id="gen-cancel">Cancelar</button>
+        <span class="gen-note${replacing && preview.existingAnchored > 0 ? ' gen-note-alarm' : ''}">${esc(note)}</span>
+      </div>
+    </div>`;
+}
+
 function clubPageHtml(page) {
   const club = page.club;
   const healthLabel = { Ok: 'invariantes ok', Warning: 'com avisos', Error: 'com erros' }[page.invariantLevel];
@@ -501,15 +641,21 @@ function clubPageHtml(page) {
             <option value="value">Ordenar por valor</option>
             <option value="shirt">Ordenar por camisa</option>
           </select>` : ''}
+        <button type="button" class="btn btn-primary" id="gen-open">
+          ${state.squad.length ? 'Regerar elenco' : 'Gerar elenco'}
+        </button>
       </div>
+
+      <div id="generator">${state.gen ? generatorHtml() : ''}</div>
 
       ${state.squad.length ? squadSummaryHtml(page) + squadTableHtml() : `
         <div class="empty-squad">
           <div class="empty-squad-title">Nenhum jogador neste clube</div>
           <div class="empty-squad-body">
             O clube existe como identidade, mas sem elenco não há OVR, valor nem folha salarial — e a
-            competição não consegue avaliá-lo. O gerador de elenco chega no Sprint 5.
+            competição não consegue avaliá-lo.
           </div>
+          <button type="button" class="btn btn-primary" id="gen-open-empty">Gerar elenco</button>
         </div>`}
 
       ${fieldGroupsHtml(state.fields.club, readPaths(club, state.fields.club), 'club')}
@@ -780,10 +926,129 @@ function closePlayer() {
   state.player = null;
 }
 
+// -------------------------------------------------------- generator wiring
+
+/** The generator posts whole option objects rather than one field at a time, so it needs
+ *  a plain POST alongside {@link sendPatch} rather than a widened version of it. */
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (response.ok) return { ok: true, body: await response.json() };
+
+  let message = `${response.status}`;
+  try {
+    message = (await response.json()).error || message;
+  } catch {
+    // A response without a JSON body still has to say something the user can act on.
+  }
+
+  return { ok: false, message };
+}
+
+function renderGenerator() {
+  document.getElementById('generator').innerHTML = state.gen ? generatorHtml() : '';
+}
+
+async function openGenerator() {
+  let options;
+  try {
+    options = await getJson(`/api/clubs/${encodeURIComponent(state.clubId)}/squad/options`);
+  } catch (error) {
+    toast(`Não foi possível abrir o gerador: ${error.message}`);
+    return;
+  }
+
+  state.gen = { options, preview: null, busy: false };
+  await refreshPreview();
+}
+
+function closeGenerator() {
+  state.gen = null;
+  renderGenerator();
+}
+
+/**
+ * Draws a squad without writing one. A rejected option is put back rather than left on
+ * screen — the same rule the field editor follows, for the same reason: a control showing
+ * a value the server refused is a control that lies about what would be generated.
+ */
+async function refreshPreview() {
+  const previous = state.gen.preview;
+  const result = await postJson(
+    `/api/clubs/${encodeURIComponent(state.clubId)}/squad/preview`,
+    state.gen.options);
+
+  if (!result.ok) {
+    toast(result.message);
+    // Nothing was ever previewed: there is no panel to fall back to.
+    if (previous) state.gen.options = { ...previous.options };
+    else state.gen = null;
+    renderGenerator();
+    return;
+  }
+
+  state.gen.preview = result.body;
+  // The server echoes the options it actually used, so the controls show those and not
+  // whatever was typed at them. A copy, not the echo itself: the controls mutate this
+  // object, and the preview's copy is what a rejected change is restored from.
+  state.gen.options = { ...result.body.options };
+  renderGenerator();
+}
+
+function changeGenOption(control) {
+  state.gen.options[control.dataset.gen] =
+    control.type === 'number' ? Number(control.value) : control.value;
+  refreshPreview();
+}
+
+/** Writes the previewed squad. Destructive, and the confirmation says what is lost. */
+async function writeSquad() {
+  const preview = state.gen.preview;
+
+  if (preview.existingPlayers > 0) {
+    const anchored = preview.existingAnchored > 0
+      ? `\n\n${preview.existingAnchored} ${preview.existingAnchored === 1
+          ? 'deles está ancorado' : 'deles estão ancorados'} em pessoas reais. `
+        + 'Essa pesquisa se perde e não pode ser recuperada.'
+      : '';
+
+    if (!confirm(`Substituir os ${preview.existingPlayers} jogadores deste clube `
+      + `por ${preview.squad.length} gerados?${anchored}`)) return;
+  }
+
+  state.gen.busy = true;
+  renderGenerator();
+
+  const result = await postJson(
+    `/api/clubs/${encodeURIComponent(state.clubId)}/squad/generate`,
+    state.gen.options);
+
+  if (!result.ok) {
+    state.gen.busy = false;
+    renderGenerator();
+    toast(result.message);
+    return;
+  }
+
+  setPending(result.body.pendingEdits);
+
+  const { written, replaced } = result.body;
+  await selectClub(state.clubId);
+  toast(replaced > 0
+    ? `${written} jogadores gravados no lugar dos ${replaced} anteriores.`
+    : `${written} jogadores gravados.`);
+}
+
 // ------------------------------------------------------------------ wiring
 
 async function selectClub(clubId) {
   state.clubId = clubId;
+  // A preview belongs to the club it was drawn for, and to the squad it would replace.
+  state.gen = null;
   renderRail();
 
   const content = document.getElementById('content');
@@ -833,12 +1098,41 @@ function bindEvents() {
       return;
     }
 
+    // A generator control changes what would be generated, not what is stored: it redraws
+    // the preview and writes nothing.
+    if (event.target.dataset.gen) {
+      changeGenOption(event.target);
+      return;
+    }
+
     // Commit on change, never on keystroke: an edit is a decision, not every character of
     // typing one (design README, "Interactions & Behavior").
     if (event.target.dataset.path) commitField(event.target);
   });
 
   content.addEventListener('click', (event) => {
+    const id = event.target.closest('button')?.id;
+
+    if (id === 'gen-open' || id === 'gen-open-empty') {
+      // Clicking the button again while the panel is open closes it: one control, one state.
+      if (state.gen) closeGenerator();
+      else openGenerator();
+      return;
+    }
+    if (id === 'gen-cancel') {
+      closeGenerator();
+      return;
+    }
+    if (id === 'gen-reseed') {
+      state.gen.options.seed = Math.floor(Math.random() * 1000000) + 1;
+      refreshPreview();
+      return;
+    }
+    if (id === 'gen-write') {
+      writeSquad();
+      return;
+    }
+
     const row = event.target.closest('[data-player]');
     if (row) openPlayer(row.dataset.player);
   });

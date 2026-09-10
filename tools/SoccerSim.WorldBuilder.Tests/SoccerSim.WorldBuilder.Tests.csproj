@@ -31,6 +31,9 @@
     <None Include="..\..\tests\SoccerSim.Core.Tests\TestData\world.json" Link="TestData\world.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\..\tests\SoccerSim.Core.Tests\TestData\gen_profiles.json" Link="TestData\gen_profiles.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

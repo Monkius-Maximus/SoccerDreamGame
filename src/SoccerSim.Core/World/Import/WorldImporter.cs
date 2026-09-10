@@ -58,6 +58,14 @@ public sealed class WorldImporter
             // Before clubs and characters: their derived fields are computed from it.
             await _unitOfWork.Calibration.SaveAsync(snapshot.Calibration, cancellationToken);
 
+            // The world's own facts about itself, including the seed generation derives from.
+            await _unitOfWork.Settings.SetAsync(
+                WorldMeta.MasterSeedKey, snapshot.Meta.MasterSeed.ToString(), cancellationToken);
+            await _unitOfWork.Settings.SetAsync(
+                WorldMeta.SchemaVersionKey, snapshot.Meta.SchemaVersion, cancellationToken);
+            if (snapshot.Meta.SourceFile is { } sourceFile)
+                await _unitOfWork.Settings.SetAsync(WorldMeta.SourceFileKey, sourceFile, cancellationToken);
+
             foreach (ClubIdentity club in snapshot.Clubs)
                 await _unitOfWork.Clubs.AddAsync(club, cancellationToken);
 

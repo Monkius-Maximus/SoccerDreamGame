@@ -31,6 +31,11 @@
     <None Include="TestData\world.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Sprint 5 fixture: the attribute shapes and name pools measured from those same 688
+         players, so the generator is gated on the real distributions and not on invented ones. -->
+    <None Include="TestData\gen_profiles.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

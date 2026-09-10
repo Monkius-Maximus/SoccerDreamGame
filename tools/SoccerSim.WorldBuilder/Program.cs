@@ -50,6 +50,7 @@ app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = webRoot });
 app.UseStaticFiles(new StaticFileOptions { FileProvider = webRoot });
 app.MapWorldApi();
 app.MapEditApi();
+app.MapGenerationApi();
 
 app.Run();
 return 0;
