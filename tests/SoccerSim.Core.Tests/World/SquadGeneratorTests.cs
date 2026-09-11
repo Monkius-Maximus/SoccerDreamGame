@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Competitions;
 using SoccerSim.Core.World.Generation;
 using SoccerSim.Core.World.Serialization;
 using Xunit;
@@ -25,6 +26,20 @@ public sealed class SquadGeneratorTests
         return GenerationProfilesReader.Read(File.ReadAllText(path));
     }
 
+    /// <summary>
+    /// The sample club's country, with the mix measured from the real batch. A country profile is
+    /// now required: the generator refuses to invent where a country's players come from.
+    /// </summary>
+    private static readonly CountryProfile Brazil = new(
+        "BRA",
+        "BRL",
+        EurToLocal: 6.195,
+        WageFloorMonthly: 15000,
+        SquadGenerator.BrazilianMix
+            .Select(entry => new NationalityShare(entry.Code, entry.Weight / SquadGenerator.BrazilianMix.Sum(e => e.Weight)))
+            .ToList(),
+        NationalityMixSource: null);
+
     private static ClubIdentity Club(double strength = 0.8, int squadSize = 34)
     {
         ClubIdentity club = WorldSamples.Club();
@@ -43,7 +58,8 @@ public sealed class SquadGeneratorTests
             new SquadGenerationOptions(squadSize, formation, target, ageProfile, seed),
             Profiles,
             Calibration,
-            MasterSeed);
+            MasterSeed,
+            Brazil);
 
     // ------------------------------------------------------------------ determinism
 
@@ -329,7 +345,8 @@ public sealed class SquadGeneratorTests
             new SquadGenerationOptions(34, Formation.F433, 72, AgeProfile.Balanced, 1),
             empty,
             Calibration,
-            MasterSeed));
+            MasterSeed,
+            Brazil));
 
         // The profiles are measured data. Falling back to invented defaults would produce players
         // shaped like nothing that was ever observed, and say nothing about it.

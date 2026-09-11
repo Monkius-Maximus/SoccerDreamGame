@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using SoccerSim.Core.World.Competitions;
 
 namespace SoccerSim.Core.World.Validation;
 
@@ -94,6 +95,81 @@ public static class BatchAudit
         ("audit.districtSourceCitation", audit => audit.DistrictSourceCitation),
         ("audit.tacticalStyleEvidence", audit => audit.TacticalStyleEvidence),
     ];
+
+    /// <summary>
+    /// The sweep over the world, plus whatever country and pyramid data exists beside it. The
+    /// country profiles and divisions live in their own tables rather than in the world document,
+    /// so they are passed in rather than read off the snapshot.
+    /// </summary>
+    public static BatchAuditReport Run(
+        WorldSnapshot world,
+        IReadOnlyList<CountryProfile> countries,
+        IReadOnlyList<LeaguePyramid> pyramids)
+    {
+        BatchAuditReport report = Run(world);
+        var findings = report.Findings.ToList();
+
+        AuditCountries(findings, world, countries);
+
+        foreach (LeaguePyramid pyramid in pyramids)
+        {
+            foreach (Finding finding in PyramidRules.Check(pyramid))
+            {
+                findings.Add(new BatchFinding(finding.Level, finding.Code, finding.Label, finding.Detail,
+                    FindingScope.World, pyramid.CountryId, pyramid.CountryId));
+            }
+        }
+
+        return report with { Findings = findings };
+    }
+
+    /// <summary>
+    /// A country the world has clubs in but knows nothing about cannot be populated: the
+    /// generator would have to invent where its players come from (ROADMAP.md Sprint 9 — "País
+    /// sem distribuição é erro").
+    /// </summary>
+    private static void AuditCountries(
+        List<BatchFinding> findings,
+        WorldSnapshot world,
+        IReadOnlyList<CountryProfile> countries)
+    {
+        Dictionary<string, CountryProfile> byId = countries.ToDictionary(country => country.CountryId);
+
+        foreach (string countryId in world.Clubs.Select(club => club.Geography.CountryId).Distinct().Order())
+        {
+            if (!byId.TryGetValue(countryId, out CountryProfile? country))
+            {
+                findings.Add(new BatchFinding(FindingLevel.Error, "COUNTRY_MISSING", "País sem perfil",
+                    $"{countryId} tem clubes mas nenhum perfil — sem moeda, piso salarial nem distribuição de nacionalidade",
+                    FindingScope.World, countryId, countryId));
+                continue;
+            }
+
+            if (country.NationalityMix.Count == 0)
+            {
+                findings.Add(new BatchFinding(FindingLevel.Error, "NATIONALITY_MISSING", "Sem distribuição de nacionalidade",
+                    $"{countryId} não pode ser povoado: o gerador teria que inventar de onde vêm os jogadores",
+                    FindingScope.World, countryId, countryId));
+                continue;
+            }
+
+            if (!country.SharesBalance)
+            {
+                findings.Add(new BatchFinding(FindingLevel.Warning, "NATIONALITY_SUM", "Distribuição não fecha",
+                    $"{countryId} soma {country.ShareSum:0.###} em vez de 1",
+                    FindingScope.World, countryId, countryId));
+            }
+
+            // Measured from the batch it will go on to generate. Not evidence about the world,
+            // and the sweep says so rather than letting it pass as sourced.
+            if (country.NationalityMixSource is null)
+            {
+                findings.Add(new BatchFinding(FindingLevel.Warning, "NATIONALITY_UNSOURCED", "Distribuição sem fonte externa",
+                    $"a mistura de {countryId} foi medida do próprio lote — isso não é evidência sobre o mundo",
+                    FindingScope.World, countryId, countryId));
+            }
+        }
+    }
 
     public static BatchAuditReport Run(WorldSnapshot world)
     {

@@ -1,5 +1,6 @@
 using SoccerSim.Core.Persistence;
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Competitions;
 using SoccerSim.Core.World.Generation;
 
 namespace SoccerSim.WorldBuilder.Api;
@@ -94,7 +95,7 @@ internal static class GenerationEndpoints
         IReadOnlyList<CharacterRecord> squad;
         try
         {
-            squad = SquadGenerator.Generate(inputs.Club, options, inputs.Profiles, inputs.Calibration, inputs.MasterSeed);
+            squad = SquadGenerator.Generate(inputs.Club, options, inputs.Profiles, inputs.Calibration, inputs.MasterSeed, inputs.Country);
         }
         catch (InvalidOperationException ex)
         {
@@ -138,7 +139,7 @@ internal static class GenerationEndpoints
         try
         {
             options = ToOptions(request);
-            squad = SquadGenerator.Generate(inputs.Club, options, inputs.Profiles, inputs.Calibration, inputs.MasterSeed);
+            squad = SquadGenerator.Generate(inputs.Club, options, inputs.Profiles, inputs.Calibration, inputs.MasterSeed, inputs.Country);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -210,7 +211,8 @@ internal static class GenerationEndpoints
         ClubIdentity Club,
         GenerationProfiles Profiles,
         WorldCalibration Calibration,
-        long MasterSeed);
+        long MasterSeed,
+        CountryProfile Country);
 
     private static async Task<GenerationInputs?> LoadAsync(
         string clubId,
@@ -230,7 +232,14 @@ internal static class GenerationEndpoints
 
         string? seed = await unitOfWork.Settings.GetAsync(WorldMeta.MasterSeedKey, cancellationToken);
 
-        return new GenerationInputs(club, profiles, calibration, seed is null ? 0 : long.Parse(seed));
+        // No profile for the club's country means the tool has never been told where its players
+        // come from. The generator refuses rather than inventing, and this is where that starts.
+        CountryProfile country = await unitOfWork.Countries.GetAsync(club.Geography.CountryId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"{club.Geography.CountryId} has no country profile. A country needs a nationality "
+                + "distribution before squads can be generated in it.");
+
+        return new GenerationInputs(club, profiles, calibration, seed is null ? 0 : long.Parse(seed), country);
     }
 
     private static SquadGenerationOptions ToOptions(SquadGenerationRequest request)

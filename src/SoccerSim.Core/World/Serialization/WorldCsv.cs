@@ -420,10 +420,7 @@ public static class WorldCsv
         ["countryId", "displayName", "capacityMean", "capacitySd", "capacityMin", "capacityMax", "clubes"],
         world =>
         {
-            Dictionary<string, string> names = world.GeoNodes
-                .Where(node => node.Kind == GeoNodeKind.Country)
-                .ToDictionary(node => node.GeoNodeId, node => node.DisplayName);
-
+            Dictionary<string, string> names = CountryNames(world);
             ILookup<string, ClubIdentity> byCountry = world.Clubs.ToLookup(club => club.Geography.CountryId);
 
             return world.Calibration.StadiumProfile.Select(entry => (IReadOnlyList<string?>)new string?[]
@@ -451,4 +448,31 @@ public static class WorldCsv
     /// a club with fewer leaves the rest empty rather than repeating one.</summary>
     private static string? Colour(IReadOnlyList<string> colours, int index) =>
         index < colours.Count ? colours[index] : null;
+
+    /// <summary>
+    /// A readable name per ISO country code. The code ("BRA") and the geo node ("geo_bra") are
+    /// different identifiers for the same place and nothing links them directly, so the link is
+    /// made the way the data actually connects: a club knows both its country code and its node,
+    /// and the node's Country-kind ancestor carries the name.
+    /// </summary>
+    private static Dictionary<string, string> CountryNames(WorldSnapshot world)
+    {
+        Dictionary<string, GeoNode> nodes = world.GeoNodes.ToDictionary(node => node.GeoNodeId);
+        var names = new Dictionary<string, string>();
+
+        foreach (ClubIdentity club in world.Clubs)
+        {
+            if (names.ContainsKey(club.Geography.CountryId))
+                continue;
+
+            GeoNode? node = nodes.GetValueOrDefault(club.Geography.GeoNodeId);
+            while (node is not null && node.Kind != GeoNodeKind.Country)
+                node = node.ParentId is null ? null : nodes.GetValueOrDefault(node.ParentId);
+
+            if (node is not null)
+                names[club.Geography.CountryId] = node.DisplayName;
+        }
+
+        return names;
+    }
 }

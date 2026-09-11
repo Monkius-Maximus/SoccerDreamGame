@@ -25,6 +25,10 @@ const state = {
   view: 'clube',      // which screen the content panel shows
   audit: null,        // /api/audit, while the audit screen is open
   auditCode: '',      // the code filter on that screen
+  geo: null,          // /api/geo/tree
+  geoSel: null,       // the selected node on the geography screen
+  countries: [],      // /api/countries, with each country's pyramid
+  calibration: null,  // /api/calibration
 };
 
 // ---------------------------------------------------------------- formatting
@@ -930,6 +934,341 @@ function closePlayer() {
   state.player = null;
 }
 
+// ------------------------------------------------------- geography and scale
+
+const SEAL_TEXT = { Anchored: 'ancorado', Unsourced: 'sem fonte', Provisional: 'provisório' };
+const SEAL_CLASS = { Anchored: 'ok', Unsourced: 'error', Provisional: 'warning' };
+
+function geoPageHtml(tree, countries) {
+  const selected = tree.nodes.find((row) => row.node.geoNodeId === state.geoSel) || tree.nodes[0];
+  const parents = selected
+    ? tree.nodes.filter((row) =>
+        row.canHaveChildren
+        && row.node.geoNodeId !== selected.node.geoNodeId
+        && childKindOf(row.node.kind) === selected.node.kind
+        && !isDescendant(tree, selected.node.geoNodeId, row.node.geoNodeId))
+    : [];
+
+  return `
+    <div class="page">
+      <div class="section-head">
+        <h2>Geografia</h2>
+        <span class="section-note">${tree.nodes.length} nós · mover, renomear, criar e apagar</span>
+      </div>
+
+      <div class="geo-layout">
+        <div class="geo-tree tpscroll">
+          ${tree.nodes.map((row) => `
+            <div class="geo-row${row.node.geoNodeId === selected?.node.geoNodeId ? ' geo-row-active' : ''}${row.clubs ? ' geo-row-clubs' : ''}"
+                 data-geo="${esc(row.node.geoNodeId)}"
+                 style="padding-left: ${10 + row.depth * 22}px">
+              <span class="geo-kind">${esc(row.node.kind)}</span>
+              <span class="geo-name">${esc(row.node.displayName)}</span>
+              <span class="geo-id">${esc(row.node.geoNodeId)}</span>
+              <span class="geo-clubs">${row.clubs ? `${row.clubs} clube${row.clubs === 1 ? '' : 's'}` : ''}</span>
+            </div>`).join('')}
+        </div>
+
+        <div class="geo-editor">
+          ${!selected ? '' : `
+            <div class="card blueprint">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">${esc(selected.node.kind)} · ${esc(selected.node.geoNodeId)}</div>
+              <div class="card-title">${esc(selected.node.displayName)}</div>
+
+              <label class="gen-control" style="margin-top: var(--space-4)">
+                <span class="gen-control-label">Nome</span>
+                <input class="tpin" id="geo-name" value="${esc(selected.node.displayName)}">
+                <span class="gen-control-hint">grava ao sair do campo</span>
+              </label>
+
+              <label class="gen-control">
+                <span class="gen-control-label">Pai</span>
+                <select class="tpin" id="geo-parent"${parents.length ? '' : ' disabled'}>
+                  ${parents.length ? '' : '<option>nenhum destino possível</option>'}
+                  ${parents.map((row) => `
+                    <option value="${esc(row.node.geoNodeId)}"${row.node.geoNodeId === selected.node.parentId ? ' selected' : ''}>
+                      ${esc(row.node.displayName)} (${esc(row.node.kind)})
+                    </option>`).join('')}
+                </select>
+                <span class="gen-control-hint">os descendentes deste nó não aparecem: mover para lá o faria ancestral de si mesmo</span>
+              </label>
+
+              ${!selected.canHaveChildren ? '' : `
+                <div class="gen-control">
+                  <span class="gen-control-label">Novo ${esc(childKindOf(selected.node.kind))}</span>
+                  <div class="geo-new">
+                    <input class="tpin" id="geo-child-id" placeholder="geo_novo_id" autocomplete="off">
+                    <input class="tpin" id="geo-child-name" placeholder="Nome" autocomplete="off">
+                    <button class="btn btn-secondary" type="button" id="geo-add">Criar</button>
+                  </div>
+                  <span class="gen-control-hint">o tipo é o seguinte na hierarquia — não se escolhe</span>
+                </div>`}
+
+              <div class="geo-foot">
+                <button class="btn btn-secondary" type="button" id="geo-delete"${selected.blockedReason ? ' disabled' : ''}>
+                  Apagar nó
+                </button>
+                <span class="export-note">${selected.blockedReason
+                  ? esc(`bloqueado: ${selected.blockedReason}`)
+                  : 'nada pendurado aqui'}</span>
+              </div>
+            </div>
+
+            ${countriesCardHtml(countries)}`}
+        </div>
+      </div>
+    </div>`;
+}
+
+/** Mirrors GeoTree.ChildKindOf — the screen only uses it to label and to filter a select; the
+ *  server refuses anything it lets through anyway. */
+function childKindOf(kind) {
+  return { World: 'Confederation', Confederation: 'Country', SubRegion: 'Country', Country: 'Region', Region: 'City' }[kind] || '';
+}
+
+function isDescendant(tree, ancestorId, nodeId) {
+  const byId = new Map(tree.nodes.map((row) => [row.node.geoNodeId, row.node]));
+  let node = byId.get(nodeId);
+
+  while (node) {
+    if (node.geoNodeId === ancestorId) return true;
+    node = node.parentId ? byId.get(node.parentId) : null;
+  }
+
+  return false;
+}
+
+function countriesCardHtml(countries) {
+  return `
+    <div class="card blueprint" style="margin-top: var(--space-4)">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div class="card-kicker">Países · pirâmide</div>
+
+      ${countries.map((entry) => `
+        <div class="country">
+          <div class="country-head">
+            <span class="country-name">${esc(entry.displayName || entry.country.countryId)}</span>
+            <span class="geo-id">${esc(entry.country.countryId)}</span>
+            <span class="field-group-rule"></span>
+            <span class="export-note">${entry.clubs} clubes · ${esc(entry.country.currency)}
+              · piso ${fmtBrl(entry.country.wageFloorMonthly)}</span>
+          </div>
+
+          <div class="country-mix">
+            ${entry.country.nationalityMix.slice(0, 6).map((share) => `
+              <span class="mix-share">${esc(share.nationality)} ${decimal(share.share * 100, 1)}%</span>`).join('')}
+            ${entry.country.nationalityMix.length > 6
+              ? `<span class="export-note">+${entry.country.nationalityMix.length - 6}</span>` : ''}
+            <span class="badge badge-${entry.country.nationalityMixSource ? 'ok' : 'warning'}">
+              ${entry.country.nationalityMixSource ? 'com fonte' : 'sem fonte externa'}
+            </span>
+          </div>
+
+          ${entry.pyramid.divisions.length === 0 ? `
+            <div class="export-note">Sem divisões autoradas — o país tem clubes, mas nenhuma pirâmide.</div>` : `
+            <table class="table">
+              <thead>
+                <tr><th style="width: 40px">Tier</th><th>Divisão</th><th>Formato</th>
+                    <th class="num">Clubes</th><th class="num">Rodadas</th><th class="num">Jogos</th>
+                    <th class="num">Sobe</th><th class="num">Desce</th></tr>
+              </thead>
+              <tbody>
+                ${entry.pyramid.divisions.map((division) => `
+                  <tr>
+                    <td class="num">${division.tier}</td>
+                    <td>${esc(division.name)}</td>
+                    <td>${esc(division.format)}</td>
+                    <td class="num">${division.clubCount}</td>
+                    <td class="num">${division.shape.rounds}</td>
+                    <td class="num">${division.shape.matches}</td>
+                    <td class="num">${division.promotedIn}</td>
+                    <td class="num">${division.relegatedOut}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`}
+
+          ${entry.findings.map((finding) => `
+            <div class="check">
+              <span class="badge badge-${LEVEL_CLASS[finding.level]}">${LEVEL_LABEL[finding.level]}</span>
+              <span style="flex: 1"><span class="check-label">${esc(finding.label)}</span>
+              <span class="check-detail">${esc(finding.detail)}</span></span>
+            </div>`).join('')}
+        </div>`).join('')}
+    </div>`;
+}
+
+async function showGeo() {
+  const content = document.getElementById('content');
+
+  try {
+    const [tree, countries] = await Promise.all([getJson('/api/geo/tree'), getJson('/api/countries')]);
+    state.geo = tree;
+    state.countries = countries;
+    // The screen always has a selection; without one the editor has nothing to act on.
+    if (!tree.nodes.some((row) => row.node.geoNodeId === state.geoSel))
+      state.geoSel = tree.nodes[0]?.node.geoNodeId ?? null;
+  } catch (error) {
+    content.innerHTML = errorHtml(`A geografia não respondeu: ${error.message}`);
+    return;
+  }
+
+  content.innerHTML = geoPageHtml(state.geo, state.countries);
+}
+
+/** Every geography edit goes through one call: the rules are stated over the whole tree, so the
+ *  server answers with the whole tree. */
+async function editGeo(path, body, method = 'POST') {
+  const response = await fetch(`/api/geo/${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: method === 'DELETE' ? null : JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let message = `${response.status}`;
+    try {
+      message = (await response.json()).error || message;
+    } catch {
+      // A response with no JSON body still has to say something.
+    }
+    toast(message);
+    return;
+  }
+
+  state.geo = await response.json();
+  state.countries = await getJson('/api/countries');
+  document.getElementById('content').innerHTML = geoPageHtml(state.geo, state.countries);
+}
+
+// ------------------------------------------------------- the calibration screen
+
+function calibrationPageHtml(review) {
+  return `
+    <div class="page">
+      <div class="section-head">
+        <h2>Calibração</h2>
+        <span class="section-note">todo número aqui tem origem declarada</span>
+        <span class="grow"></span>
+        <button class="btn ${review.stalePlayers ? 'btn-primary' : 'btn-secondary'}" type="button" id="calib-recalc"
+                ${review.stalePlayers ? '' : 'disabled'}>
+          Recalcular o lote${review.stalePlayers ? ` (${review.stalePlayers})` : ''}
+        </button>
+      </div>
+
+      <div class="metrics">
+        ${[
+          ['Constantes', review.constants.length, 'calibradas'],
+          ['Sem fonte', review.unsourced, 'declaram isso'],
+          ['Provisórias', review.provisional, 'aguardam decisão'],
+          ['Linhas de peso', review.weights.length, `${review.unbalancedWeights.length} fora de 1`],
+          ['Economia divergente', review.stalePlayers, 'jogadores'],
+        ].map(([label, value, note]) => `
+          <div class="metric">
+            <span class="metric-label">${esc(label)}</span>
+            <span class="metric-value">${esc(value)}</span>
+            <span class="metric-note">${esc(note)}</span>
+          </div>`).join('')}
+      </div>
+
+      <div class="section-head"><h2>Constantes</h2>
+        <span class="section-note">o selo é lido da própria nota</span></div>
+
+      <table class="table">
+        <thead><tr><th style="width: 170px">Parâmetro</th><th class="num" style="width: 110px">Valor</th>
+          <th style="width: 90px">Unidade</th><th style="width: 92px">Selo</th><th>Origem</th></tr></thead>
+        <tbody>
+          ${review.constants.map((entry) => `
+            <tr>
+              <td class="export-name">${esc(entry.key)}</td>
+              <td class="num">${esc(decimal(entry.constant.value, entry.constant.value % 1 === 0 ? 0 : 4))}</td>
+              <td>${esc(entry.constant.unit)}</td>
+              <td><span class="badge badge-${SEAL_CLASS[entry.seal]}">${SEAL_TEXT[entry.seal]}</span></td>
+              <td class="calib-note">${esc(entry.constant.note)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+
+      <div class="section-head" style="margin-top: var(--space-8)"><h2>Pesos por posição</h2>
+        <span class="section-note">a soma da linha em vermelho quando não fecha em 1</span></div>
+
+      <table class="table">
+        <thead><tr><th style="width: 52px">Pos</th>
+          ${state.world.enums.Attr.map((attr) => `<th class="num">${esc(attr.slice(0, 4))}</th>`).join('')}
+          <th class="num" style="width: 62px">Soma</th></tr></thead>
+        <tbody>
+          ${review.weights.map((row) => `
+            <tr>
+              <td><span class="squad-pos">${esc(row.position)}</span></td>
+              ${state.world.enums.Attr.map((attr) => {
+                const weight = state.world.calibration?.positionWeights?.[row.position]?.[attr] ?? 0;
+                return `<td class="num${weight > 0 ? '' : ' squad-pot'}">${decimal(weight, 2)}</td>`;
+              }).join('')}
+              <td class="num"${row.balanced ? '' : ' style="color: var(--level-error-text); font-weight: 600"'}>
+                ${decimal(row.sum, 4)}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+
+      <div class="section-head" style="margin-top: var(--space-8)"><h2>Curva de idade</h2>
+        <span class="section-note">quantos jogadores estão em cada degrau</span></div>
+
+      <div class="squad-summary">
+        ${review.ageLadder.map((rung) => `
+          <div class="summary-cell">
+            <span class="summary-key">${rung.age}+ · ×${decimal(rung.multiplier, 2)}</span>
+            <span class="summary-value">${rung.players}</span>
+          </div>`).join('')}
+      </div>
+
+      <div class="section-head" style="margin-top: var(--space-8)"><h2>Perfil de estádio</h2>
+        <span class="section-note">por país, com os clubes fora da faixa</span></div>
+
+      <table class="table">
+        <thead><tr><th>País</th><th class="num">Média</th><th class="num">Desvio</th>
+          <th class="num">Mín</th><th class="num">Máx</th><th class="num">Fora da faixa</th></tr></thead>
+        <tbody>
+          ${review.stadiumProfiles.map((entry) => `
+            <tr>
+              <td class="export-name">${esc(entry.countryId)}</td>
+              <td class="num">${fmtInt(entry.profile.mean)}</td>
+              <td class="num">${fmtInt(entry.profile.sd)}</td>
+              <td class="num">${fmtInt(entry.profile.min)}</td>
+              <td class="num">${fmtInt(entry.profile.max)}</td>
+              <td class="num"${entry.clubsOutside ? ' style="color: var(--level-error-text)"' : ''}>${entry.clubsOutside}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function showCalibration() {
+  const content = document.getElementById('content');
+
+  try {
+    state.calibration = await getJson('/api/calibration');
+  } catch (error) {
+    content.innerHTML = errorHtml(`A calibração não respondeu: ${error.message}`);
+    return;
+  }
+
+  content.innerHTML = calibrationPageHtml(state.calibration);
+}
+
+async function recalculateBatch() {
+  const result = await postJson('/api/calibration/recalculate', {});
+
+  if (!result.ok) {
+    toast(result.message);
+    return;
+  }
+
+  setPending(result.body.pendingEdits);
+  await showCalibration();
+  toast(`${result.body.rewritten} jogadores reescritos a partir da calibração.`);
+}
+
 // ------------------------------------------------------------ the audit screen
 
 function auditCountersHtml(audit) {
@@ -1412,6 +1751,8 @@ async function showView(view) {
   }
 
   if (view === 'auditoria') await showAudit();
+  else if (view === 'geografia') await showGeo();
+  else if (view === 'calibracao') await showCalibration();
   else await selectClub(state.clubId);
 }
 
@@ -1477,6 +1818,16 @@ function bindEvents() {
       return;
     }
 
+    if (event.target.id === 'geo-name') {
+      editGeo(`${encodeURIComponent(state.geoSel)}/rename`, { displayName: event.target.value });
+      return;
+    }
+
+    if (event.target.id === 'geo-parent') {
+      editGeo(`${encodeURIComponent(state.geoSel)}/move`, { parentId: event.target.value });
+      return;
+    }
+
     if (event.target.id === 'audit-filter') {
       state.auditCode = event.target.value;
       document.getElementById('content').innerHTML = auditPageHtml(state.audit);
@@ -1500,6 +1851,32 @@ function bindEvents() {
 
     if (id === 'audit-report') {
       download('/api/audit/report');
+      return;
+    }
+
+    if (id === 'calib-recalc') {
+      if (confirm('Reescrever OVR, valor e salário de todos os jogadores a partir da calibração atual?'))
+        recalculateBatch();
+      return;
+    }
+
+    if (id === 'geo-add') {
+      editGeo(`${encodeURIComponent(state.geoSel)}/children`, {
+        childId: document.getElementById('geo-child-id').value.trim(),
+        displayName: document.getElementById('geo-child-name').value.trim(),
+      });
+      return;
+    }
+
+    if (id === 'geo-delete') {
+      editGeo(encodeURIComponent(state.geoSel), null, 'DELETE');
+      return;
+    }
+
+    const geoRow = event.target.closest('[data-geo]');
+    if (geoRow) {
+      state.geoSel = geoRow.dataset.geo;
+      document.getElementById('content').innerHTML = geoPageHtml(state.geo, state.countries);
       return;
     }
 

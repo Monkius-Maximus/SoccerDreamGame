@@ -21,7 +21,11 @@ public sealed class AuditApiTests : IClassFixture<WorldBuilderApp>
         JsonNode audit = await AuditAsync();
 
         Assert.Equal(1, audit["errors"]!.GetValue<int>());
-        Assert.Equal(4, audit["warnings"]!.GetValue<int>());
+
+        // Five, not the four the club sweep alone finds: over HTTP the audit also sees the
+        // country profiles, and Brazil's nationality mix was measured from the batch it will go
+        // on to generate — which is not evidence about the world, and says so.
+        Assert.Equal(5, audit["warnings"]!.GetValue<int>());
         Assert.Equal(5, audit["clubsAffected"]!.GetValue<int>());
         Assert.Equal(20, audit["clubsScanned"]!.GetValue<int>());
         Assert.Equal(688, audit["playersScanned"]!.GetValue<int>());
@@ -34,26 +38,33 @@ public sealed class AuditApiTests : IClassFixture<WorldBuilderApp>
     {
         JsonArray groups = (await AuditAsync())["groups"]!.AsArray();
 
-        Assert.Equal(2, groups.Count);
+        Assert.Equal(3, groups.Count);
 
-        // "What is blocking the batch" before "what else is there".
+        // "What is blocking the batch" before "what else is there", then the biggest group.
         Assert.Equal("PHONETIC_WINDOW", groups[0]!["code"]!.GetValue<string>());
         Assert.Equal("Error", groups[0]!["level"]!.GetValue<string>());
         Assert.Equal("DERBY_ONE_WAY", groups[1]!["code"]!.GetValue<string>());
         Assert.Equal(4, groups[1]!["count"]!.GetValue<int>());
+        Assert.Equal("NATIONALITY_UNSOURCED", groups[2]!["code"]!.GetValue<string>());
     }
 
     [Fact]
     public async Task EveryFinding_CarriesTheClubItIsAbout()
     {
         // This is what makes a row clickable: the sweep is a place to start fixing, not a list.
+        // A club finding points at a club; a world finding (a country, a pyramid) points at what
+        // it is about and the screen leaves it unclickable rather than jumping somewhere wrong.
         foreach (JsonNode? group in (await AuditAsync())["groups"]!.AsArray())
         {
             foreach (JsonNode? finding in group!["findings"]!.AsArray())
             {
-                Assert.Equal("Club", finding!["scope"]!.GetValue<string>());
-                Assert.StartsWith("clb_", finding["entityId"]!.GetValue<string>());
+                string scope = finding!["scope"]!.GetValue<string>();
+                Assert.Contains(scope, new[] { "Club", "World" });
+                Assert.NotEmpty(finding["entityId"]!.GetValue<string>());
                 Assert.NotEmpty(finding["entityLabel"]!.GetValue<string>());
+
+                if (scope == "Club")
+                    Assert.StartsWith("clb_", finding["entityId"]!.GetValue<string>());
             }
         }
     }

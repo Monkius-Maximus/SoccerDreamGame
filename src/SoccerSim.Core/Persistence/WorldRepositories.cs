@@ -1,4 +1,5 @@
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Competitions;
 using SoccerSim.Core.World.Generation;
 
 namespace SoccerSim.Core.Persistence;
@@ -147,6 +148,38 @@ public interface IWorldSettingsRepository
 }
 
 /// <summary>
+/// What the tool has to know about a country before it can populate one. Replace-all per country:
+/// the currency, the wage floor and the nationality shares are one statement about a place, and
+/// half of a newer one mixed with half of an older one describes nowhere.
+/// </summary>
+public interface ICountryRepository
+{
+    Task<IReadOnlyList<CountryProfile>> ListAsync(CancellationToken cancellationToken = default);
+
+    Task<CountryProfile?> GetAsync(string countryId, CancellationToken cancellationToken = default);
+
+    Task SaveAsync(CountryProfile country, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(string countryId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The standing divisions of each country's pyramid. Read a whole country at a time: every rule
+/// worth checking — tier contiguity, the flow balance, a club enrolled twice — is about the set,
+/// not about one division.
+/// </summary>
+public interface IDivisionRepository
+{
+    Task<LeaguePyramid> GetPyramidAsync(string countryId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Division>> ListAsync(CancellationToken cancellationToken = default);
+
+    Task SaveAsync(string countryId, Division division, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(string divisionId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Transaction boundary for the world-authoring schema.
 ///
 /// <para>
@@ -169,6 +202,8 @@ public interface IWorldUnitOfWork : IAsyncDisposable
     IWorldEditLog Edits { get; }
     IGenerationProfileRepository GenerationProfiles { get; }
     IWorldSettingsRepository Settings { get; }
+    ICountryRepository Countries { get; }
+    IDivisionRepository Divisions { get; }
 
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
 

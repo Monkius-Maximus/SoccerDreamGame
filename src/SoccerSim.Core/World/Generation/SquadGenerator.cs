@@ -1,4 +1,5 @@
 using SoccerSim.Core.Random;
+using SoccerSim.Core.World.Competitions;
 
 namespace SoccerSim.Core.World.Generation;
 
@@ -85,11 +86,12 @@ public static class SquadGenerator
         };
 
     /// <summary>
-    /// The nationality mix observed in the current batch. Explicitly Brazil-only: another league
-    /// needs its own distribution, with a source (§6.8). A country without one cannot be
-    /// populated, and the tool should say so rather than quietly making everyone Brazilian.
+    /// The nationality mix measured from the current batch. Kept as the mix Brazil's own
+    /// <see cref="CountryProfile"/> is seeded from (Sprint 9) rather than as a default the
+    /// generator falls back to: a country without a declared mix cannot be populated, and the
+    /// tool says so instead of quietly making everyone Brazilian (§6.8).
     /// </summary>
-    private static readonly IReadOnlyList<(string Code, double Weight)> NationalityPool =
+    public static readonly IReadOnlyList<(string Code, double Weight)> BrazilianMix =
     [
         ("BRA", 545), ("ARG", 47), ("COL", 22), ("URU", 21), ("PAR", 16), ("CHI", 10),
         ("VEN", 8), ("ECU", 7), ("PER", 4), ("ITA", 2), ("ESP", 1), ("NED", 1),
@@ -112,13 +114,31 @@ public static class SquadGenerator
         SquadGenerationOptions options,
         GenerationProfiles profiles,
         WorldCalibration calibration,
-        long masterSeed)
+        long masterSeed,
+        CountryProfile country)
     {
         if (profiles.IsEmpty)
         {
             throw new InvalidOperationException(
                 "No generation profiles are loaded. Run `worldbuilder import-profiles <file>` before "
                 + "generating a squad — the attribute shapes and name pools are measured data, not defaults.");
+        }
+
+        if (country.CountryId != club.Geography.CountryId)
+        {
+            throw new ArgumentException(
+                $"{club.ClubId} is in {club.Geography.CountryId}, but the profile given describes "
+                + $"{country.CountryId}.", nameof(country));
+        }
+
+        // A country with no declared mix cannot be populated: the generator would have to invent
+        // where its players come from, and inventing quietly makes everyone Brazilian
+        // (ROADMAP.md Sprint 9 — "País sem distribuição é erro").
+        if (country.NationalityMix.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"{country.CountryId} has no nationality distribution. A country cannot be populated "
+                + "without one — declare it, with a source, before generating squads there.");
         }
 
         // An isolated stream per club and seed: regenerating one club cannot disturb another's
@@ -133,7 +153,7 @@ public static class SquadGenerator
         IReadOnlyDictionary<Position, int> counts = SquadShape.CompositionFor(size, options.Formation);
         List<(Position Position, SquadRole Role)> assignments = AssignRoles(counts, options.Formation);
 
-        var context = new GenerationContext(club, options, profiles, calibration, rng);
+        var context = new GenerationContext(club, options, profiles, calibration, rng, country);
         var squad = new List<CharacterRecord>(assignments.Count);
 
         for (int index = 0; index < assignments.Count; index++)
@@ -220,13 +240,15 @@ public static class SquadGenerator
         private readonly HashSet<int> _usedNumbers = [];
         private readonly HashSet<string> _usedNames = [];
         private readonly string _slug;
+        private readonly IReadOnlyList<(string Code, double Weight)> _nationalities;
 
         public GenerationContext(
             ClubIdentity club,
             SquadGenerationOptions options,
             GenerationProfiles profiles,
             WorldCalibration calibration,
-            IDeterministicRandom rng)
+            IDeterministicRandom rng,
+            CountryProfile country)
         {
             _club = club;
             _options = options;
@@ -234,6 +256,9 @@ public static class SquadGenerator
             _calibration = calibration;
             _rng = rng;
             _slug = Slug(club.ClubId);
+            _nationalities = country.NationalityMix
+                .Select(share => (share.Nationality, share.Share))
+                .ToList();
         }
 
         public CharacterRecord CreatePlayer(Position position, SquadRole role, int index)
@@ -262,8 +287,8 @@ public static class SquadGenerator
                 FirstName: firstName,
                 LastName: lastName,
                 ShirtName: string.Empty,          // derived on write
-                Nationality: _rng.Weighted(NationalityPool),
-                SecondNationality: _rng.NextDouble() < 0.06 ? _rng.Weighted(NationalityPool) : null,
+                Nationality: _rng.Weighted(_nationalities),
+                SecondNationality: _rng.NextDouble() < 0.06 ? _rng.Weighted(_nationalities) : null,
                 DateOfBirth: BirthDateFor(age),
                 Age: age,
                 Phase: phase,

@@ -1,4 +1,5 @@
 using SoccerSim.Core.Persistence;
+using SoccerSim.Core.World.Competitions;
 using SoccerSim.Core.World.Serialization;
 
 namespace SoccerSim.Core.World.Import;
@@ -74,6 +75,16 @@ public sealed class WorldImporter
 
             foreach (Competition competition in snapshot.Competitions)
                 await _unitOfWork.Competitions.AddAsync(competition, cancellationToken);
+
+            // A country profile per country the batch actually contains. The document has no such
+            // block — it predates the idea of a second country — so it is measured from what was
+            // just imported and marked as having no external source (ROADMAP.md Sprint 9).
+            foreach (string countryId in snapshot.Clubs.Select(club => club.Geography.CountryId).Distinct())
+            {
+                await _unitOfWork.Countries.SaveAsync(
+                    CountryProfiles.FromBatch(countryId, snapshot.Clubs, snapshot.Characters, snapshot.Calibration),
+                    cancellationToken);
+            }
 
             await _unitOfWork.Sources.ReplaceAllAsync(snapshot.Sources, cancellationToken);
 

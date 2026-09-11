@@ -33,6 +33,8 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
         Edits = new WorldEditLog(connection, transaction);
         GenerationProfiles = new GenerationProfileRepository(connection, transaction);
         Settings = new WorldSettingsRepository(connection, transaction);
+        Countries = new CountryRepository(connection, transaction);
+        Divisions = new DivisionRepository(connection, transaction);
     }
 
     public IGeoNodeRepository GeoNodes { get; }
@@ -44,6 +46,8 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
     public IWorldEditLog Edits { get; }
     public IGenerationProfileRepository GenerationProfiles { get; }
     public IWorldSettingsRepository Settings { get; }
+    public ICountryRepository Countries { get; }
+    public IDivisionRepository Divisions { get; }
 
     public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
