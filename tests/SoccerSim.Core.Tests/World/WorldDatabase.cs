@@ -64,6 +64,35 @@ internal sealed class WorldDatabase : IAsyncDisposable
         return (T)Convert.ChangeType(command.ExecuteScalar()!, typeof(T));
     }
 
+    /// <summary>Runs a statement against the keep-alive connection, for tests that need to set up
+    /// a row no repository is supposed to write.</summary>
+    public void Execute(string sql)
+    {
+        using SqliteCommand command = _keepAlive.CreateCommand();
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>Each selected row flattened to one string, for comparing a whole table before and
+    /// after an operation without naming every column twice.</summary>
+    public IReadOnlyList<string> Query(string sql)
+    {
+        var rows = new List<string>();
+
+        using SqliteCommand command = _keepAlive.CreateCommand();
+        command.CommandText = sql;
+        using SqliteDataReader reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            var values = new object[reader.FieldCount];
+            reader.GetValues(values);
+            rows.Add(string.Join(",", values));
+        }
+
+        return rows;
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _keepAlive.DisposeAsync();

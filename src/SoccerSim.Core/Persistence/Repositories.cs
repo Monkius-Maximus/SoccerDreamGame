@@ -18,6 +18,16 @@ public interface ILeagueRepository : IRepository<League, int>
     Task<IReadOnlyList<League>> ListByTierAsync(SimulationTier tier, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Seasons had no port until the world projection needed to write one: the dev seed was the only
+/// thing that had ever created a season row. It is a first-class legacy table, so it gets a
+/// first-class contract rather than raw SQL at the call site.
+/// </summary>
+public interface ISeasonRepository : IRepository<Season, int>
+{
+    Task<IReadOnlyList<Season>> ListByLeagueAsync(int leagueId, CancellationToken cancellationToken = default);
+}
+
 public interface IPlayerTraitRepository : IRepository<PlayerTrait, int>
 {
     Task<PlayerTrait?> GetByKeyAsync(string key, CancellationToken cancellationToken = default);
@@ -54,6 +64,7 @@ public interface IUnitOfWork : IAsyncDisposable
     IPlayerRepository Players { get; }
     ITeamRepository Teams { get; }
     ILeagueRepository Leagues { get; }
+    ISeasonRepository Seasons { get; }
     IPlayerTraitRepository PlayerTraits { get; }
     IMatchRepository Matches { get; }
     IStandingRepository Standings { get; }

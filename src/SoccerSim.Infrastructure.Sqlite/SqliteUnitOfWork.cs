@@ -22,6 +22,7 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
         Players = new PlayerRepository(connection, accessor);
         Teams = new TeamRepository(connection, accessor);
         Leagues = new LeagueRepository(connection, accessor);
+        Seasons = new SeasonRepository(connection, accessor);
         PlayerTraits = new PlayerTraitRepository(connection, accessor);
         Matches = new MatchRepository(connection, accessor);
         Standings = new StandingRepository(connection, accessor);
@@ -30,6 +31,7 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
     public IPlayerRepository Players { get; }
     public ITeamRepository Teams { get; }
     public ILeagueRepository Leagues { get; }
+    public ISeasonRepository Seasons { get; }
     public IPlayerTraitRepository PlayerTraits { get; }
     public IMatchRepository Matches { get; }
     public IStandingRepository Standings { get; }
