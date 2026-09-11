@@ -146,6 +146,7 @@ internal static class WorldScaleEndpoints
             return Results.BadRequest(new { error = ex.Message });
         }
 
+        await WorldHistory.RecordAsync(unitOfWork, "Editar geografia", cancellationToken);
         await WorldStore.ReplaceAsync(unitOfWork, world with { GeoNodes = nodes }, cancellationToken);
 
         return Results.Ok(new GeoTreeDto(BuildTree(nodes, world.Clubs)));
@@ -171,6 +172,8 @@ internal static class WorldScaleEndpoints
         int stale = CalibrationReviewer.Review(world).StalePlayers;
         IReadOnlyList<CharacterRecord> recalculated = CalibrationReviewer.Recalculate(world);
 
+        await WorldHistory.RecordAsync(
+            unitOfWork, $"Recalcular o lote ({stale} divergentes)", cancellationToken);
         await WorldStore.ReplaceAsync(unitOfWork, world with { Characters = recalculated }, cancellationToken);
 
         await unitOfWork.BeginTransactionAsync(cancellationToken);

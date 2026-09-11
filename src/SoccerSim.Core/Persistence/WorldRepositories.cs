@@ -179,6 +179,29 @@ public interface IDivisionRepository
     Task DeleteAsync(string divisionId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>One entry of the undo stack: what the world looked like, and what was about to
+/// happen to it.</summary>
+public sealed record WorldHistoryEntry(long Id, string Label, DateTime TakenAt, string Document);
+
+/// <summary>
+/// The undo stack. A stack, not a log: entries come back newest first and leave when they are
+/// used, and the oldest are dropped once the cap is reached — an undo you can only walk in one
+/// direction is the whole point.
+/// </summary>
+public interface IWorldHistory
+{
+    /// <summary>Pushes a snapshot, dropping the oldest entries beyond <paramref name="cap"/>.</summary>
+    Task PushAsync(string label, string document, int cap, CancellationToken cancellationToken = default);
+
+    /// <summary>The newest entry without removing it — what the button's label says.</summary>
+    Task<WorldHistoryEntry?> PeekAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Removes and returns the newest entry.</summary>
+    Task<WorldHistoryEntry?> PopAsync(CancellationToken cancellationToken = default);
+
+    Task<int> CountAsync(CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// Transaction boundary for the world-authoring schema.
 ///
@@ -204,6 +227,7 @@ public interface IWorldUnitOfWork : IAsyncDisposable
     IWorldSettingsRepository Settings { get; }
     ICountryRepository Countries { get; }
     IDivisionRepository Divisions { get; }
+    IWorldHistory History { get; }
 
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
 

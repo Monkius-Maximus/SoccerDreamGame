@@ -152,6 +152,10 @@ internal static class ExchangeEndpoints
             return Results.BadRequest(new { error = ex.Message, problems = ex.Errors });
         }
 
+        await WorldHistory.RecordAsync(
+            unitOfWork,
+            $"Importar CSV ({plan.Added} entram, {plan.Changed} mudam, {plan.Removed} saem)",
+            cancellationToken);
         await WorldStore.ReplaceAsync(unitOfWork, plan.Result, cancellationToken);
 
         await unitOfWork.BeginTransactionAsync(cancellationToken);

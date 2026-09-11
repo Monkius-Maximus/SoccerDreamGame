@@ -152,6 +152,9 @@ internal static class GenerationEndpoints
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
+            await WorldHistory.RecordAsync(
+                unitOfWork, $"Gerar elenco de {inputs.Club.Identity.ShortName}", cancellationToken);
+
             foreach (CharacterRecord player in existing)
                 await unitOfWork.Characters.DeleteAsync(player.PlayerId, cancellationToken);
 

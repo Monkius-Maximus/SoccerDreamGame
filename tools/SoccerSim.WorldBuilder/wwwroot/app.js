@@ -172,6 +172,39 @@ async function sendPatch(url, path, value, version, method = 'PATCH') {
   return { ok: false, status: response.status, message };
 }
 
+/**
+ * Refreshes the undo button. Read from the server rather than counted here: the stack is in the
+ * database, so a reload — or a second tab — sees the same depth the button claims.
+ */
+async function refreshUndo() {
+  const button = document.getElementById('undo');
+
+  try {
+    const history = await getJson('/api/history');
+    button.disabled = history.depth === 0;
+    button.textContent = history.depth === 0 ? '↶ Desfazer' : `↶ Desfazer (${history.depth})`;
+    button.title = history.nextLabel ? `Desfaz: ${history.nextLabel}` : 'Nada para desfazer';
+  } catch {
+    // The button is a convenience; a world that will not answer has bigger problems on screen.
+    button.disabled = true;
+  }
+}
+
+async function undo() {
+  const result = await postJson('/api/undo', {});
+
+  if (!result.ok) {
+    toast(result.message);
+    await refreshUndo();
+    return;
+  }
+
+  setPending(result.body.pendingEdits);
+  await reloadWorld();
+  await refreshUndo();
+  toast(`Desfeito: ${result.body.undone}.`);
+}
+
 function setPending(count) {
   const element = document.getElementById('pending');
   element.dataset.pending = count > 0;
@@ -539,6 +572,8 @@ function clubPageHtml(page) {
             <span class="health-tag badge-${LEVEL_CLASS[page.invariantLevel]}">${esc(healthLabel)}</span>
           </div>
         </div>
+
+        <button class="btn btn-secondary" type="button" id="club-delete" style="flex: none">Apagar clube</button>
       </div>
 
       ${metricsHtml(page)}
@@ -868,6 +903,11 @@ function playerModalHtml(page) {
           <button class="btn btn-secondary" type="button" id="player-recalc">Recalcular OVR, valor e salário</button>
         </div>` : ''}
 
+      <div class="player-actions">
+        <button class="btn btn-secondary" type="button" id="player-delete">Apagar jogador</button>
+        <span class="export-note">nada mais aponta para um jogador — some sozinho, e Desfazer o traz de volta</span>
+      </div>
+
       ${state.fields.character.map((group) => group.id === 'attrs'
         ? attributeGroupHtml(group, player, page.positionWeights)
         : `<section class="field-group">
@@ -932,6 +972,57 @@ async function openPlayer(playerId) {
 function closePlayer() {
   document.getElementById('player-modal').hidden = true;
   state.player = null;
+}
+
+// ----------------------------------------------------------------- deleting
+
+/**
+ * Removing a club takes its squad, clears the rivals that named it and drops it from every
+ * competition. The confirmation says all of that BEFORE the click, and the undo stack means the
+ * answer to "are you sure" no longer has to be certain.
+ */
+async function deleteClub() {
+  const club = state.page.club;
+  const players = state.page.metrics.playerCount;
+
+  if (!confirm(`Apagar ${club.identity.shortName}?\n\n`
+    + `Leva junto ${players} jogadores, a inscrição na competição e os clássicos que apontam `
+    + `para ele. Uma pressão em Desfazer traz tudo de volta.`)) return;
+
+  const response = await fetch(`/api/clubs/${encodeURIComponent(club.clubId)}`, { method: 'DELETE' });
+
+  if (!response.ok) {
+    toast(`Não foi possível apagar: ${response.status}`);
+    return;
+  }
+
+  const result = await response.json();
+  setPending(result.pendingEdits);
+
+  state.clubId = null;
+  await reloadWorld();
+  await refreshUndo();
+
+  toast(`${result.clubName} apagado: ${result.players} jogadores, `
+    + `${result.rivalsCleared} clássico(s) limpo(s), ${result.competitionsLeft} competição(ões).`);
+}
+
+async function deletePlayer() {
+  const player = state.player.character;
+
+  if (!confirm(`Apagar ${player.firstName} ${player.lastName}?`)) return;
+
+  const response = await fetch(`/api/characters/${encodeURIComponent(player.playerId)}`, { method: 'DELETE' });
+
+  if (!response.ok) {
+    toast(`Não foi possível apagar: ${response.status}`);
+    return;
+  }
+
+  setPending((await response.json()).pendingEdits);
+  closePlayer();
+  await selectClub(state.clubId);
+  await refreshUndo();
 }
 
 // ------------------------------------------------------- geography and scale
@@ -1138,6 +1229,7 @@ async function editGeo(path, body, method = 'POST') {
 
   state.geo = await response.json();
   state.countries = await getJson('/api/countries');
+  await refreshUndo();
   document.getElementById('content').innerHTML = geoPageHtml(state.geo, state.countries);
 }
 
@@ -1266,6 +1358,7 @@ async function recalculateBatch() {
 
   setPending(result.body.pendingEdits);
   await showCalibration();
+  await refreshUndo();
   toast(`${result.body.rewritten} jogadores reescritos a partir da calibração.`);
 }
 
@@ -1615,6 +1708,7 @@ async function applyImport() {
 
   // The base moved under every open screen, so the rail and the club page are re-read.
   await reloadWorld();
+  await refreshUndo();
   toast(`Importado: ${result.body.added} entraram, ${result.body.changed} mudaram, `
     + `${result.body.removed} saíram.`);
 }
@@ -1731,6 +1825,7 @@ async function writeSquad() {
 
   const { written, replaced } = result.body;
   await selectClub(state.clubId);
+  await refreshUndo();
   toast(replaced > 0
     ? `${written} jogadores gravados no lugar dos ${replaced} anteriores.`
     : `${written} jogadores gravados.`);
@@ -1854,6 +1949,11 @@ function bindEvents() {
       return;
     }
 
+    if (id === 'club-delete') {
+      deleteClub();
+      return;
+    }
+
     if (id === 'calib-recalc') {
       if (confirm('Reescrever OVR, valor e salário de todos os jogadores a partir da calibração atual?'))
         recalculateBatch();
@@ -1927,6 +2027,7 @@ function bindEvents() {
     if (event.target.id === 'player-recalc') recalculatePlayer();
   });
 
+  document.getElementById('undo').addEventListener('click', undo);
   document.getElementById('export-open').addEventListener('click', openExchange);
 
   const exchange = document.getElementById('export-modal');
@@ -2004,6 +2105,7 @@ async function commitField(control) {
   const playerId = state.player?.character?.playerId;
   await selectClub(state.clubId);
   if (!isClub && playerId) await openPlayer(playerId);
+  await refreshUndo();
 }
 
 async function recalculatePlayer() {
@@ -2060,6 +2162,7 @@ async function init() {
     renderFilters();
     renderRail();
     bindEvents();
+    await refreshUndo();
     await selectClub(clubs[0].clubId);
   } catch (error) {
     content.innerHTML = errorHtml(`A base de mundo não respondeu: ${error.message}`);

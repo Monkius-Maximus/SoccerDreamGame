@@ -51,6 +51,10 @@
           <span class="pending-label" id="pending-label">em dia</span>
         </div>
 
+        <!-- Undo is what makes "every edit writes immediately" a safe design rather than a bet:
+             do it, look, undo. Its label says what would come back. -->
+        <button class="btn btn-ghost topbar-btn" type="button" id="undo" disabled>↶ Desfazer</button>
+
         <!-- Exporting is the only gesture that clears the counter beside it, which is why the
              two sit together. -->
         <button class="btn btn-secondary topbar-btn" type="button" id="export-open">Exportar · importar</button>

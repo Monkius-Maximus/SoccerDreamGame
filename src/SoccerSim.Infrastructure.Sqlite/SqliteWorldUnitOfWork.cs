@@ -35,6 +35,7 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
         Settings = new WorldSettingsRepository(connection, transaction);
         Countries = new CountryRepository(connection, transaction);
         Divisions = new DivisionRepository(connection, transaction);
+        History = new WorldHistoryRepository(connection, transaction);
     }
 
     public IGeoNodeRepository GeoNodes { get; }
@@ -48,6 +49,7 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
     public IWorldSettingsRepository Settings { get; }
     public ICountryRepository Countries { get; }
     public IDivisionRepository Divisions { get; }
+    public IWorldHistory History { get; }
 
     public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {

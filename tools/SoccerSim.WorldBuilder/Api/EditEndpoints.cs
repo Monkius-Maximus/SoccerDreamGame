@@ -170,6 +170,13 @@ internal static class EditEndpoints
     /// The write half every patch shares: one transaction covering both the row and its edit-log
     /// entry, so the pending counter can never disagree with what is actually stored.
     /// </summary>
+    /// <summary>
+    /// The single funnel every field patch goes through — which is why the undo snapshot is taken
+    /// here rather than in each handler: a new patch endpoint gets undo by existing, not by
+    /// remembering. The snapshot is pushed INSIDE the transaction, so a write that loses a
+    /// concurrency race rolls the undo entry back with it instead of leaving a step that undoes
+    /// nothing.
+    /// </summary>
     private static async Task<IResult> WriteAsync(
         IWorldUnitOfWork unitOfWork,
         CancellationToken cancellationToken,
@@ -179,6 +186,8 @@ internal static class EditEndpoints
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
+            await WorldHistory.RecordAsync(unitOfWork, $"Editar {edit.FieldPath}", cancellationToken);
+
             long version = await write();
             await unitOfWork.Edits.RecordAsync(edit, cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
