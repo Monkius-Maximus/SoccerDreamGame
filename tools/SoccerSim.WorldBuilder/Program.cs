@@ -52,6 +52,7 @@ app.MapWorldApi();
 app.MapEditApi();
 app.MapGenerationApi();
 app.MapExchangeApi();
+app.MapAuditApi();
 
 app.Run();
 return 0;

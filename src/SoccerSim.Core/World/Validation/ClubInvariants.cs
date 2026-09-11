@@ -1,3 +1,4 @@
+using System.Globalization;
 using SoccerSim.Core.World.Color;
 
 namespace SoccerSim.Core.World.Validation;
@@ -19,6 +20,12 @@ public sealed record Finding(FindingLevel Level, string Code, string Label, stri
 /// </summary>
 public static class ClubInvariants
 {
+    /// <summary>
+    /// Findings are read in the tool's own language, and a sentence that says "0.867 fora de
+    /// 0,55–0,80" reads as two different numbering systems in one breath. Every number in a
+    /// detail goes through here.
+    /// </summary>
+    private static readonly CultureInfo Ptbr = CultureInfo.GetCultureInfo("pt-BR");
     public static IReadOnlyList<Finding> Check(ClubIdentity club, WorldCalibration calibration) =>
     [
         CheckAnchorFactsVerified(club),
@@ -61,8 +68,8 @@ public static class ClubInvariants
 
         bool inWindow = similarity.Value is >= 0.55 and <= 0.80;
         return inWindow
-            ? new Finding(FindingLevel.Ok, "PHONETIC_WINDOW", "Janela fonética", $"{similarity:0.000}")
-            : new Finding(FindingLevel.Error, "PHONETIC_WINDOW", "Janela fonética", $"{similarity:0.000} fora de 0,55–0,80");
+            ? new Finding(FindingLevel.Ok, "PHONETIC_WINDOW", "Janela fonética", similarity.Value.ToString("0.000", Ptbr))
+            : new Finding(FindingLevel.Error, "PHONETIC_WINDOW", "Janela fonética", $"{similarity.Value.ToString("0.000", Ptbr)} fora de 0,55–0,80");
     }
 
     /// <summary>#3 — ΔE(home.shirt, away.shirt) must be at or above kits.deltaEThreshold.</summary>
@@ -70,9 +77,9 @@ public static class ClubInvariants
     {
         double deltaE = ColorMath.DeltaE76(club.Kits.Home.Shirt, club.Kits.Away.Shirt);
         return deltaE >= club.Kits.DeltaEThreshold
-            ? new Finding(FindingLevel.Ok, "KIT_DELTA_E", "ΔE titular × reserva", $"{deltaE:0.0}")
+            ? new Finding(FindingLevel.Ok, "KIT_DELTA_E", "ΔE titular × reserva", deltaE.ToString("0.0", Ptbr))
             : new Finding(FindingLevel.Error, "KIT_DELTA_E", "ΔE titular × reserva",
-                $"{deltaE:0.0} abaixo do limite {club.Kits.DeltaEThreshold:0.#}");
+                $"{deltaE.ToString("0.0", Ptbr)} abaixo do limite {club.Kits.DeltaEThreshold.ToString("0.#", Ptbr)}");
     }
 
     /// <summary>#4 (warning) — none of the away kit's 3 colors may sit more than 18° (hue) from
@@ -115,9 +122,9 @@ public static class ClubInvariants
         int capacity = club.Stadium.Capacity;
         return capacity >= profile.Min && capacity <= profile.Max
             ? new Finding(FindingLevel.Ok, "STADIUM_CAPACITY", "Capacidade no perfil do país",
-                $"{capacity} dentro de {profile.Min:0}–{profile.Max:0}")
+                $"{capacity.ToString("#,0", Ptbr)} dentro de {profile.Min.ToString("#,0", Ptbr)}–{profile.Max.ToString("#,0", Ptbr)}")
             : new Finding(FindingLevel.Error, "STADIUM_CAPACITY", "Capacidade no perfil do país",
-                $"{capacity} fora de {profile.Min:0}–{profile.Max:0}");
+                $"{capacity.ToString("#,0", Ptbr)} fora de {profile.Min.ToString("#,0", Ptbr)}–{profile.Max.ToString("#,0", Ptbr)}");
     }
 
     /// <summary>#6 — every enum-typed field must hold one of its schema's named values.

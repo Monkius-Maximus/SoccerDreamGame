@@ -22,6 +22,9 @@ const state = {
   squadSort: 'ovr',
   gen: null,          // the generator panel: { options, preview } while it is open
   exchange: null,     // the export/import dialog: { manifest, files, preview, error }
+  view: 'clube',      // which screen the content panel shows
+  audit: null,        // /api/audit, while the audit screen is open
+  auditCode: '',      // the code filter on that screen
 };
 
 // ---------------------------------------------------------------- formatting
@@ -927,6 +930,143 @@ function closePlayer() {
   state.player = null;
 }
 
+// ------------------------------------------------------------ the audit screen
+
+function auditCountersHtml(audit) {
+  const cells = [
+    ['Clubes varridos', audit.clubsScanned, 'no lote'],
+    ['Jogadores varridos', fmtInt(audit.playersScanned), 'em todos os elencos'],
+    ['Achados', audit.findings, `${audit.groups.length} código(s)`],
+    ['Erros', audit.errors, 'bloqueiam o lote'],
+    ['Avisos', audit.warnings, 'não bloqueiam'],
+    ['Clubes afetados', audit.clubsAffected, `de ${audit.clubsScanned}`],
+    ['Fontes registradas', audit.sourcesRegistered, 'citações'],
+  ];
+
+  return `<div class="metrics">${cells.map(([label, value, note], index) => `
+    <div class="metric">
+      <span class="metric-label">${esc(label)}</span>
+      <span class="metric-value"${index === 3 && audit.errors > 0 ? ' style="color: var(--level-error-text)"' : ''}>${esc(value)}</span>
+      <span class="metric-note">${esc(note)}</span>
+    </div>`).join('')}</div>`;
+}
+
+function auditGroupsHtml(audit) {
+  const groups = state.auditCode
+    ? audit.groups.filter((group) => group.code === state.auditCode)
+    : audit.groups;
+
+  if (audit.groups.length === 0) {
+    return `
+      <div class="empty-squad">
+        <div class="empty-squad-title">Nenhum achado</div>
+        <div class="empty-squad-body">
+          Os dezesseis checks passaram em todos os registros do lote. O portão está liberado.
+        </div>
+      </div>`;
+  }
+
+  return groups.map((group) => `
+    <div class="audit-group">
+      <div class="audit-group-head">
+        <span class="badge badge-${LEVEL_CLASS[group.level]}">${LEVEL_LABEL[group.level]}</span>
+        <span class="audit-code">${esc(group.code)}</span>
+        <span class="audit-group-label">${esc(group.label)}</span>
+        <span class="field-group-rule"></span>
+        <span class="section-note">${group.count} achado${group.count === 1 ? '' : 's'}</span>
+      </div>
+      ${group.findings.map((finding) => `
+        <div class="audit-row${finding.scope === 'Club' ? ' audit-row-click' : ''}"
+             ${finding.scope === 'Club' ? `data-jump="${esc(finding.entityId)}"` : ''}>
+          <span class="audit-where">
+            <span class="audit-entity">${esc(finding.entityLabel)}</span>
+            <span class="audit-id">${esc(finding.entityId)}</span>
+          </span>
+          <span class="audit-detail">${esc(finding.detail)}</span>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function auditSourcesHtml(audit) {
+  return `
+    <div class="section-head">
+      <h2>Fontes</h2>
+      <span class="section-note">${audit.sourcesRegistered} citações · ${audit.sources.length} temas</span>
+    </div>
+
+    <div class="sources">
+      ${audit.sources.map((group) => `
+        <div class="source-group">
+          <div class="source-theme">${esc(group.tema)}</div>
+          ${group.sources.map((source) => `
+            <div class="source-row">
+              <span class="source-number">${esc(source.numero || '—')}</span>
+              <a class="source-link" href="${esc(source.url)}" target="_blank" rel="noopener">${esc(source.fonte || source.url)}</a>
+            </div>`).join('')}
+        </div>`).join('')}
+
+      ${audit.notes.length === 0 ? '' : `
+        <div class="source-group">
+          <div class="source-theme">Remissões sem URL</div>
+          ${audit.notes.map((note) => `
+            <div class="source-row source-note">${esc(note.tema)}</div>`).join('')}
+        </div>`}
+    </div>`;
+}
+
+function auditPageHtml(audit) {
+  return `
+    <div class="page">
+      <div class="section-head">
+        <h2>Auditoria do lote</h2>
+        <span class="section-note">dezesseis checks sobre o mundo inteiro</span>
+        <span class="grow"></span>
+        <button class="btn btn-secondary" type="button" id="audit-report">Baixar relatório</button>
+      </div>
+
+      <div class="gate gate-${audit.released ? 'open' : 'shut'}">
+        <span class="gate-state">${audit.released ? 'lote liberado' : 'lote bloqueado'}</span>
+        <span class="gate-reason">${audit.released
+          ? 'Nenhum erro na varredura. Avisos não bloqueiam — são dívida registrada, não impedimento.'
+          : `${audit.errors} erro${audit.errors === 1 ? '' : 's'} impede${audit.errors === 1 ? '' : 'm'} o lote de entrar no build.
+             Esta é a única tela da ferramenta que diz não: a página do clube mostra erros sem travar a edição.`}</span>
+      </div>
+
+      ${auditCountersHtml(audit)}
+
+      <div class="section-head">
+        <h2>Achados</h2>
+        <span class="section-note">agrupados por código · clique para abrir o clube</span>
+        <span class="grow"></span>
+        ${audit.groups.length ? `
+          <select class="tpin" id="audit-filter" style="width: 260px" aria-label="Filtrar por código">
+            <option value="">Todos os códigos (${audit.findings})</option>
+            ${audit.groups.map((group) => `
+              <option value="${esc(group.code)}"${state.auditCode === group.code ? ' selected' : ''}>
+                ${esc(group.code)} (${group.count})
+              </option>`).join('')}
+          </select>` : ''}
+      </div>
+
+      ${auditGroupsHtml(audit)}
+      ${auditSourcesHtml(audit)}
+    </div>`;
+}
+
+async function showAudit() {
+  const content = document.getElementById('content');
+
+  try {
+    state.audit = await getJson('/api/audit');
+  } catch (error) {
+    content.innerHTML = errorHtml(`A varredura não respondeu: ${error.message}`);
+    return;
+  }
+
+  content.innerHTML = auditPageHtml(state.audit);
+  content.scrollTop = 0;
+}
+
 // ------------------------------------------------------ export and import
 
 const CHANGE_LABEL = { Added: 'entra', Changed: 'muda', Removed: 'sai' };
@@ -1259,6 +1399,22 @@ async function writeSquad() {
 
 // ------------------------------------------------------------------ wiring
 
+/**
+ * Switches screens. The rail stays visible on every screen — it is the batch, and the audit
+ * screen is about the same clubs the rail lists — so only the content panel changes.
+ */
+async function showView(view) {
+  state.view = view;
+
+  for (const tab of document.querySelectorAll('#tabs .tab')) {
+    if (tab.dataset.view === view) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
+  }
+
+  if (view === 'auditoria') await showAudit();
+  else await selectClub(state.clubId);
+}
+
 async function selectClub(clubId) {
   state.clubId = clubId;
   // A preview belongs to the club it was drawn for, and to the squad it would replace.
@@ -1281,9 +1437,18 @@ async function selectClub(clubId) {
 }
 
 function bindEvents() {
+  document.getElementById('tabs').addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-view]');
+    if (tab) showView(tab.dataset.view);
+  });
+
   document.getElementById('rail-list').addEventListener('click', (event) => {
     const row = event.target.closest('[data-club]');
-    if (row) selectClub(row.dataset.club);
+    if (!row) return;
+
+    // Picking a club is also how you leave the audit screen, so the view switch owns the load.
+    state.clubId = row.dataset.club;
+    showView('clube');
   });
 
   document.getElementById('filter-text').addEventListener('input', (event) => {
@@ -1312,6 +1477,12 @@ function bindEvents() {
       return;
     }
 
+    if (event.target.id === 'audit-filter') {
+      state.auditCode = event.target.value;
+      document.getElementById('content').innerHTML = auditPageHtml(state.audit);
+      return;
+    }
+
     // A generator control changes what would be generated, not what is stored: it redraws
     // the preview and writes nothing.
     if (event.target.dataset.gen) {
@@ -1326,6 +1497,19 @@ function bindEvents() {
 
   content.addEventListener('click', (event) => {
     const id = event.target.closest('button')?.id;
+
+    if (id === 'audit-report') {
+      download('/api/audit/report');
+      return;
+    }
+
+    // A finding names a club; clicking it is how the sweep becomes a place to start fixing.
+    const jump = event.target.closest('[data-jump]');
+    if (jump) {
+      state.clubId = jump.dataset.jump;
+      showView('clube');
+      return;
+    }
 
     if (id === 'gen-open' || id === 'gen-open-empty') {
       // Clicking the button again while the panel is open closes it: one control, one state.
