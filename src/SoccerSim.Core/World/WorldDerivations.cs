@@ -27,6 +27,27 @@ public static class WorldDerivations
     private const double DarkHomeLuminanceThreshold = 0.35;
 
     /// <summary>
+    /// A whole world with every derived field recomputed. This is the state the database is
+    /// always in, because the repositories run every write through here — a snapshot read
+    /// straight from a document has not been through it yet. Anything comparing a document
+    /// against the database has to pass it through here first, or it sees differences that are
+    /// not there.
+    /// </summary>
+    public static WorldSnapshot Recalculate(WorldSnapshot world)
+    {
+        var clubs = world.Clubs.Select(club => Recalculate(club, world.Calibration)).ToList();
+        Dictionary<string, PrestigeBand> bands = clubs.ToDictionary(club => club.ClubId, club => club.World.PrestigeBand);
+
+        return world with
+        {
+            Clubs = clubs,
+            Characters = world.Characters
+                .Select(player => Recalculate(player, bands[player.ClubId], world.Calibration))
+                .ToList(),
+        };
+    }
+
+    /// <summary>
     /// Recomputes a club's derived fields: crest colors mirror the palette, ΔE and home
     /// luminance come from the kits, the polarity rule from that luminance, and the home
     /// advantage modifier from the stadium's atmosphere via calibration.

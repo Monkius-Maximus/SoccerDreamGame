@@ -830,6 +830,98 @@ input.tpin, select.tpin {
   border: 1px solid var(--color-divider);
 }
 
+/* ---------- Export and import ---------- */
+.topbar-btn { font-size: 11.5px; padding: 5px 10px; flex: none; }
+
+.dialog-title {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-top: var(--space-3);
+}
+.dialog-intro {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-neutral-700);
+  max-width: 68ch;
+  margin: 4px 0 var(--space-4);
+}
+.dialog-intro code { font-family: var(--font-mono); font-size: 11.5px; }
+
+.export-table td { vertical-align: middle; }
+.export-name { font-family: var(--font-mono); font-size: 11.5px; }
+.export-note { font-size: 11px; color: var(--color-neutral-600); }
+.export-actions { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); }
+
+/* The diff. A removal is the expensive mistake, so it is the one that carries colour. */
+.diff { margin-top: var(--space-4); border-top: 1px solid var(--color-divider); padding-top: var(--space-3); }
+.diff-summary { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.diff-count {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.diff-added { color: var(--color-accent-700); }
+.diff-changed { color: var(--color-neutral-800); }
+.diff-removed { color: var(--level-error-text); }
+
+.diff-empty {
+  border: 1px dashed var(--color-neutral-400);
+  padding: var(--space-4);
+  margin-top: var(--space-3);
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--color-neutral-600);
+}
+
+.diff-list { max-height: 320px; overflow-y: auto; margin-top: var(--space-3); }
+.diff-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: 5px 8px;
+  border-bottom: 1px dotted var(--color-divider);
+  border-left: 3px solid transparent;
+  font-size: 12px;
+}
+.diff-row.diff-added { border-left-color: var(--color-accent); }
+.diff-row.diff-removed { border-left-color: var(--level-error-text); background: var(--level-error-bg); }
+.diff-kind {
+  flex: none;
+  width: 44px;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600);
+  padding-top: 2px;
+}
+.diff-where { flex: none; width: 190px; min-width: 0; display: flex; flex-direction: column; }
+.diff-label { font-family: var(--font-heading); font-size: 14px; line-height: 1.1; }
+.diff-id { font-family: var(--font-mono); font-size: 9.5px; color: var(--color-neutral-500); }
+.diff-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.diff-field { line-height: 1.35; word-break: break-word; }
+.diff-col { font-family: var(--font-mono); font-size: 10px; color: var(--color-neutral-600); margin-right: 4px; }
+.diff-field s { color: var(--color-neutral-500); }
+
+.diff-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
+.diff-warning { flex: 1; min-width: 220px; font-size: 11.5px; line-height: 1.4; color: var(--level-error-text); }
+
+.diff-errors {
+  margin-top: var(--space-3);
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--space-3);
+  background: var(--level-error-bg);
+  color: var(--level-error-fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 /* A stored value that no longer matches what the calibration would produce. Shown, never
    silently corrected: it is how a user learns a re-fit aged the batch. */
 .recalc-bar {

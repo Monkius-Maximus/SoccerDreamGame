@@ -21,6 +21,7 @@ const state = {
   filters: { text: '', band: '', city: '' },
   squadSort: 'ovr',
   gen: null,          // the generator panel: { options, preview } while it is open
+  exchange: null,     // the export/import dialog: { manifest, files, preview, error }
 };
 
 // ---------------------------------------------------------------- formatting
@@ -926,6 +927,219 @@ function closePlayer() {
   state.player = null;
 }
 
+// ------------------------------------------------------ export and import
+
+const CHANGE_LABEL = { Added: 'entra', Changed: 'muda', Removed: 'sai' };
+
+/** The tabs the diff is about, in the order the dialog lists them. */
+function exchangeTabsHtml() {
+  return `
+    <table class="table export-table">
+      <thead>
+        <tr>
+          <th>Aba</th>
+          <th class="num" style="width: 70px">Linhas</th>
+          <th class="num" style="width: 78px">Colunas</th>
+          <th style="width: 150px">Observação</th>
+          <th style="width: 92px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${state.exchange.manifest.tabs.map((tab) => `
+          <tr>
+            <td class="export-name">${esc(tab.fileName)}</td>
+            <td class="num">${fmtInt(tab.rows)}</td>
+            <td class="num">${fmtInt(tab.columns)}</td>
+            <td>
+              ${tab.authoringOnly
+                ? '<span class="badge badge-warning" title="Carrega ReferenceAnchor — nomes reais. Não vai no build.">só autoria</span>'
+                : tab.importable ? '' : '<span class="export-note">só leitura</span>'}
+            </td>
+            <td><button class="btn btn-ghost" type="button" data-export="${esc(tab.name)}">baixar</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function exchangeDiffHtml() {
+  const preview = state.exchange.preview;
+  if (!preview) return '';
+
+  // A removal is the expensive mistake, so it is counted first and coloured.
+  return `
+    <div class="diff">
+      <div class="diff-summary">
+        <span class="diff-count diff-added">${preview.added} entra${preview.added === 1 ? '' : 'm'}</span>
+        <span class="diff-count diff-changed">${preview.changed} muda${preview.changed === 1 ? '' : 'm'}</span>
+        <span class="diff-count diff-removed">${preview.removed} ${preview.removed === 1 ? 'sai' : 'saem'}</span>
+        <span class="export-note">de ${preview.tabs.map(esc).join(', ')}</span>
+      </div>
+
+      ${preview.changes.length === 0 ? `
+        <div class="diff-empty">Os arquivos descrevem exatamente a base atual — nada mudaria.</div>` : `
+        <div class="diff-list tpscroll">
+          ${preview.changes.map((change) => `
+            <div class="diff-row diff-${change.change.toLowerCase()}">
+              <span class="diff-kind">${CHANGE_LABEL[change.change]}</span>
+              <span class="diff-where">
+                <span class="diff-label">${esc(change.label || change.id)}</span>
+                <span class="diff-id">${esc(change.tab)} · ${esc(change.id)}</span>
+              </span>
+              <span class="diff-fields">
+                ${change.fields.map((field) => `
+                  <span class="diff-field">
+                    <span class="diff-col">${esc(field.column)}</span>
+                    <s>${esc(field.before ?? '—')}</s> → <b>${esc(field.after ?? '—')}</b>
+                  </span>`).join('')}
+              </span>
+            </div>`).join('')}
+        </div>`}
+
+      <div class="diff-foot">
+        <button class="btn btn-primary" type="button" id="import-apply"${preview.changes.length === 0 ? ' disabled' : ''}>
+          Aplicar ${preview.changes.length} alteraç${preview.changes.length === 1 ? 'ão' : 'ões'}
+        </button>
+        <button class="btn btn-secondary" type="button" id="import-discard">Descartar</button>
+        ${preview.removed > 0 ? `
+          <span class="diff-warning">
+            ${preview.removed} registro(s) saem da base: uma linha ausente do arquivo é uma remoção.
+          </span>` : ''}
+      </div>
+    </div>`;
+}
+
+function exchangeHtml() {
+  const exchange = state.exchange;
+
+  return `
+    <div class="dialog" role="dialog" aria-label="Exportar e importar">
+      <button class="dialog-close" type="button" id="export-close" aria-label="Fechar">✕</button>
+
+      <div class="card-kicker">Exportar · importar</div>
+      <h2 class="dialog-title">Um arquivo por aba</h2>
+      <p class="dialog-intro">
+        Espelha a planilha original, com separador <code>;</code> e vírgula decimal — abre no Excel
+        pt-BR sem assistente. Exportar é o único gesto que zera o contador de pendências.
+      </p>
+
+      ${exchangeTabsHtml()}
+
+      <div class="export-actions">
+        <button class="btn btn-primary" type="button" id="export-all">Baixar todas as abas</button>
+        <button class="btn btn-secondary" type="button" id="export-json">Exportar JSON</button>
+        <span class="export-note">${esc(exchange.manifest.jsonFileName)}</span>
+      </div>
+
+      <h2 class="dialog-title" style="margin-top: var(--space-6)">Reimportar</h2>
+      <p class="dialog-intro">
+        Escolha os arquivos editados. Nada é gravado até você ver o diff e confirmar — importar sem
+        ver o diff é como se perde trabalho.
+      </p>
+
+      <div class="export-actions">
+        <input class="tpin" type="file" id="import-files" multiple accept=".csv" style="width: auto">
+        <span class="export-note">${exchange.files.length
+          ? esc(exchange.files.map((file) => file.tab).join(', '))
+          : 'nenhum arquivo escolhido'}</span>
+      </div>
+
+      ${exchange.error ? `<div class="diff-errors tpscroll">${esc(exchange.error)}</div>` : ''}
+      ${exchangeDiffHtml()}
+    </div>`;
+}
+
+function renderExchange() {
+  const modal = document.getElementById('export-modal');
+  modal.innerHTML = state.exchange ? exchangeHtml() : '';
+  modal.hidden = !state.exchange;
+}
+
+async function openExchange() {
+  try {
+    const manifest = await getJson('/api/export');
+    state.exchange = { manifest, files: [], preview: null, error: null };
+  } catch (error) {
+    toast(`Não foi possível montar a exportação: ${error.message}`);
+    return;
+  }
+
+  renderExchange();
+}
+
+function closeExchange() {
+  state.exchange = null;
+  renderExchange();
+}
+
+/** Fetches a file and hands it to the browser, then re-reads the counter the export cleared. */
+async function download(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    toast(`Exportação falhou: ${response.status}`);
+    return;
+  }
+
+  const blob = await response.blob();
+  const name = /filename=("?)([^";]+)\1/.exec(response.headers.get('content-disposition') || '');
+
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = name ? name[2] : 'export';
+  link.click();
+  URL.revokeObjectURL(link.href);
+
+  setPending(await getJson('/api/pending'));
+}
+
+async function downloadAllTabs() {
+  for (const tab of state.exchange.manifest.tabs)
+    await download(`/api/export/csv/${encodeURIComponent(tab.name)}`);
+}
+
+/** Matches each chosen file to a tab by its name, then asks the server what would change. */
+async function previewImport(fileList) {
+  const known = new Set(state.exchange.manifest.tabs.map((tab) => tab.name));
+  const files = [];
+
+  for (const file of fileList) {
+    const tab = file.name.replace(/\.csv$/i, '');
+    if (!known.has(tab)) {
+      state.exchange.error = `'${file.name}' não é uma aba desta base. `
+        + `O nome do arquivo é o nome da aba — renomeie-o ou exporte de novo.`;
+      state.exchange.preview = null;
+      renderExchange();
+      return;
+    }
+
+    files.push({ tab, content: await file.text() });
+  }
+
+  state.exchange.files = files;
+  const result = await postJson('/api/import/preview', { files });
+
+  state.exchange.error = result.ok ? null : result.message;
+  state.exchange.preview = result.ok ? result.body : null;
+  renderExchange();
+}
+
+async function applyImport() {
+  const result = await postJson('/api/import/apply', { files: state.exchange.files });
+
+  if (!result.ok) {
+    state.exchange.error = result.message;
+    renderExchange();
+    return;
+  }
+
+  setPending(result.body.pendingEdits);
+  closeExchange();
+
+  // The base moved under every open screen, so the rail and the club page are re-read.
+  await reloadWorld();
+  toast(`Importado: ${result.body.added} entraram, ${result.body.changed} mudaram, `
+    + `${result.body.removed} saíram.`);
+}
+
 // -------------------------------------------------------- generator wiring
 
 /** The generator posts whole option objects rather than one field at a time, so it needs
@@ -1152,8 +1366,39 @@ function bindEvents() {
     if (event.target.id === 'player-recalc') recalculatePlayer();
   });
 
+  document.getElementById('export-open').addEventListener('click', openExchange);
+
+  const exchange = document.getElementById('export-modal');
+
+  exchange.addEventListener('change', (event) => {
+    if (event.target.id === 'import-files') previewImport(event.target.files);
+  });
+
+  exchange.addEventListener('click', (event) => {
+    if (event.target === exchange || event.target.id === 'export-close') {
+      closeExchange();
+      return;
+    }
+
+    const button = event.target.closest('button');
+    if (!button) return;
+
+    if (button.dataset.export) download(`/api/export/csv/${encodeURIComponent(button.dataset.export)}`);
+    else if (button.id === 'export-all') downloadAllTabs();
+    else if (button.id === 'export-json') download('/api/export/json');
+    else if (button.id === 'import-apply') applyImport();
+    else if (button.id === 'import-discard') {
+      state.exchange.files = [];
+      state.exchange.preview = null;
+      state.exchange.error = null;
+      renderExchange();
+    }
+  });
+
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !modal.hidden) closePlayer();
+    if (event.key !== 'Escape') return;
+    if (!modal.hidden) closePlayer();
+    else if (!exchange.hidden) closeExchange();
   });
 }
 
@@ -1216,6 +1461,16 @@ async function recalculatePlayer() {
 
   await selectClub(state.clubId);
   await openPlayer(playerId);
+}
+
+/** Re-reads the rail and the open club after something changed the base wholesale. */
+async function reloadWorld() {
+  state.clubs = await getJson('/api/clubs');
+  renderFilters();
+  renderRail();
+
+  const stillThere = state.clubs.some((club) => club.clubId === state.clubId);
+  await selectClub(stillThere ? state.clubId : state.clubs[0]?.clubId);
 }
 
 async function init() {

@@ -38,6 +38,10 @@
           <span class="pending-dot"></span>
           <span class="pending-label" id="pending-label">em dia</span>
         </div>
+
+        <!-- Exporting is the only gesture that clears the counter beside it, which is why the
+             two sit together. -->
+        <button class="btn btn-secondary topbar-btn" type="button" id="export-open">Exportar · importar</button>
       </div>
     </header>
 
@@ -64,6 +68,9 @@
 
   <!-- The player sheet. Clicking the backdrop closes; clicking the dialog does not. -->
   <div class="dialog-backdrop" id="player-modal" hidden></div>
+
+  <!-- Export tabs and the import diff preview (Sprint 7). -->
+  <div class="dialog-backdrop" id="export-modal" hidden></div>
 
   <!-- Transient message for a write that failed (a rejected value, a stale version). -->
   <div class="toast" id="toast" hidden></div>

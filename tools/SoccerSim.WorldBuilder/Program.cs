@@ -51,6 +51,7 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = webRoot });
 app.MapWorldApi();
 app.MapEditApi();
 app.MapGenerationApi();
+app.MapExchangeApi();
 
 app.Run();
 return 0;
