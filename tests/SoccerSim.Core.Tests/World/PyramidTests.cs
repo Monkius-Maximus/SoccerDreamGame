@@ -166,6 +166,40 @@ public sealed class PyramidTests
         Finding finding = Assert.Single(PyramidRules.Check(pyramid), f => f.Code == "FORMAT_UNPLAYABLE");
         Assert.Contains("18", finding.Detail);
     }
+
+    /// <summary>
+    /// The design claim <see cref="PyramidEditor"/> is built on: because a division only ever
+    /// enters at the bottom and removing one closes the gap behind it, the two structural rules
+    /// cannot be broken from the screen at all. Every intermediate state of a build-up and a
+    /// tear-down is checked, not just the ends — a hole that exists for one step is a pyramid the
+    /// author can save and walk away from.
+    /// </summary>
+    [Fact]
+    public void NoSequenceOfAddsAndRemovals_CanProduceADuplicateOrMissingTier()
+    {
+        var pyramid = new LeaguePyramid("BRA", []);
+        var structural = new[] { "TIER_DUP", "TIER_GAP" };
+
+        for (int level = 1; level <= 6; level++)
+        {
+            pyramid = PyramidEditor.AddDivision(
+                pyramid, $"div_bra_{level}", $"{level}ª Divisão", CompetitionFormat.LeagueDouble, 20);
+
+            Assert.Equal(Enumerable.Range(1, level), pyramid.Divisions.Select(division => division.Tier));
+            Assert.DoesNotContain(Codes(pyramid), code => structural.Contains(code));
+        }
+
+        // Out from the middle each time, which is the order that would leave a hole.
+        foreach (string divisionId in new[] { "div_bra_3", "div_bra_5", "div_bra_1", "div_bra_2" })
+        {
+            pyramid = PyramidEditor.RemoveDivision(pyramid, divisionId);
+
+            Assert.Equal(
+                Enumerable.Range(1, pyramid.Divisions.Count),
+                pyramid.Divisions.Select(division => division.Tier).Order());
+            Assert.DoesNotContain(Codes(pyramid), code => structural.Contains(code));
+        }
+    }
 }
 
 /// <summary>

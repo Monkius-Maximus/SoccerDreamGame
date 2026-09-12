@@ -14,7 +14,9 @@ public sealed record NationalityShare(string Nationality, double Share);
 /// an error rather than letting generation invent one.</para>
 /// </summary>
 public sealed record CountryProfile(
-    /// <summary>The geo node of kind Country this describes.</summary>
+    /// <summary>The ISO code the clubs carry ("BRA"), not the geo node id ("geo_bra"). The two are
+    /// different names for the same place and nothing links them directly, which is why there is no
+    /// foreign key here (sql/0014_world_countries.sql).</summary>
     string CountryId,
     string Currency,
     /// <summary>How many units of <see cref="Currency"/> one euro buys. The economy is calibrated

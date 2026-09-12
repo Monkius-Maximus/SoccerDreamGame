@@ -1,4 +1,5 @@
 using SoccerSim.Core.Persistence;
+using SoccerSim.Core.World.Competitions;
 using SoccerSim.Core.World.Import;
 using SoccerSim.Core.World.Serialization;
 
@@ -12,7 +13,12 @@ namespace SoccerSim.Core.World;
 /// CSV import that removes rows, recalculating the batch) and a <c>confirm()</c> asks a question
 /// nobody can answer without seeing the result. This is the answer: do it, look, undo.</para>
 ///
-/// <para>A snapshot is the whole world document, not a diff. It is the format the exporter writes
+/// <para>A snapshot is two documents: the world, and the countries and divisions that live beside
+/// it (they are not in the export format, because the pilot batch predates both). Both are
+/// restored together — an undo that puts back half the world is the failure this pairing exists to
+/// prevent.</para>
+///
+/// <para>A snapshot is a document, not a diff. It is the format the exporter writes
 /// and the importer reads, and a test already pins that the two are inverses — so undo is correct
 /// by construction instead of by a second mechanism nobody exercises. A diff-based stack would
 /// need an inverse for every operation, including "replace the whole world from CSV", and those
@@ -34,8 +40,10 @@ public static class WorldHistory
         CancellationToken cancellationToken = default)
     {
         WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
+        WorldScale scale = await WorldScale.LoadAsync(unitOfWork, cancellationToken);
 
-        await unitOfWork.History.PushAsync(label, WorldJsonWriter.Write(world), Depth, cancellationToken);
+        await unitOfWork.History.PushAsync(
+            label, WorldJsonWriter.Write(world), scale.ToJson(), Depth, cancellationToken);
     }
 
     /// <summary>
@@ -55,6 +63,10 @@ public static class WorldHistory
         WorldSnapshot restored = WorldJsonReader.Read(entry.Document);
 
         await WorldStore.ReplaceAsync(unitOfWork, restored, cancellationToken);
+
+        // Countries and divisions come back with the world, not after it: an undo that restores
+        // half the world is the failure this pairing exists to prevent.
+        await WorldScale.ReplaceAsync(unitOfWork, WorldScale.FromJson(entry.Scale), cancellationToken);
 
         return entry.Label;
     }

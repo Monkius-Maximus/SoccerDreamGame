@@ -24,7 +24,17 @@ public sealed record Division(
     /// country.</summary>
     IReadOnlyList<string> ClubIds)
 {
-    public CompetitionShape Shape => CompetitionFormats.Shape(Format, ClubCount);
+    /// <summary>
+    /// Rounds and matches, derived from the format and the field size — never typed.
+    ///
+    /// <para>Null when this field cannot be played at all: a division just created and not yet
+    /// enrolled has no shape, and neither does a group stage over a field that will not divide
+    /// into fours. A number invented for those cases would be a fixture list nobody can build, so
+    /// the screen shows a dash and <see cref="PyramidRules"/> says why.</para>
+    /// </summary>
+    public CompetitionShape? Shape => CompetitionFormats.Unplayable(Format, ClubCount) is null
+        ? CompetitionFormats.Shape(Format, ClubCount)
+        : null;
 }
 
 /// <summary>A country's divisions, top to bottom.</summary>
@@ -159,14 +169,10 @@ public static class PyramidRules
                     $"{division.Name} declara {division.ClubCount} clubes e tem {division.ClubIds.Count} inscritos"));
             }
 
-            try
-            {
-                _ = division.Shape;
-            }
-            catch (ArgumentOutOfRangeException ex)
+            if (CompetitionFormats.Unplayable(division.Format, division.ClubCount) is { } reason)
             {
                 findings.Add(new Finding(FindingLevel.Error, "FORMAT_UNPLAYABLE", "Formato impossível",
-                    $"{division.Name}: {ex.Message.Split(" (Parameter")[0]}"));
+                    $"{division.Name}: {reason}"));
             }
         }
     }

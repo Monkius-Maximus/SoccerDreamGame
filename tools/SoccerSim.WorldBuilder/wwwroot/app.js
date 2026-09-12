@@ -1106,7 +1106,15 @@ function geoPageHtml(tree, countries) {
               </div>
             </div>
 
-            ${countriesCardHtml(countries)}`}
+            <div class="card blueprint" style="margin-top: var(--space-4)">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">Países</div>
+              <div class="export-note">
+                ${countries.length} país(es) sobre esta árvore${countries.length
+                  ? `: ${countries.map((entry) => esc(entry.country.countryId)).join(', ')}` : ''}
+                · as pirâmides ficam na aba Ligas.
+              </div>
+            </div>`}
         </div>
       </div>
     </div>`;
@@ -1130,62 +1138,177 @@ function isDescendant(tree, ancestorId, nodeId) {
   return false;
 }
 
-function countriesCardHtml(countries) {
+/** The five formats, labelled as CompetitionFormats.Label writes them. */
+const FORMATS = {
+  LeagueSingle: 'Pontos corridos, turno único',
+  LeagueDouble: 'Pontos corridos, turno e returno',
+  GroupsKnockout: 'Grupos + mata-mata',
+  KnockoutOnly: 'Mata-mata, jogo único',
+  NationalCup: 'Copa: ida e volta, final única',
+};
+
+function leaguesPageHtml(countries) {
+  return `
+    <div class="page">
+      <div class="section-head">
+        <h2>Ligas</h2>
+        <span class="section-note">rodadas e jogos são derivados do formato e do tamanho — nunca digitados</span>
+      </div>
+
+      ${countries.map(countryCardHtml).join('')}
+
+      ${newCountryCardHtml()}
+    </div>`;
+}
+
+function countryCardHtml(entry) {
+  const divisions = entry.pyramid.divisions;
+  const unenrolled = entry.roster.filter((club) => !club.divisionId);
+
+  return `
+    <div class="card blueprint" style="margin-top: var(--space-4)" data-country="${esc(entry.country.countryId)}">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+
+      <div class="country-head">
+        <span class="country-name">${esc(entry.displayName || entry.country.countryId)}</span>
+        <span class="geo-id">${esc(entry.country.countryId)}</span>
+        <span class="field-group-rule"></span>
+        <span class="export-note">${entry.clubs} clubes · ${esc(entry.country.currency)}
+          · piso ${fmtBrl(entry.country.wageFloorMonthly)}</span>
+        <button class="btn btn-secondary" type="button" data-country-delete="${esc(entry.country.countryId)}"
+                ${entry.clubs || divisions.length ? 'disabled' : ''}>Apagar país</button>
+      </div>
+
+      <div class="country-mix">
+        ${entry.country.nationalityMix.slice(0, 6).map((share) => `
+          <span class="mix-share">${esc(share.nationality)} ${decimal(share.share * 100, 1)}%</span>`).join('')}
+        ${entry.country.nationalityMix.length > 6
+          ? `<span class="export-note">+${entry.country.nationalityMix.length - 6}</span>` : ''}
+        <span class="badge badge-${entry.country.nationalityMixSource ? 'ok' : 'warning'}">
+          ${entry.country.nationalityMix.length === 0 ? 'sem mistura de nacionalidades'
+            : entry.country.nationalityMixSource ? 'com fonte' : 'sem fonte externa'}
+        </span>
+      </div>
+
+      ${divisions.length === 0 ? `
+        <div class="export-note">Sem divisões — o país existe, mas ninguém joga nada nele ainda.</div>` : `
+        <table class="table pyramid">
+          <thead>
+            <tr><th style="width: 40px">Tier</th><th>Divisão</th><th>Formato</th>
+                <th class="num" style="width: 78px">Clubes</th>
+                <th class="num" style="width: 70px">Sobe</th><th class="num" style="width: 70px">Desce</th>
+                <th class="num">Rodadas</th><th class="num">Jogos</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${divisions.map((division) => divisionRowsHtml(entry, division, unenrolled)).join('')}
+          </tbody>
+        </table>`}
+
+      ${newDivisionHtml(entry)}
+
+      ${entry.findings.map((finding) => `
+        <div class="check">
+          <span class="badge badge-${LEVEL_CLASS[finding.level]}">${LEVEL_LABEL[finding.level]}</span>
+          <span style="flex: 1"><span class="check-label">${esc(finding.label)}</span>
+          <span class="check-detail">${esc(finding.detail)}</span></span>
+        </div>`).join('')}
+    </div>`;
+}
+
+/**
+ * Two rows per division: what is declared about it, and who is in it. The declared row's inputs
+ * write on "Gravar"; the derived columns are text, so it is visible that rodadas and jogos are
+ * not something to type.
+ */
+function divisionRowsHtml(entry, division, unenrolled) {
+  const where = `data-country="${esc(entry.country.countryId)}" data-division="${esc(division.divisionId)}"`;
+  const enrolled = entry.roster.filter((club) => club.divisionId === division.divisionId);
+
+  return `
+    <tr ${where}>
+      <td class="num">${division.tier}</td>
+      <td><input class="tpin" data-field="name" value="${esc(division.name)}"></td>
+      <td>
+        <select class="tpin" data-field="format">
+          ${Object.entries(FORMATS).map(([value, label]) => `
+            <option value="${value}"${value === division.format ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+        </select>
+      </td>
+      <td><input class="tpin num" type="number" min="0" data-field="clubCount" value="${division.clubCount}"></td>
+      <td><input class="tpin num" type="number" min="0" data-field="promotedIn" value="${division.promotedIn}"></td>
+      <td><input class="tpin num" type="number" min="0" data-field="relegatedOut" value="${division.relegatedOut}"></td>
+      <td class="num">${division.shape ? division.shape.rounds : '—'}</td>
+      <td class="num">${division.shape ? division.shape.matches : '—'}</td>
+      <td class="pyramid-actions">
+        <button class="btn btn-secondary" type="button" data-division-save>Gravar</button>
+        <button class="btn btn-secondary" type="button" data-division-delete
+                ${enrolled.length ? 'disabled' : ''}>Apagar</button>
+      </td>
+    </tr>
+    <tr ${where} class="pyramid-roster">
+      <td></td>
+      <td colspan="8">
+        <div class="chips">
+          ${enrolled.length === 0
+            ? '<span class="export-note">nenhum clube inscrito</span>'
+            : enrolled.map((club) => `
+                <span class="chip">${esc(club.shortName)}
+                  <button class="chip-x" type="button" data-withdraw="${esc(club.clubId)}"
+                          title="retirar de ${esc(division.name)}">×</button>
+                </span>`).join('')}
+
+          ${unenrolled.length === 0 ? '' : `
+            <select class="tpin" data-field="enrol">
+              <option value="">inscrever um clube…</option>
+              ${unenrolled.map((club) => `
+                <option value="${esc(club.clubId)}">${esc(club.shortName)}</option>`).join('')}
+            </select>`}
+        </div>
+      </td>
+    </tr>`;
+}
+
+function newDivisionHtml(entry) {
+  const next = entry.pyramid.divisions.length + 1;
+
+  return `
+    <div class="gen-control" style="margin-top: var(--space-4)">
+      <span class="gen-control-label">Nova divisão · tier ${next}</span>
+      <div class="division-new" data-country="${esc(entry.country.countryId)}">
+        <input class="tpin" data-field="divisionId" placeholder="div_${esc(entry.country.countryId.toLowerCase())}_${next}" autocomplete="off">
+        <input class="tpin" data-field="name" placeholder="Nome da divisão" autocomplete="off">
+        <select class="tpin" data-field="format">
+          ${Object.entries(FORMATS).map(([value, label]) => `
+            <option value="${value}"${value === 'LeagueDouble' ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+        </select>
+        <input class="tpin num" type="number" min="0" data-field="clubCount" value="20">
+        <button class="btn btn-secondary" type="button" data-division-add>Criar</button>
+      </div>
+      <span class="gen-control-hint">
+        id, nome, formato e número de clubes. Entra sempre na base da pirâmide, sem promoção nem
+        rebaixamento — o fluxo se declara depois, na linha da divisão.
+      </span>
+    </div>`;
+}
+
+function newCountryCardHtml() {
   return `
     <div class="card blueprint" style="margin-top: var(--space-4)">
       <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-      <div class="card-kicker">Países · pirâmide</div>
+      <div class="card-kicker">Novo país</div>
 
-      ${countries.map((entry) => `
-        <div class="country">
-          <div class="country-head">
-            <span class="country-name">${esc(entry.displayName || entry.country.countryId)}</span>
-            <span class="geo-id">${esc(entry.country.countryId)}</span>
-            <span class="field-group-rule"></span>
-            <span class="export-note">${entry.clubs} clubes · ${esc(entry.country.currency)}
-              · piso ${fmtBrl(entry.country.wageFloorMonthly)}</span>
-          </div>
+      <div class="division-new" id="country-new">
+        <input class="tpin" data-field="countryId" placeholder="ARG" maxlength="3" autocomplete="off">
+        <input class="tpin" data-field="currency" placeholder="ARS" autocomplete="off">
+        <input class="tpin num" type="number" step="0.01" min="0" data-field="eurToLocal" placeholder="taxa do euro">
+        <input class="tpin num" type="number" min="0" data-field="wageFloorMonthly" placeholder="piso mensal">
+        <button class="btn btn-secondary" type="button" id="country-add">Criar</button>
+      </div>
 
-          <div class="country-mix">
-            ${entry.country.nationalityMix.slice(0, 6).map((share) => `
-              <span class="mix-share">${esc(share.nationality)} ${decimal(share.share * 100, 1)}%</span>`).join('')}
-            ${entry.country.nationalityMix.length > 6
-              ? `<span class="export-note">+${entry.country.nationalityMix.length - 6}</span>` : ''}
-            <span class="badge badge-${entry.country.nationalityMixSource ? 'ok' : 'warning'}">
-              ${entry.country.nationalityMixSource ? 'com fonte' : 'sem fonte externa'}
-            </span>
-          </div>
-
-          ${entry.pyramid.divisions.length === 0 ? `
-            <div class="export-note">Sem divisões autoradas — o país tem clubes, mas nenhuma pirâmide.</div>` : `
-            <table class="table">
-              <thead>
-                <tr><th style="width: 40px">Tier</th><th>Divisão</th><th>Formato</th>
-                    <th class="num">Clubes</th><th class="num">Rodadas</th><th class="num">Jogos</th>
-                    <th class="num">Sobe</th><th class="num">Desce</th></tr>
-              </thead>
-              <tbody>
-                ${entry.pyramid.divisions.map((division) => `
-                  <tr>
-                    <td class="num">${division.tier}</td>
-                    <td>${esc(division.name)}</td>
-                    <td>${esc(division.format)}</td>
-                    <td class="num">${division.clubCount}</td>
-                    <td class="num">${division.shape.rounds}</td>
-                    <td class="num">${division.shape.matches}</td>
-                    <td class="num">${division.promotedIn}</td>
-                    <td class="num">${division.relegatedOut}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>`}
-
-          ${entry.findings.map((finding) => `
-            <div class="check">
-              <span class="badge badge-${LEVEL_CLASS[finding.level]}">${LEVEL_LABEL[finding.level]}</span>
-              <span style="flex: 1"><span class="check-label">${esc(finding.label)}</span>
-              <span class="check-detail">${esc(finding.detail)}</span></span>
-            </div>`).join('')}
-        </div>`).join('')}
+      <span class="gen-control-hint">
+        o código tem três letras e é o mesmo que os clubes carregam. A mistura de nacionalidades não
+        se declara aqui: a auditoria cobra a falta, e um país sem ela não pode ser povoado.
+      </span>
     </div>`;
 }
 
@@ -1231,6 +1354,127 @@ async function editGeo(path, body, method = 'POST') {
   state.countries = await getJson('/api/countries');
   await refreshUndo();
   document.getElementById('content').innerHTML = geoPageHtml(state.geo, state.countries);
+}
+
+// ---------------------------------------------------------- the leagues screen
+
+async function showLeagues() {
+  const content = document.getElementById('content');
+
+  try {
+    state.countries = await getJson('/api/countries');
+  } catch (error) {
+    content.innerHTML = errorHtml(`Os países não responderam: ${error.message}`);
+    return;
+  }
+
+  content.innerHTML = leaguesPageHtml(state.countries);
+}
+
+/**
+ * Every country and pyramid edit goes through one call, and the server answers with the whole
+ * list. Adding a division renumbers the tiers below it and enrolling a club empties a slot in
+ * another division, so patching one row on screen would be drawing a pyramid that no longer exists.
+ */
+async function editScale(path, method, body) {
+  const response = await fetch(`/api${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? null : JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let message = `${response.status}`;
+    try {
+      message = (await response.json()).error || message;
+    } catch {
+      // A response with no JSON body still has to say something.
+    }
+    toast(message);
+    return;
+  }
+
+  state.countries = await response.json();
+  await refreshUndo();
+  document.getElementById('content').innerHTML = leaguesPageHtml(state.countries);
+}
+
+/** The value of one input inside a block, by its data-field. */
+function fieldOf(block, name) {
+  return block.querySelector(`[data-field="${name}"]`).value.trim();
+}
+
+const scaleUrl = (country, division = null) =>
+  `/countries/${encodeURIComponent(country)}`
+  + (division === null ? '' : `/divisions/${encodeURIComponent(division)}`);
+
+function addCountry() {
+  const block = document.getElementById('country-new');
+
+  editScale('/countries', 'POST', {
+    countryId: fieldOf(block, 'countryId'),
+    currency: fieldOf(block, 'currency'),
+    eurToLocal: Number(fieldOf(block, 'eurToLocal')),
+    wageFloorMonthly: Number(fieldOf(block, 'wageFloorMonthly')),
+  });
+}
+
+function enrolClub(country, division, clubId) {
+  editScale(`${scaleUrl(country, division)}/clubs`, 'POST', { clubId });
+}
+
+/**
+ * The clicks the leagues screen owns. Returns whether it handled one, so the shared click handler
+ * can stop rather than fall through into the club page's buttons.
+ */
+function handleLeaguesClick(event) {
+  const button = event.target.closest('button');
+  if (!button) return false;
+
+  if (button.dataset.countryDelete !== undefined) {
+    editScale(scaleUrl(button.dataset.countryDelete), 'DELETE');
+    return true;
+  }
+
+  if (button.dataset.withdraw !== undefined) {
+    const row = button.closest('[data-division]');
+    editScale(
+      `${scaleUrl(row.dataset.country, row.dataset.division)}/clubs/${encodeURIComponent(button.dataset.withdraw)}`,
+      'DELETE');
+    return true;
+  }
+
+  if (button.dataset.divisionAdd !== undefined) {
+    const block = button.closest('[data-country]');
+    editScale(`${scaleUrl(block.dataset.country)}/divisions`, 'POST', {
+      divisionId: fieldOf(block, 'divisionId'),
+      name: fieldOf(block, 'name'),
+      format: fieldOf(block, 'format'),
+      clubCount: Number(fieldOf(block, 'clubCount')),
+    });
+    return true;
+  }
+
+  const row = button.closest('[data-division]');
+  if (!row) return false;
+
+  if (button.dataset.divisionSave !== undefined) {
+    editScale(scaleUrl(row.dataset.country, row.dataset.division), 'PUT', {
+      name: fieldOf(row, 'name'),
+      format: fieldOf(row, 'format'),
+      clubCount: Number(fieldOf(row, 'clubCount')),
+      promotedIn: Number(fieldOf(row, 'promotedIn')),
+      relegatedOut: Number(fieldOf(row, 'relegatedOut')),
+    });
+    return true;
+  }
+
+  if (button.dataset.divisionDelete !== undefined) {
+    editScale(scaleUrl(row.dataset.country, row.dataset.division), 'DELETE');
+    return true;
+  }
+
+  return false;
 }
 
 // ------------------------------------------------------- the calibration screen
@@ -1847,6 +2091,7 @@ async function showView(view) {
 
   if (view === 'auditoria') await showAudit();
   else if (view === 'geografia') await showGeo();
+  else if (view === 'ligas') await showLeagues();
   else if (view === 'calibracao') await showCalibration();
   else await selectClub(state.clubId);
 }
@@ -1929,6 +2174,14 @@ function bindEvents() {
       return;
     }
 
+    // Picking a club in the enrolment select IS the enrolment: the select has no other purpose,
+    // so a second click on a "Inscrever" button would only be a chance to forget it.
+    if (event.target.dataset.field === 'enrol' && event.target.value) {
+      const row = event.target.closest('[data-division]');
+      enrolClub(row.dataset.country, row.dataset.division, event.target.value);
+      return;
+    }
+
     // A generator control changes what would be generated, not what is stored: it redraws
     // the preview and writes nothing.
     if (event.target.dataset.gen) {
@@ -1972,6 +2225,13 @@ function bindEvents() {
       editGeo(encodeURIComponent(state.geoSel), null, 'DELETE');
       return;
     }
+
+    if (id === 'country-add') {
+      addCountry();
+      return;
+    }
+
+    if (handleLeaguesClick(event)) return;
 
     const geoRow = event.target.closest('[data-geo]');
     if (geoRow) {

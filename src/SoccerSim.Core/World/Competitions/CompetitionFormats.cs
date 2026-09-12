@@ -43,13 +43,26 @@ public static class CompetitionFormats
     /// <summary>How many qualify from each group.</summary>
     public const int QualifiersPerGroup = 2;
 
-    public static CompetitionShape Shape(CompetitionFormat format, int clubs)
+    /// <summary>
+    /// Why this field size cannot be played in this format, or null when it can. Stated once, here,
+    /// so that the value, the exception and the audit finding all say the same thing: an
+    /// authoring tool has to explain a refusal, and a rule written twice drifts.
+    /// </summary>
+    public static string? Unplayable(CompetitionFormat format, int clubs)
     {
         if (clubs < 2)
-        {
-            throw new ArgumentOutOfRangeException(nameof(clubs), clubs,
-                "a competition needs at least two clubs.");
-        }
+            return $"uma competição precisa de ao menos dois clubes, e esta tem {clubs}";
+
+        if (format == CompetitionFormat.GroupsKnockout && clubs % GroupSize != 0)
+            return $"grupos de {GroupSize} não dividem {clubs} clubes";
+
+        return null;
+    }
+
+    public static CompetitionShape Shape(CompetitionFormat format, int clubs)
+    {
+        if (Unplayable(format, clubs) is { } reason)
+            throw new ArgumentOutOfRangeException(nameof(clubs), clubs, reason);
 
         return format switch
         {
@@ -78,12 +91,6 @@ public static class CompetitionFormats
 
     private static CompetitionShape GroupsKnockout(int clubs)
     {
-        if (clubs % GroupSize != 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(clubs), clubs,
-                $"GroupsKnockout needs a field divisible by {GroupSize}; {clubs} does not split into groups.");
-        }
-
         int groups = clubs / GroupSize;
         int qualifiers = groups * QualifiersPerGroup;
 

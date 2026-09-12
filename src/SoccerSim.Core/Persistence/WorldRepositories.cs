@@ -181,7 +181,14 @@ public interface IDivisionRepository
 
 /// <summary>One entry of the undo stack: what the world looked like, and what was about to
 /// happen to it.</summary>
-public sealed record WorldHistoryEntry(long Id, string Label, DateTime TakenAt, string Document);
+public sealed record WorldHistoryEntry(
+    long Id,
+    string Label,
+    DateTime TakenAt,
+    string Document,
+    /// <summary>Countries and divisions, which live outside the world document. Restored with it,
+    /// or the button would claim to have undone something it did not touch.</summary>
+    string Scale);
 
 /// <summary>
 /// The undo stack. A stack, not a log: entries come back newest first and leave when they are
@@ -191,7 +198,7 @@ public sealed record WorldHistoryEntry(long Id, string Label, DateTime TakenAt, 
 public interface IWorldHistory
 {
     /// <summary>Pushes a snapshot, dropping the oldest entries beyond <paramref name="cap"/>.</summary>
-    Task PushAsync(string label, string document, int cap, CancellationToken cancellationToken = default);
+    Task PushAsync(string label, string document, string scale, int cap, CancellationToken cancellationToken = default);
 
     /// <summary>The newest entry without removing it — what the button's label says.</summary>
     Task<WorldHistoryEntry?> PeekAsync(CancellationToken cancellationToken = default);

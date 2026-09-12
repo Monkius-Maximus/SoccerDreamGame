@@ -5,23 +5,24 @@ namespace SoccerSim.Infrastructure.Sqlite.Repositories;
 
 internal sealed class WorldHistoryRepository : SqliteRepositoryBase, IWorldHistory
 {
-    private const string SelectColumns = "Id, Label, TakenAt, Document";
+    private const string SelectColumns = "Id, Label, TakenAt, Document, Scale";
 
     public WorldHistoryRepository(SqliteConnection connection, Func<SqliteTransaction?> transactionAccessor)
         : base(connection, transactionAccessor)
     {
     }
 
-    public Task PushAsync(string label, string document, int cap, CancellationToken cancellationToken = default)
+    public Task PushAsync(string label, string document, string scale, int cap, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         using (SqliteCommand command = CreateCommand(
-            "INSERT INTO WorldHistory (Label, TakenAt, Document) VALUES ($label, $at, $document);"))
+            "INSERT INTO WorldHistory (Label, TakenAt, Document, Scale) VALUES ($label, $at, $document, $scale);"))
         {
             command.Parameters.AddWithValue("$label", label);
             command.Parameters.AddWithValue("$at", SqliteValue.ToText(DateTime.UtcNow));
             command.Parameters.AddWithValue("$document", document);
+            command.Parameters.AddWithValue("$scale", scale);
             command.ExecuteNonQuery();
         }
 
@@ -77,7 +78,8 @@ internal sealed class WorldHistoryRepository : SqliteRepositoryBase, IWorldHisto
                 reader.GetInt64(0),
                 reader.GetString(1),
                 SqliteValue.ToDate(reader.GetString(2)),
-                reader.GetString(3))
+                reader.GetString(3),
+                reader.GetString(4))
             : null;
     }
 }

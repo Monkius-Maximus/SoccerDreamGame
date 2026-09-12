@@ -19,9 +19,34 @@ public sealed record GeoTreeDto(IReadOnlyList<GeoTreeNodeDto> Nodes);
 
 public sealed record GeoEditRequest(string? ParentId, string? DisplayName, string? ChildId);
 
-public sealed record CountryDto(CountryProfile Country, string? DisplayName, int Clubs, LeaguePyramid Pyramid, IReadOnlyList<Finding> Findings);
+/// <summary>A club of this country and the division it plays in, or null when it plays in none.
+/// One list rather than two: the chips need names for the enrolled and the select needs the rest,
+/// and a screen that received them separately could show a club in both.</summary>
+public sealed record CountryClubDto(string ClubId, string ShortName, string? DivisionId);
+
+public sealed record CountryDto(
+    CountryProfile Country,
+    string? DisplayName,
+    int Clubs,
+    LeaguePyramid Pyramid,
+    IReadOnlyList<Finding> Findings,
+    IReadOnlyList<CountryClubDto> Roster);
 
 public sealed record RecalculateResultDto(int Rewritten, int PendingEdits);
+
+/// <summary>A new country. The nationality mix is not here: a country is created before anyone
+/// knows where its players come from, and the sweep already reports a missing mix as an error.</summary>
+public sealed record NewCountryRequest(string? CountryId, string? Currency, double EurToLocal, int WageFloorMonthly);
+
+public sealed record DivisionRequest(
+    string? DivisionId,
+    string? Name,
+    CompetitionFormat Format,
+    int ClubCount,
+    int PromotedIn,
+    int RelegatedOut);
+
+public sealed record EnrolRequest(string? ClubId);
 
 /// <summary>
 /// The screens that only start mattering at a second league (ROADMAP.md Sprint 9): the geography
@@ -43,6 +68,14 @@ internal static class WorldScaleEndpoints
         api.MapPost("/calibration/recalculate", RecalculateAsync);
 
         api.MapGet("/countries", GetCountriesAsync);
+        api.MapPost("/countries", AddCountryAsync);
+        api.MapDelete("/countries/{countryId}", DeleteCountryAsync);
+
+        api.MapPost("/countries/{countryId}/divisions", AddDivisionAsync);
+        api.MapPut("/countries/{countryId}/divisions/{divisionId}", RewriteDivisionAsync);
+        api.MapDelete("/countries/{countryId}/divisions/{divisionId}", DeleteDivisionAsync);
+        api.MapPost("/countries/{countryId}/divisions/{divisionId}/clubs", EnrolAsync);
+        api.MapDelete("/countries/{countryId}/divisions/{divisionId}/clubs/{clubId}", WithdrawAsync);
     }
 
     // -------------------------------------------------------------- geography
@@ -196,7 +229,204 @@ internal static class WorldScaleEndpoints
 
     // -------------------------------------------------------------- countries
 
-    private static async Task<IResult> GetCountriesAsync(IWorldUnitOfWork unitOfWork, CancellationToken cancellationToken)
+    private static async Task<IResult> GetCountriesAsync(IWorldUnitOfWork unitOfWork, CancellationToken cancellationToken) =>
+        Results.Ok(await BuildCountriesAsync(unitOfWork, cancellationToken));
+
+    /// <summary>
+    /// Creates a country. Nothing but the money: the nationality mix is stated later, and the
+    /// pyramid is built division by division — a country that exists with neither is not broken,
+    /// it is the first step.
+    /// </summary>
+    private static async Task<IResult> AddCountryAsync(
+        NewCountryRequest request,
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken)
+    {
+        string countryId = (request.CountryId ?? string.Empty).Trim().ToUpperInvariant();
+
+        if (countryId.Length != 3)
+            return Results.BadRequest(new { error = "o código do país tem três letras, como 'ARG'." });
+
+        if (string.IsNullOrWhiteSpace(request.Currency))
+            return Results.BadRequest(new { error = "um país precisa de uma moeda." });
+
+        if (request.EurToLocal <= 0)
+            return Results.BadRequest(new { error = "a taxa do euro precisa ser maior que zero." });
+
+        if (request.WageFloorMonthly < 0)
+            return Results.BadRequest(new { error = "o piso salarial não pode ser negativo." });
+
+        if (await unitOfWork.Countries.GetAsync(countryId, cancellationToken) is not null)
+            return Results.BadRequest(new { error = $"{countryId} já existe." });
+
+        await WorldHistory.RecordAsync(unitOfWork, $"Criar o país {countryId}", cancellationToken);
+
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.Countries.SaveAsync(
+                new CountryProfile(
+                    countryId,
+                    request.Currency.Trim().ToUpperInvariant(),
+                    request.EurToLocal,
+                    request.WageFloorMonthly,
+                    // Empty rather than invented: the generator refuses to populate a country with
+                    // no mix, which is the correct answer until someone states one.
+                    NationalityMix: [],
+                    NationalityMixSource: null),
+                cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+
+        return Results.Ok(await BuildCountriesAsync(unitOfWork, cancellationToken));
+    }
+
+    /// <summary>
+    /// Deletes a country. Refused while clubs still name it or divisions still hang off it — the
+    /// same rule the geography tree uses, for the same reason: the rows would not disappear with
+    /// it, they would simply stop pointing at anything.
+    /// </summary>
+    private static async Task<IResult> DeleteCountryAsync(
+        string countryId,
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken)
+    {
+        if (await unitOfWork.Countries.GetAsync(countryId, cancellationToken) is null)
+            return Results.NotFound(new { error = $"não existe o país '{countryId}'." });
+
+        WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
+        int clubs = world.Clubs.Count(club => club.Geography.CountryId == countryId);
+
+        if (clubs > 0)
+            return Results.BadRequest(new { error = $"{countryId} tem {clubs} clube(s) — mova-os antes de apagá-lo." });
+
+        LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync(countryId, cancellationToken);
+        if (pyramid.Divisions.Count > 0)
+            return Results.BadRequest(new { error = $"{countryId} tem {pyramid.Divisions.Count} divisão(ões) — apague-as antes." });
+
+        await WorldHistory.RecordAsync(unitOfWork, $"Apagar o país {countryId}", cancellationToken);
+
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.Countries.DeleteAsync(countryId, cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+
+        return Results.Ok(await BuildCountriesAsync(unitOfWork, cancellationToken));
+    }
+
+    // -------------------------------------------------------------- divisions
+
+    private static Task<IResult> AddDivisionAsync(
+        string countryId,
+        DivisionRequest request,
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken) =>
+        EditPyramidAsync(unitOfWork, countryId, $"Criar a divisão {request.Name}", cancellationToken,
+            (pyramid, _) => PyramidEditor.AddDivision(
+                pyramid, request.DivisionId ?? string.Empty, request.Name ?? string.Empty,
+                request.Format, request.ClubCount));
+
+    private static Task<IResult> RewriteDivisionAsync(
+        string countryId,
+        string divisionId,
+        DivisionRequest request,
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken) =>
+        EditPyramidAsync(unitOfWork, countryId, $"Editar a divisão {request.Name}", cancellationToken,
+            (pyramid, _) => PyramidEditor.Rewrite(
+                pyramid, divisionId, request.Name ?? string.Empty, request.Format,
+                request.ClubCount, request.PromotedIn, request.RelegatedOut));
+
+    private static Task<IResult> DeleteDivisionAsync(
+        string countryId,
+        string divisionId,
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken) =>
+        EditPyramidAsync(unitOfWork, countryId, $"Apagar a divisão {divisionId}", cancellationToken,
+            (pyramid, _) => PyramidEditor.RemoveDivision(pyramid, divisionId));
+
+    private static Task<IResult> EnrolAsync(
+        string countryId,
+        string divisionId,
+        EnrolRequest request,
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken) =>
+        EditPyramidAsync(unitOfWork, countryId, $"Inscrever {request.ClubId} em {divisionId}", cancellationToken,
+            (pyramid, world) =>
+            {
+                ClubIdentity club = world.Clubs.FirstOrDefault(c => c.ClubId == request.ClubId)
+                    ?? throw new PyramidException($"não existe o clube '{request.ClubId}'.");
+
+                // A division is national. A club from elsewhere in it is not a bigger league, it is
+                // a club that plays two national seasons.
+                if (club.Geography.CountryId != countryId)
+                {
+                    throw new PyramidException(
+                        $"{club.Identity.OfficialName} é de {club.Geography.CountryId}, não de {countryId}.");
+                }
+
+                return PyramidEditor.Enrol(pyramid, divisionId, club.ClubId);
+            });
+
+    private static Task<IResult> WithdrawAsync(
+        string countryId,
+        string divisionId,
+        string clubId,
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken) =>
+        EditPyramidAsync(unitOfWork, countryId, $"Retirar {clubId} de {divisionId}", cancellationToken,
+            (pyramid, _) => PyramidEditor.Withdraw(pyramid, divisionId, clubId));
+
+    /// <summary>
+    /// Applies a pyramid edit and writes the country back. Like the geography tree, the answer is
+    /// the whole list rather than the one row that changed: adding a division renumbers the tiers
+    /// below it and enrolling a club empties a slot somewhere else, so a screen that patched one
+    /// row would be showing a pyramid that no longer exists.
+    /// </summary>
+    private static async Task<IResult> EditPyramidAsync(
+        IWorldUnitOfWork unitOfWork,
+        string countryId,
+        string label,
+        CancellationToken cancellationToken,
+        Func<LeaguePyramid, WorldSnapshot, LeaguePyramid> edit)
+    {
+        if (await unitOfWork.Countries.GetAsync(countryId, cancellationToken) is null)
+            return Results.NotFound(new { error = $"não existe o país '{countryId}'." });
+
+        WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
+        LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync(countryId, cancellationToken);
+
+        LeaguePyramid edited;
+        try
+        {
+            edited = edit(pyramid, world);
+        }
+        catch (PyramidException ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+
+        await WorldHistory.RecordAsync(unitOfWork, label, cancellationToken);
+        await WorldScale.SavePyramidAsync(unitOfWork, edited, cancellationToken);
+
+        return Results.Ok(await BuildCountriesAsync(unitOfWork, cancellationToken));
+    }
+
+    private static async Task<IReadOnlyList<CountryDto>> BuildCountriesAsync(
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken)
     {
         WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
         IReadOnlyList<CountryProfile> countries = await unitOfWork.Countries.ListAsync(cancellationToken);
@@ -210,6 +440,10 @@ internal static class WorldScaleEndpoints
         {
             LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync(country.CountryId, cancellationToken);
 
+            Dictionary<string, string> enrolledIn = pyramid.Divisions
+                .SelectMany(division => division.ClubIds.Select(clubId => (clubId, division.DivisionId)))
+                .ToDictionary(entry => entry.clubId, entry => entry.DivisionId);
+
             result.Add(new CountryDto(
                 country,
                 names.GetValueOrDefault(country.CountryId),
@@ -217,10 +451,16 @@ internal static class WorldScaleEndpoints
                 pyramid,
                 // A country with no divisions yet is not broken, it is unfinished — so the rules
                 // only speak once there is a pyramid to speak about.
-                pyramid.Divisions.Count == 0 ? [] : PyramidRules.Check(pyramid)));
+                pyramid.Divisions.Count == 0 ? [] : PyramidRules.Check(pyramid),
+                [.. byCountry[country.CountryId]
+                    .OrderBy(club => club.Identity.ShortName, StringComparer.Ordinal)
+                    .Select(club => new CountryClubDto(
+                        club.ClubId,
+                        club.Identity.ShortName,
+                        enrolledIn.GetValueOrDefault(club.ClubId)))]));
         }
 
-        return Results.Ok(result);
+        return result;
     }
 
     /// <summary>The ISO code and the geo node are different identifiers for the same place, and
