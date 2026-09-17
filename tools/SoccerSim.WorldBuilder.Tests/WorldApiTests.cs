@@ -185,6 +185,33 @@ public sealed class WorldApiTests : IClassFixture<WorldBuilderApp>
         Assert.Equal("clb_bra_rio_001", competition["memberClubIds"]![0]!.GetValue<string>());
     }
 
+    /// <summary>
+    /// The probable XI travels with the club page rather than on a route of its own: it is a
+    /// function of the squad and the tactical style, both of which this page edits, so a second
+    /// request could answer about a squad the page had already changed.
+    /// </summary>
+    [Fact]
+    public async Task TheClubPage_CarriesTheElevenItWouldField()
+    {
+        JsonNode eleven = (await GetJsonAsync("/api/clubs/clb_bra_rio_001"))["eleven"]!;
+
+        Assert.Equal(11, eleven["slots"]!.AsArray().Count);
+        Assert.Equal("4-2-3-1", eleven["formationLabel"]!.GetValue<string>());
+
+        // The real batch fields a fully natural side; the marks only appear once an edit breaks it.
+        Assert.Equal(0, eleven["improvised"]!.GetValue<int>());
+        Assert.Equal(0, eleven["unfilled"]!.GetValue<int>());
+        Assert.All(eleven["slots"]!.AsArray(), slot =>
+            Assert.Equal("Natural", slot!["fit"]!.GetValue<string>()));
+
+        // Each slot carries the player the screen draws and the line it stacks them on.
+        JsonNode keeper = eleven["slots"]!.AsArray()
+            .Single(slot => slot!["position"]!.GetValue<string>() == "GK")!;
+
+        Assert.Equal(0, keeper["line"]!.GetValue<int>());
+        Assert.NotNull(keeper["player"]!["shirtName"]);
+    }
+
     [Theory]
     [InlineData("/api/clubs/clb_does_not_exist")]
     [InlineData("/api/clubs/clb_does_not_exist/squad")]

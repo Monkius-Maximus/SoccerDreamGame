@@ -431,7 +431,7 @@ internal static class WorldScaleEndpoints
         WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
         IReadOnlyList<CountryProfile> countries = await unitOfWork.Countries.ListAsync(cancellationToken);
 
-        Dictionary<string, string> names = CountryNames(world);
+        IReadOnlyDictionary<string, string> names = CountryProfiles.NamesFrom(world);
         ILookup<string, ClubIdentity> byCountry = world.Clubs.ToLookup(club => club.Geography.CountryId);
 
         var result = new List<CountryDto>();
@@ -461,28 +461,5 @@ internal static class WorldScaleEndpoints
         }
 
         return result;
-    }
-
-    /// <summary>The ISO code and the geo node are different identifiers for the same place, and
-    /// nothing links them directly; a club knows both, so the link goes through the clubs.</summary>
-    private static Dictionary<string, string> CountryNames(WorldSnapshot world)
-    {
-        Dictionary<string, GeoNode> nodes = world.GeoNodes.ToDictionary(node => node.GeoNodeId);
-        var names = new Dictionary<string, string>();
-
-        foreach (ClubIdentity club in world.Clubs)
-        {
-            if (names.ContainsKey(club.Geography.CountryId))
-                continue;
-
-            GeoNode? node = nodes.GetValueOrDefault(club.Geography.GeoNodeId);
-            while (node is not null && node.Kind != GeoNodeKind.Country)
-                node = node.ParentId is null ? null : nodes.GetValueOrDefault(node.ParentId);
-
-            if (node is not null)
-                names[club.Geography.CountryId] = node.DisplayName;
-        }
-
-        return names;
     }
 }

@@ -28,7 +28,11 @@ const state = {
   geo: null,          // /api/geo/tree
   geoSel: null,       // the selected node on the geography screen
   countries: [],      // /api/countries, with each country's pyramid
+  leagueView: 'piramide', // which of the two surfaces the Ligas tab shows
+  register: [],       // /api/register — the flat surface of the same data
   calibration: null,  // /api/calibration
+  search: null,       // /api/search, while the search screen is open
+  searchQuery: '',
 };
 
 // ---------------------------------------------------------------- formatting
@@ -305,6 +309,77 @@ function kitHtml(club, which, size) {
         <div class="kit-label">${which === 'home' ? 'Titular' : 'Reserva'}</div>
         <div class="kit-pattern">${esc(kit.fabricPattern)}</div>
       </div>
+    </div>`;
+}
+
+const FIT_CLASS = { Natural: 'ok', Secondary: 'warning', Improvised: 'error' };
+const FIT_TITLE = {
+  Natural: 'posição principal',
+  Secondary: 'posição secundária — fora do melhor papel',
+  Improvised: 'improvisado — ninguém no elenco joga aqui',
+};
+
+/**
+ * The eleven this club would field, stacked into the four drawn lines. The point of the section is
+ * the colour: a slot nobody in the squad plays is a hole no average on this page reveals.
+ */
+function elevenHtml(page) {
+  const eleven = page.eleven;
+  const off = eleven.secondary + eleven.improvised + eleven.unfilled;
+
+  return `
+    <div class="section-head">
+      <h2>XI provável</h2>
+      <span class="section-note">
+        ${esc(eleven.formationLabel)} · derivado de ${esc(page.club.aiProfile.defaultTacticalStyle)}
+        · não se edita: é função do elenco e do estilo
+      </span>
+      <span class="grow"></span>
+      <span class="badge badge-${off ? (eleven.improvised || eleven.unfilled ? 'error' : 'warning') : 'ok'}">
+        ${off ? `${off} fora de posição` : 'onze natural'}
+      </span>
+      <span class="metric-value" style="font-size: 20px">${eleven.overall || '—'}</span>
+    </div>
+
+    <div class="card blueprint eleven">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      ${[0, 1, 2, 3].map((line) => {
+        const slots = eleven.slots.filter((slot) => slot.line === line);
+        if (!slots.length) return '';
+        return `
+          <div class="eleven-line">
+            ${slots.map((slot) => elevenSlotHtml(slot)).join('')}
+          </div>`;
+      }).join('')}
+
+      ${!off ? '' : `
+        <div class="export-note eleven-note">
+          ${eleven.improvised ? `${eleven.improvised} improvisado(s): ninguém no elenco joga essa posição. ` : ''}
+          ${eleven.secondary ? `${eleven.secondary} em posição secundária. ` : ''}
+          ${eleven.unfilled ? `${eleven.unfilled} vaga(s) sem ninguém — o elenco não completa onze.` : ''}
+        </div>`}
+    </div>`;
+}
+
+function elevenSlotHtml(slot) {
+  if (!slot.player) {
+    return `
+      <div class="eleven-slot eleven-slot-empty">
+        <span class="eleven-pos">${esc(slot.position)}</span>
+        <span class="eleven-name">vazio</span>
+      </div>`;
+  }
+
+  return `
+    <div class="eleven-slot eleven-slot-${FIT_CLASS[slot.fit]}" data-player="${esc(slot.player.playerId)}"
+         title="${esc(FIT_TITLE[slot.fit])}">
+      <span class="eleven-pos">${esc(slot.position)}</span>
+      <span class="eleven-name">${esc(slot.player.shirtName)}</span>
+      <span class="eleven-ovr">${slot.player.overall}</span>
+      ${slot.fit === 'Natural' ? '' : `
+        <span class="eleven-fit">${slot.fit === 'Secondary'
+          ? esc(slot.player.primaryPosition)
+          : 'improvisado'}</span>`}
     </div>`;
 }
 
@@ -671,6 +746,8 @@ function clubPageHtml(page) {
           </div>
         </div>
       </div>
+
+      ${elevenHtml(page)}
 
       <div class="section-head">
         <h2>Elenco</h2>
@@ -1147,17 +1224,33 @@ const FORMATS = {
   NationalCup: 'Copa: ida e volta, final única',
 };
 
+/**
+ * Two surfaces over the same data (ROADMAP.md Sprint 9). The pyramid reads down one country and is
+ * where the authoring happens; the register reads across all of them and is where you notice that
+ * two countries disagree about what a second division is. Neither is a summary of the other.
+ */
 function leaguesPageHtml(countries) {
+  const register = state.leagueView === 'registro';
+
   return `
     <div class="page">
       <div class="section-head">
         <h2>Ligas</h2>
-        <span class="section-note">rodadas e jogos são derivados do formato e do tamanho — nunca digitados</span>
+        <span class="section-note">${register
+          ? 'todas as divisões e competições do mundo, lado a lado'
+          : 'rodadas e jogos são derivados do formato e do tamanho — nunca digitados'}</span>
+        <span class="grow"></span>
+        <div class="surface-switch">
+          <button class="btn ${register ? 'btn-secondary' : 'btn-primary'}" type="button"
+                  data-surface="piramide">Pirâmide</button>
+          <button class="btn ${register ? 'btn-primary' : 'btn-secondary'}" type="button"
+                  data-surface="registro">Registro</button>
+        </div>
       </div>
 
-      ${countries.map(countryCardHtml).join('')}
-
-      ${newCountryCardHtml()}
+      ${register ? registerHtml(state.register) : `
+        ${countries.map(countryCardHtml).join('')}
+        ${newCountryCardHtml()}`}
     </div>`;
 }
 
@@ -1362,7 +1455,14 @@ async function showLeagues() {
   const content = document.getElementById('content');
 
   try {
-    state.countries = await getJson('/api/countries');
+    // Both surfaces at once: they are the same data, and a toggle that has to fetch is a toggle
+    // that flickers.
+    const [countries, register] = await Promise.all([
+      getJson('/api/countries'),
+      getJson('/api/register'),
+    ]);
+    state.countries = countries;
+    state.register = register;
   } catch (error) {
     content.innerHTML = errorHtml(`Os países não responderam: ${error.message}`);
     return;
@@ -1395,6 +1495,7 @@ async function editScale(path, method, body) {
   }
 
   state.countries = await response.json();
+  state.register = await getJson('/api/register');
   await refreshUndo();
   document.getElementById('content').innerHTML = leaguesPageHtml(state.countries);
 }
@@ -1475,6 +1576,169 @@ function handleLeaguesClick(event) {
   }
 
   return false;
+}
+
+// --------------------------------------------------------------- the register
+
+/**
+ * The pyramid's other surface: every division and every competition of every country, flat. The
+ * pyramid page reads DOWN one country; this reads ACROSS them, which is the only way to see that
+ * two countries disagree about what a second division is.
+ */
+function registerHtml(rows) {
+  return `
+    <table class="table register">
+      <thead>
+        <tr><th>País</th><th style="width: 78px">Tipo</th><th style="width: 40px">Tier</th>
+            <th>Nome</th><th>Formato</th>
+            <th class="num">Clubes</th><th class="num">Rodadas</th><th class="num">Jogos</th>
+            <th class="num">Sobe</th><th class="num">Desce</th><th>Id</th></tr>
+      </thead>
+      <tbody>
+        ${rows.map((row) => `
+          <tr>
+            <td>${esc(row.countryName || row.countryId)}</td>
+            <td><span class="badge badge-${row.kind === 'Divisão' ? 'ok' : 'neutral'}">${esc(row.kind)}</span></td>
+            <td class="num">${row.tier ?? '—'}</td>
+            <td>${esc(row.name)}</td>
+            <td>${esc(row.format)}</td>
+            <td class="num">${row.clubs}</td>
+            <td class="num">${row.rounds ?? '—'}</td>
+            <td class="num">${row.matches ?? '—'}</td>
+            <td class="num">${row.promotedIn ?? '—'}</td>
+            <td class="num">${row.relegatedOut ?? '—'}</td>
+            <td class="geo-id">${esc(row.id)}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    ${rows.length ? '' : '<div class="export-note">Nenhuma divisão nem competição ainda.</div>'}`;
+}
+
+// ------------------------------------------------------------- global search
+
+const SEARCH_CATEGORY = {
+  Club: 'Clubes',
+  Player: 'Jogadores',
+  Competition: 'Competições',
+  Country: 'Países',
+  GeoNode: 'Geografia',
+  Source: 'Fontes',
+  CalibrationConstant: 'Constantes de calibração',
+};
+
+/** Which screen an answer lives on. A result that cannot take you there is a list, not a search. */
+const SEARCH_VIEW = {
+  Club: 'clube',
+  Player: 'clube',
+  Competition: 'ligas',
+  Country: 'ligas',
+  GeoNode: 'geografia',
+  Source: 'auditoria',
+  CalibrationConstant: 'calibracao',
+};
+
+function searchPageHtml(result) {
+  return `
+    <div class="page">
+      <div class="section-head">
+        <h2>Busca</h2>
+        <span class="section-note">
+          clubes, jogadores, competições, países, geografia, fontes e constantes — sem acento e sem
+          maiúscula
+        </span>
+      </div>
+
+      <input class="tpin search-box" id="search-input" autocomplete="off" spellcheck="false"
+             placeholder="Digite ao menos duas letras…" value="${esc(state.searchQuery)}">
+
+      ${!result ? '' : result.total === 0 ? `
+        <div class="export-note" style="margin-top: var(--space-4)">
+          ${state.searchQuery.trim().length < 2
+            ? 'Duas letras ou mais: abaixo disso a resposta seria o mundo inteiro.'
+            : `Nada casa com “${esc(state.searchQuery)}”.`}
+        </div>` : `
+        <div class="export-note" style="margin-top: var(--space-4)">
+          ${result.total} resultado(s) em ${result.groups.length} categoria(s)
+        </div>
+
+        ${result.groups.map((group) => `
+          <div class="card blueprint" style="margin-top: var(--space-4)">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div class="card-kicker">
+              ${esc(SEARCH_CATEGORY[group.category] || group.category)} · ${group.total}
+              ${group.total > group.hits.length ? ` (mostrando ${group.hits.length})` : ''}
+            </div>
+
+            ${group.hits.map((hit, index) => `
+              <div class="search-hit" data-hit="${group.category}" data-hit-id="${esc(hit.entityId)}"
+                   data-hit-club="${esc(hit.clubId || '')}" data-hit-index="${index}">
+                <span class="search-label">${esc(hit.label)}</span>
+                <span class="search-detail">${esc(hit.detail)}</span>
+              </div>`).join('')}
+          </div>`).join('')}`}
+    </div>`;
+}
+
+async function showSearch() {
+  document.getElementById('content').innerHTML = searchPageHtml(state.search);
+
+  const input = document.getElementById('search-input');
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+/**
+ * Runs the query and redraws only the results, never the box: redrawing the input while somebody
+ * is typing in it moves their caret, which is the fastest way to make a search field unusable.
+ */
+async function runSearch(query) {
+  state.searchQuery = query;
+
+  const mine = ++searchToken;
+  const result = await getJson(`/api/search?q=${encodeURIComponent(query)}`);
+
+  // An earlier query that resolves late must not overwrite a later one's answer.
+  if (mine !== searchToken || state.view !== 'busca')
+    return;
+
+  state.search = result;
+
+  const input = document.getElementById('search-input');
+  const caret = input.selectionStart;
+  document.getElementById('content').innerHTML = searchPageHtml(result);
+
+  const redrawn = document.getElementById('search-input');
+  redrawn.focus();
+  redrawn.setSelectionRange(caret, caret);
+}
+
+let searchToken = 0;
+
+/** Opens what a hit points at, on the screen that screen lives on. */
+async function openHit(element) {
+  const category = element.dataset.hit;
+  const clubId = element.dataset.hitClub;
+
+  if (category === 'Player') {
+    state.clubId = clubId;
+    await showView('clube');
+    await openPlayer(element.dataset.hitId);
+    return;
+  }
+
+  if (category === 'Club') {
+    state.clubId = element.dataset.hitId;
+    await showView('clube');
+    return;
+  }
+
+  if (category === 'GeoNode') {
+    state.geoSel = element.dataset.hitId;
+    await showView('geografia');
+    return;
+  }
+
+  await showView(SEARCH_VIEW[category] || 'clube');
 }
 
 // ------------------------------------------------------- the calibration screen
@@ -2093,6 +2357,7 @@ async function showView(view) {
   else if (view === 'geografia') await showGeo();
   else if (view === 'ligas') await showLeagues();
   else if (view === 'calibracao') await showCalibration();
+  else if (view === 'busca') await showSearch();
   else await selectClub(state.clubId);
 }
 
@@ -2148,6 +2413,12 @@ function bindEvents() {
   });
 
   const content = document.getElementById('content');
+
+  // Search runs as you type, unlike every edit on this page, which commits on change. A query is
+  // not a decision — it is a question being narrowed, and waiting for blur would make it useless.
+  content.addEventListener('input', (event) => {
+    if (event.target.id === 'search-input') runSearch(event.target.value);
+  });
 
   // The sort select and every field control are re-rendered with the page, so the handlers
   // live on the container rather than the controls.
@@ -2228,6 +2499,19 @@ function bindEvents() {
 
     if (id === 'country-add') {
       addCountry();
+      return;
+    }
+
+    const surface = event.target.closest('[data-surface]');
+    if (surface) {
+      state.leagueView = surface.dataset.surface;
+      document.getElementById('content').innerHTML = leaguesPageHtml(state.countries);
+      return;
+    }
+
+    const hit = event.target.closest('[data-hit]');
+    if (hit) {
+      openHit(hit);
       return;
     }
 

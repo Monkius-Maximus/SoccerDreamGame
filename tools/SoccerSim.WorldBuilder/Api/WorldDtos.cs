@@ -1,4 +1,5 @@
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Squad;
 using SoccerSim.Core.World.Validation;
 
 namespace SoccerSim.WorldBuilder.Api;
@@ -43,4 +44,9 @@ public sealed record ClubPageDto(
     SquadMetrics Metrics,
     string? DerbyRivalName,
     StadiumProfileEntry? StadiumProfile,
-    double BandValueMult);
+    double BandValueMult,
+    /// <summary>The eleven this club would field, derived from the squad and the tactical style.
+    /// It travels with the page rather than on a route of its own because it is a function of two
+    /// things this same page edits — a second request could answer about a squad the page had
+    /// already changed.</summary>
+    ProbableElevenResult Eleven);

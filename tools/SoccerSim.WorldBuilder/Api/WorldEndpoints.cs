@@ -1,5 +1,6 @@
 using SoccerSim.Core.Persistence;
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Squad;
 using SoccerSim.Core.World.Validation;
 
 namespace SoccerSim.WorldBuilder.Api;
@@ -106,7 +107,8 @@ internal static class WorldEndpoints
             Metrics: SquadMetrics.For(squad),
             DerbyRivalName: derbyRivalName,
             StadiumProfile: profile,
-            BandValueMult: calibration.Bands[club.World.PrestigeBand].ValueMult));
+            BandValueMult: calibration.Bands[club.World.PrestigeBand].ValueMult,
+            Eleven: ProbableEleven.For(club, squad)));
     }
 
     private static async Task<IResult> GetSquadAsync(

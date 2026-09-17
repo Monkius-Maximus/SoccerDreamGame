@@ -54,6 +54,7 @@ app.MapGenerationApi();
 app.MapExchangeApi();
 app.MapAuditApi();
 app.MapScaleApi();
+app.MapSearchApi();
 app.MapHistoryApi();
 
 app.Run();

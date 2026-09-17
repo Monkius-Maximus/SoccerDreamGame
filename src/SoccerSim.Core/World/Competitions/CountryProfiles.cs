@@ -65,4 +65,36 @@ public static class CountryProfiles
                 Math.Round((double)group.Count() / players.Count, 4)))
             .ToList();
     }
+
+    /// <summary>
+    /// Each country code's display name, taken from the geo tree.
+    ///
+    /// <para>The ISO code ("BRA") and the geo node ("geo_bra") are different names for the same
+    /// place, and nothing links them directly — deliberately, since the code comes from the batch
+    /// and the node from the tree (sql/0014_world_countries.sql). A club knows both, so the link
+    /// goes through the clubs: walk up from a club's node until a Country is reached.</para>
+    ///
+    /// <para>A country with no clubs yet is therefore absent from the result, which is correct —
+    /// nothing in the world says what it is called.</para>
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> NamesFrom(WorldSnapshot world)
+    {
+        Dictionary<string, GeoNode> nodes = world.GeoNodes.ToDictionary(node => node.GeoNodeId);
+        var names = new Dictionary<string, string>();
+
+        foreach (ClubIdentity club in world.Clubs)
+        {
+            if (names.ContainsKey(club.Geography.CountryId))
+                continue;
+
+            GeoNode? node = nodes.GetValueOrDefault(club.Geography.GeoNodeId);
+            while (node is not null && node.Kind != GeoNodeKind.Country)
+                node = node.ParentId is null ? null : nodes.GetValueOrDefault(node.ParentId);
+
+            if (node is not null)
+                names[club.Geography.CountryId] = node.DisplayName;
+        }
+
+        return names;
+    }
 }
