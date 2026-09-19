@@ -186,10 +186,11 @@ internal static class EditEndpoints
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            await WorldHistory.RecordAsync(unitOfWork, $"Editar {edit.FieldPath}", cancellationToken);
+            long act = await WorldHistory.RecordAsync(
+                unitOfWork, $"Editar {edit.FieldPath}", cancellationToken);
 
             long version = await write();
-            await unitOfWork.Edits.RecordAsync(edit, cancellationToken);
+            await unitOfWork.Edits.RecordAsync(edit with { HistoryId = act }, cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
 
             return Results.Ok(new FieldPatchResponse(version, await unitOfWork.Edits.CountPendingAsync(cancellationToken)));

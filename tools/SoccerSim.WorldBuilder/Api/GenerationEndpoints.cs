@@ -152,7 +152,7 @@ internal static class GenerationEndpoints
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            await WorldHistory.RecordAsync(
+            long act = await WorldHistory.RecordAsync(
                 unitOfWork, $"Gerar elenco de {inputs.Club.Identity.ShortName}", cancellationToken);
 
             foreach (CharacterRecord player in existing)
@@ -168,7 +168,8 @@ internal static class GenerationEndpoints
                     "squad",
                     existing.Count == 0 ? null : $"{existing.Count} jogadores",
                     $"{squad.Count} jogadores gerados (semente {options.Seed})",
-                    DateTime.UtcNow),
+                    DateTime.UtcNow,
+                    act),
                 cancellationToken);
 
             await unitOfWork.CommitAsync(cancellationToken);

@@ -152,7 +152,9 @@ internal static class ExchangeEndpoints
             return Results.BadRequest(new { error = ex.Message, problems = ex.Errors });
         }
 
-        await WorldHistory.RecordAsync(
+        // The one act that records hundreds of edits. Every one of them carries this id, which is
+        // what lets the history screen show the import as a single line that opens.
+        long act = await WorldHistory.RecordAsync(
             unitOfWork,
             $"Importar CSV ({plan.Added} entram, {plan.Changed} mudam, {plan.Removed} saem)",
             cancellationToken);
@@ -163,15 +165,44 @@ internal static class ExchangeEndpoints
         {
             foreach (WorldChange change in plan.Changes)
             {
-                await unitOfWork.Edits.RecordAsync(
-                    new WorldEdit(
-                        change.Tab is "Jogadores" or "Audit_Jogadores" ? WorldEntityType.Character : WorldEntityType.Club,
-                        change.Id,
-                        $"csv:{change.Tab}",
-                        change.Change == ChangeKind.Added ? null : change.Label,
-                        change.Change == ChangeKind.Removed ? null : change.Label,
-                        DateTime.UtcNow),
-                    cancellationToken);
+                WorldEntityType type = change.Tab is "Jogadores" or "Audit_Jogadores"
+                    ? WorldEntityType.Character
+                    : WorldEntityType.Club;
+
+                // A row that enters or leaves IS the change, and its label is what moved.
+                if (change.Fields.Count == 0)
+                {
+                    await unitOfWork.Edits.RecordAsync(
+                        new WorldEdit(
+                            type,
+                            change.Id,
+                            $"csv:{change.Tab}",
+                            change.Change == ChangeKind.Added ? null : change.Label,
+                            change.Change == ChangeKind.Removed ? null : change.Label,
+                            DateTime.UtcNow,
+                            act),
+                        cancellationToken);
+
+                    continue;
+                }
+
+                // A row that MOVED knows exactly which cells moved, so record those — one entry per
+                // cell, the same shape a hand edit records. Putting the row's label on both sides of
+                // the arrow, as this used to, wrote "Elói → Elói" into the trail: a row that proves
+                // an edit happened and says nothing whatever about what it was.
+                foreach (FieldChange field in change.Fields)
+                {
+                    await unitOfWork.Edits.RecordAsync(
+                        new WorldEdit(
+                            type,
+                            change.Id,
+                            $"csv:{change.Tab}.{field.Column}",
+                            field.Before,
+                            field.After,
+                            DateTime.UtcNow,
+                            act),
+                        cancellationToken);
+                }
             }
 
             await unitOfWork.CommitAsync(cancellationToken);

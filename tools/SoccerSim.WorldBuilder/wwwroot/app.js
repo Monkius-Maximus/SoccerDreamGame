@@ -33,6 +33,8 @@ const state = {
   calibration: null,  // /api/calibration
   search: null,       // /api/search, while the search screen is open
   searchQuery: '',
+  timeline: null,     // /api/history/timeline — the stack and a page of the trail
+  trailOffset: 0,     // which page of the trail the history screen is showing
 };
 
 // ---------------------------------------------------------------- formatting
@@ -1741,6 +1743,197 @@ async function openHit(element) {
   await showView(SEARCH_VIEW[category] || 'clube');
 }
 
+// ------------------------------------------------------------- the history screen
+
+/**
+ * Two different things about the same past, and the screen says which is which rather than
+ * blending them into one list.
+ *
+ * The STACK is travel: 25 labelled acts, each a complete world you can return to. It is capped
+ * and it runs one way — returning to a point throws away what came after, and the button says how
+ * many before you press it.
+ *
+ * The TRAIL is evidence: every field change ever recorded, append-only, paged. It cannot be
+ * travelled and it is never rewritten — walking the world back does not edit the record of what
+ * was done, because a trail that edits itself is not evidence of anything.
+ */
+function historyPageHtml(timeline) {
+  const shown = timeline.edits.length;
+  const from = timeline.editOffset;
+
+  return `
+    <div class="page">
+      <div class="section-head">
+        <h2>Histórico</h2>
+        <span class="section-note">
+          ${timeline.steps.length} de ${timeline.cap} passos guardados ·
+          ${plural(timeline.editTotal, 'edição registrada', 'edições registradas')} ·
+          ${timeline.pending} sem exportar
+        </span>
+      </div>
+
+      <div class="history-layout">
+        <div>
+          <div class="section-head">
+            <h2 class="sub">Voltar a um ponto</h2>
+          </div>
+
+          ${timeline.steps.length === 0 ? `
+            <div class="export-note">
+              Nada feito ainda nesta sessão. Cada edição empilha um instantâneo do mundo inteiro
+              aqui, e a pilha guarda os ${timeline.cap} mais recentes.
+            </div>` : `
+            <div class="card blueprint">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              ${timeline.steps.map((step) => `
+                <div class="step">
+                  <span class="step-back">−${step.stepsBack}</span>
+                  <span class="step-body">
+                    <span class="step-label">${esc(step.label)}</span>
+                    <span class="step-detail">
+                      ${esc(when(step.takenAt))}${step.edits
+                        ? ` · ${plural(step.edits, 'edição', 'edições')}` : ''}
+                    </span>
+                  </span>
+                  <button class="btn btn-secondary" type="button" data-revert="${step.id}"
+                          data-revert-steps="${step.stepsBack}"
+                          data-revert-label="${esc(step.label)}">
+                    Voltar até aqui
+                  </button>
+                </div>`).join('')}
+            </div>
+
+            <div class="export-note history-warn">
+              Voltar a um ponto descarta os passos acima dele. Não há refazer: a pilha anda numa
+              direção só, e nada consegue repetir o que foi descartado.
+            </div>`}
+        </div>
+
+        <div>
+          <div class="section-head">
+            <h2 class="sub">Registro de edições</h2>
+            <span class="grow"></span>
+            ${timeline.editTotal === 0 ? '' : `
+              <span class="export-note">
+                ${from + 1}–${from + shown} de ${timeline.editTotal}
+              </span>
+              <button class="btn btn-secondary" type="button" id="trail-newer"
+                      ${from === 0 ? 'disabled' : ''}>Mais novas</button>
+              <button class="btn btn-secondary" type="button" id="trail-older"
+                      ${from + shown >= timeline.editTotal ? 'disabled' : ''}>Mais antigas</button>`}
+          </div>
+
+          ${timeline.editTotal === 0 ? `
+            <div class="export-note">
+              Nenhuma edição registrada. Este registro é acrescentado, nunca reescrito — é a
+              procedência de cada número que não veio do lote original.
+            </div>` : `
+            <div class="card blueprint tpscroll history-trail">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              ${timeline.edits.map(editRowHtml).join('')}
+            </div>`}
+        </div>
+      </div>
+    </div>`;
+}
+
+function editRowHtml(edit) {
+  const openable = edit.clubId !== null && edit.clubId !== undefined && edit.clubId !== '';
+
+  return `
+    <div class="trail-row${openable ? ' trail-row-open' : ''}"
+         ${openable ? `data-trail-club="${esc(edit.clubId)}"
+                       data-trail-player="${edit.entityType === 'Character' ? esc(edit.entityId) : ''}"` : ''}>
+      <div class="trail-head">
+        <span class="trail-name">${esc(edit.entityName || edit.entityId)}</span>
+        <span class="trail-field">${esc(edit.fieldPath)}</span>
+        <span class="grow"></span>
+        ${edit.exported ? '<span class="badge badge-ok">exportada</span>'
+          : '<span class="badge badge-warning">pendente</span>'}
+        <span class="trail-when">${esc(when(edit.editedAt))}</span>
+      </div>
+
+      <div class="trail-change">
+        <span class="trail-old">${edit.oldValue === null ? '—' : esc(edit.oldValue)}</span>
+        <span class="trail-arrow">→</span>
+        <span class="trail-new">${edit.newValue === null ? '—' : esc(edit.newValue)}</span>
+      </div>
+
+      <div class="trail-act">
+        ${edit.actLabel
+          ? esc(`parte de: ${edit.actLabel}`)
+          : edit.historyId
+            ? 'o passo desta ação já saiu da pilha — não dá mais para voltar até ela'
+            : 'sem ação associada'}
+      </div>
+    </div>`;
+}
+
+/** "1 edição" / "3 edições". Portuguese plurals are not a suffix, so both forms are given. */
+function plural(count, one, many) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** Local time, to the minute. The trail is read by the person who made the edits, on the machine
+ *  they made them on. */
+function when(iso) {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? String(iso) : at.toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+async function showHistory() {
+  const content = document.getElementById('content');
+
+  try {
+    state.timeline = await getJson(`/api/history/timeline?offset=${state.trailOffset}`);
+  } catch (error) {
+    content.innerHTML = errorHtml(`O histórico não respondeu: ${error.message}`);
+    return;
+  }
+
+  content.innerHTML = historyPageHtml(state.timeline);
+}
+
+/** Opens the club a trail row changed — or the player, if that is what it was. */
+async function openTrailRow(row) {
+  state.clubId = row.dataset.trailClub;
+  await showView('clube');
+
+  if (row.dataset.trailPlayer)
+    await openPlayer(row.dataset.trailPlayer);
+}
+
+/** Walks the world back to a chosen act. Asks first, and the question names the cost. */
+async function revertTo(button) {
+  const steps = Number(button.dataset.revertSteps);
+  const label = button.dataset.revertLabel;
+
+  const question = steps === 1
+    ? `Desfazer "${label}"?`
+    : `Voltar o mundo até antes de "${label}"?\n\n`
+      + `Isso descarta ${plural(steps, 'ação', 'ações')}, e não há refazer.`;
+
+  if (!confirm(question)) return;
+
+  const result = await postJson(`/api/history/revert/${button.dataset.revert}`, {});
+
+  if (!result.ok) {
+    toast(result.message);
+    await showHistory();
+    return;
+  }
+
+  setPending(result.body.pendingEdits);
+  await reloadWorld();
+  await refreshUndo();
+  state.trailOffset = 0;
+  await showHistory();
+  toast(`Voltou até antes de "${result.body.label}" — `
+    + `${plural(result.body.discarded, 'ação descartada', 'ações descartadas')}.`);
+}
+
 // ------------------------------------------------------- the calibration screen
 
 function calibrationPageHtml(review) {
@@ -2358,6 +2551,7 @@ async function showView(view) {
   else if (view === 'ligas') await showLeagues();
   else if (view === 'calibracao') await showCalibration();
   else if (view === 'busca') await showSearch();
+  else if (view === 'historico') await showHistory();
   else await selectClub(state.clubId);
 }
 
@@ -2512,6 +2706,28 @@ function bindEvents() {
     const hit = event.target.closest('[data-hit]');
     if (hit) {
       openHit(hit);
+      return;
+    }
+
+    const revert = event.target.closest('[data-revert]');
+    if (revert) {
+      revertTo(revert);
+      return;
+    }
+
+    if (id === 'trail-newer' || id === 'trail-older') {
+      state.trailOffset = Math.max(
+        0,
+        state.trailOffset + (id === 'trail-older' ? state.timeline.pageSize : -state.timeline.pageSize));
+      showHistory();
+      return;
+    }
+
+    // A trail row opens what it changed, which is what makes the record navigable rather than
+    // just readable.
+    const trail = event.target.closest('[data-trail-club]');
+    if (trail) {
+      openTrailRow(trail);
       return;
     }
 

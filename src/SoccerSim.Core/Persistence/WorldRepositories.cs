@@ -59,8 +59,28 @@ public interface IWorldEditLog
 
     Task<int> CountPendingAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Most recent first — the edit history, newest at the top.</summary>
-    Task<IReadOnlyList<WorldEdit>> ListRecentAsync(int limit, CancellationToken cancellationToken = default);
+    /// <summary>How many edits have ever been recorded. The history screen pages through them, and
+    /// a page has to know what it is a page of.</summary>
+    Task<int> CountAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// How many edits each of these acts produced, over the whole table rather than over whatever
+    /// page is on screen. The number beside an act is a fact about the act — counting only the
+    /// visible rows would make it shrink as the reader paged away from it.
+    /// </summary>
+    Task<IReadOnlyDictionary<long, int>> CountByActAsync(
+        IReadOnlyList<long> actIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// A page of the trail, most recent first. Paged rather than capped at some recent N: this
+    /// table is append-only and unbounded, and a screen that can only show the last fifty cannot
+    /// answer what happened before them.
+    /// </summary>
+    Task<IReadOnlyList<WorldEditEntry>> ListAsync(
+        int limit,
+        int offset,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Stamps every pending entry as exported and returns how many were cleared.</summary>
     Task<int> MarkExportedAsync(DateTime exportedAt, CancellationToken cancellationToken = default);
@@ -74,7 +94,16 @@ public sealed record WorldEdit(
     string FieldPath,
     string? OldValue,
     string? NewValue,
-    DateTime EditedAt);
+    DateTime EditedAt,
+    /// <summary>Which act on the undo stack this edit was part of, or null when it was recorded
+    /// without one. A correlation, not a reference: the stack is capped at 25, so an edit outlives
+    /// the snapshot it belongs to and the screen then says that act is too old to return to
+    /// (sql/0017_edit_history_link.sql).</summary>
+    long? HistoryId = null);
+
+/// <summary>A recorded edit as it reads back: the edit, its row id, and whether it has been
+/// exported yet.</summary>
+public sealed record WorldEditEntry(long Id, WorldEdit Edit, DateTime? ExportedAt);
 
 /// <summary>Thrown when a write loses a race: the row changed between the read and the write.
 /// The API turns this into a 409 so the client can re-read and decide, rather than clobbering.</summary>
@@ -191,20 +220,44 @@ public sealed record WorldHistoryEntry(
     string Scale);
 
 /// <summary>
+/// One step of the stack as the history screen draws it: what the act was and when, WITHOUT the
+/// documents. The pilot world's snapshot is 700 KB, so a timeline of 25 that carried them would be
+/// 17 MB to render a list of labels.
+/// </summary>
+public sealed record WorldHistoryStep(long Id, string Label, DateTime TakenAt);
+
+/// <summary>
 /// The undo stack. A stack, not a log: entries come back newest first and leave when they are
 /// used, and the oldest are dropped once the cap is reached — an undo you can only walk in one
 /// direction is the whole point.
 /// </summary>
 public interface IWorldHistory
 {
-    /// <summary>Pushes a snapshot, dropping the oldest entries beyond <paramref name="cap"/>.</summary>
-    Task PushAsync(string label, string document, string scale, int cap, CancellationToken cancellationToken = default);
+    /// <summary>Pushes a snapshot, dropping the oldest entries beyond <paramref name="cap"/>, and
+    /// returns the new entry's id so the edits of this act can be recorded against it.</summary>
+    Task<long> PushAsync(
+        string label,
+        string document,
+        string scale,
+        int cap,
+        CancellationToken cancellationToken = default);
 
     /// <summary>The newest entry without removing it — what the button's label says.</summary>
     Task<WorldHistoryEntry?> PeekAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Removes and returns the newest entry.</summary>
     Task<WorldHistoryEntry?> PopAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Every step the stack holds, newest first, with no documents attached.</summary>
+    Task<IReadOnlyList<WorldHistoryStep>> ListAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes that entry and everything newer, and returns it. This is what "go back to here"
+    /// does: each entry holds a COMPLETE world, so restoring the target once is the same result as
+    /// popping every step between — and the entries above it are discarded, because the stack runs
+    /// in one direction and there is no redo.
+    /// </summary>
+    Task<WorldHistoryEntry?> TakeUntilAsync(long entryId, CancellationToken cancellationToken = default);
 
     Task<int> CountAsync(CancellationToken cancellationToken = default);
 }

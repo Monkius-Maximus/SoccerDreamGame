@@ -205,7 +205,7 @@ internal static class WorldScaleEndpoints
         int stale = CalibrationReviewer.Review(world).StalePlayers;
         IReadOnlyList<CharacterRecord> recalculated = CalibrationReviewer.Recalculate(world);
 
-        await WorldHistory.RecordAsync(
+        long act = await WorldHistory.RecordAsync(
             unitOfWork, $"Recalcular o lote ({stale} divergentes)", cancellationToken);
         await WorldStore.ReplaceAsync(unitOfWork, world with { Characters = recalculated }, cancellationToken);
 
@@ -214,7 +214,7 @@ internal static class WorldScaleEndpoints
         {
             await unitOfWork.Edits.RecordAsync(
                 new WorldEdit(WorldEntityType.Club, "world", "calibration.recalculate",
-                    $"{stale} divergentes", "0 divergentes", DateTime.UtcNow),
+                    $"{stale} divergentes", "0 divergentes", DateTime.UtcNow, act),
                 cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
         }

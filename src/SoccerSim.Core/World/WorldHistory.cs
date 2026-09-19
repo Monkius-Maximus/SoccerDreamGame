@@ -33,8 +33,12 @@ public static class WorldHistory
     /// <summary>
     /// Records what the world looks like right now, labelled with what is about to happen to it.
     /// Called at the top of every write, before anything changes.
+    ///
+    /// <para>Returns the new entry's id. Every edit the act goes on to record carries it, so a CSV
+    /// import that changes four hundred rows reads as one act on the history screen rather than
+    /// four hundred unexplained lines (sql/0017_edit_history_link.sql).</para>
     /// </summary>
-    public static async Task RecordAsync(
+    public static async Task<long> RecordAsync(
         IWorldUnitOfWork unitOfWork,
         string label,
         CancellationToken cancellationToken = default)
@@ -42,7 +46,7 @@ public static class WorldHistory
         WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
         WorldScale scale = await WorldScale.LoadAsync(unitOfWork, cancellationToken);
 
-        await unitOfWork.History.PushAsync(
+        return await unitOfWork.History.PushAsync(
             label, WorldJsonWriter.Write(world), scale.ToJson(), Depth, cancellationToken);
     }
 
@@ -55,9 +59,33 @@ public static class WorldHistory
         CancellationToken cancellationToken = default)
     {
         WorldHistoryEntry? entry = await unitOfWork.History.PopAsync(cancellationToken);
-        if (entry is null)
-            return null;
+        return entry is null ? null : await RestoreAsync(unitOfWork, entry, cancellationToken);
+    }
 
+    /// <summary>
+    /// Walks back to a chosen point: restores that entry and discards it and everything newer.
+    /// Returns the label of the act that was undone, or null when that entry is no longer on the
+    /// stack — which is a normal answer, since the stack is capped and another tab may have
+    /// walked past it already.
+    ///
+    /// <para>One restore, not one per step. Every entry holds a COMPLETE world, so putting the
+    /// target back directly lands on exactly the same world as pressing undo the whole way — and
+    /// a test asserts that rather than leaving it as an argument.</para>
+    /// </summary>
+    public static async Task<string?> RevertToAsync(
+        IWorldUnitOfWork unitOfWork,
+        long entryId,
+        CancellationToken cancellationToken = default)
+    {
+        WorldHistoryEntry? entry = await unitOfWork.History.TakeUntilAsync(entryId, cancellationToken);
+        return entry is null ? null : await RestoreAsync(unitOfWork, entry, cancellationToken);
+    }
+
+    private static async Task<string> RestoreAsync(
+        IWorldUnitOfWork unitOfWork,
+        WorldHistoryEntry entry,
+        CancellationToken cancellationToken)
+    {
         // Read through the same reader every import uses, so a snapshot that cannot be read is a
         // loud failure here rather than a half-restored world.
         WorldSnapshot restored = WorldJsonReader.Read(entry.Document);
