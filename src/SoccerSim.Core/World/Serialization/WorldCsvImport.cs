@@ -197,16 +197,38 @@ public static class WorldCsvImport
         {
             existing.TryGetValue(clubId, out ClubIdentity? previous);
 
-            if (previous is null && !(kits.ContainsKey(clubId) && audits.ContainsKey(clubId)))
-            {
-                errors.Add(
-                    $"Clubes.csv · {clubId} is a new club, so Kits_Estadio and Audit_Clubes must be "
-                    + "imported with it — a club cannot be half-built out of defaults.");
-                continue;
-            }
-
             try
             {
+                // Provenance decides which tabs a club needs: an anchored club carries a deviation
+                // audit, a Regen club has none (ADR-0011 §2). It is read, never inferred from
+                // whether an audit row happens to be present.
+                Provenance provenance = row?.Enum<Provenance>("provenance") ?? previous!.Provenance;
+
+                if (previous is not null && previous.Provenance != provenance)
+                {
+                    errors.Add(
+                        $"Clubes.csv · {clubId} is {previous.Provenance} and the file says {provenance}. "
+                        + "Provenance does not change on import — that would invent or discard an anchor.");
+                    continue;
+                }
+
+                bool hasAudit = audits.ContainsKey(clubId);
+                if (provenance == Provenance.Regen && hasAudit)
+                {
+                    errors.Add($"Audit_Clubes.csv · {clubId} is a Regen club, so it has no anchor and no audit row.");
+                    continue;
+                }
+
+                if (previous is null && !(kits.ContainsKey(clubId) && (hasAudit || provenance == Provenance.Regen)))
+                {
+                    errors.Add(provenance == Provenance.Regen
+                        ? $"Clubes.csv · {clubId} is a new club, so Kits_Estadio must be imported with it "
+                          + "— a club cannot be half-built out of defaults."
+                        : $"Clubes.csv · {clubId} is a new anchored club, so Kits_Estadio and Audit_Clubes must be "
+                          + "imported with it — a club cannot be half-built out of defaults.");
+                    continue;
+                }
+
                 ClubIdentity club = previous ?? Skeleton(clubId);
 
                 if (row is not null)
@@ -541,8 +563,9 @@ public static class WorldCsvImport
 
     /// <summary>
     /// The shell a brand-new club is filled into. Every field it holds is overwritten from the
-    /// three tabs the import demands for a new club, so none of these values can survive — the
-    /// record simply has no other way to be constructed.
+    /// tabs the import demands for a new club, so none of these values can survive — the record
+    /// simply has no other way to be constructed. It starts without an audit: an anchored club
+    /// gets its audit from the Audit_Clubes row it is required to bring, a Regen club keeps none.
     /// </summary>
     private static ClubIdentity Skeleton(string clubId) => new(
         clubId,
@@ -562,9 +585,5 @@ public static class WorldCsvImport
             string.Empty),
         Stadium: new ClubStadium(string.Empty, 0, AtmosphereArchetype.Apathetic, PitchSurface.Pristine),
         AiProfile: new ClubAiProfile(TacticalStyle.Possession, TacticalStyleProvenance.Derived, 0, null),
-        Audit: new ClubDeviationAudit(
-            clubId, string.Empty, string.Empty, 0, 0, 0, string.Empty, string.Empty, 0, false,
-            string.Empty, NamingRule.Phonetic, string.Empty, null, string.Empty, string.Empty,
-            string.Empty, string.Empty, TacticalStyleProvenance.Derived, string.Empty, string.Empty,
-            false, string.Empty, string.Empty, null));
+        Audit: null);
 }

@@ -134,7 +134,7 @@ public static class WorldCsv
             "palettePrimary", "paletteSecondary", "paletteTertiary", "typographyStyle",
             "stadiumName", "stadiumCapacity", "atmosphereArchetype", "pitchSurface",
             "defaultTacticalStyle", "tacticalStyleProvenance", "homeAdvantageModifier",
-            "derbyRivalClubId", "namingRule",
+            "derbyRivalClubId", "namingRule", "provenance",
         ],
         world => world.Clubs.Select(club => new string?[]
         {
@@ -171,6 +171,7 @@ public static class WorldCsv
             CsvValue.Number(club.AiProfile.HomeAdvantageModifier),
             club.AiProfile.DerbyRivalClubId,
             CsvValue.Enum(club.World.NamingRule),
+            CsvValue.Enum(club.Provenance),
         }).ToList());
 
     private static CsvTab KitsAndStadium => new(
@@ -281,9 +282,10 @@ public static class WorldCsv
             "districtSourceCitation", "tacticalStyleProvenance", "tacticalStyleEvidence",
             "chromaticPolicy", "anchorFactsVerified", "reviewedBy", "reviewDate", "note",
         ],
-        world => world.Clubs.Select(club =>
+        // Only anchored clubs have a row: a Regen club has no anchor to audit (ADR-0011 §2).
+        world => world.Clubs.Where(club => club.Audit is not null).Select(club =>
         {
-            ClubDeviationAudit audit = club.Audit;
+            ClubDeviationAudit audit = club.Audit!;
             return new string?[]
             {
                 audit.ClubId,

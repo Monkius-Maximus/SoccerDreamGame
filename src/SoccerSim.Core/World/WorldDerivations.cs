@@ -24,7 +24,7 @@ public static class WorldDerivations
     public const string PolarityLightHome = "titular clara -> reserva no polo escuro da palette";
 
     /// <summary>Luminance below this makes the home shirt "dark" for kit polarity purposes.</summary>
-    private const double DarkHomeLuminanceThreshold = 0.35;
+    public const double DarkHomeLuminanceThreshold = 0.35;
 
     /// <summary>
     /// A whole world with every derived field recomputed. This is the state the database is
