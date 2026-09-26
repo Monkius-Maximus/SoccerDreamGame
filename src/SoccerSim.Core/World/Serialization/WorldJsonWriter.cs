@@ -159,7 +159,8 @@ public static class WorldJsonWriter
             ["homeAdvantageModifier"] = club.AiProfile.HomeAdvantageModifier,
             ["derbyRivalClubId"] = club.AiProfile.DerbyRivalClubId,
         },
-        ["audit"] = ClubAudit(club.Audit),
+        // Written as an explicit null for a Regen club, which is what the reader requires.
+        ["audit"] = club.Audit is { } audit ? ClubAudit(audit) : null,
     };
 
     private static JsonNode ClubAudit(ClubDeviationAudit audit) => new JsonObject

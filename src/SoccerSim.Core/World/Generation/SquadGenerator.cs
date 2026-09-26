@@ -145,8 +145,8 @@ public static class SquadGenerator
         // numbers, and the same (club, seed) pair always lands on the same stream.
         IDeterministicRandom rng = DeterministicRng.CreateStream(
             (ulong)masterSeed,
-            Hash(club.ClubId),
-            Hash("squad"),
+            StableHash.Of(club.ClubId),
+            StableHash.Of("squad"),
             unchecked((ulong)options.Seed));
 
         int size = Math.Clamp(options.SquadSize, SquadShape.MinSquadSize, SquadShape.MaxSquadSize);
@@ -208,24 +208,6 @@ public static class SquadGenerator
             assignments.Add((pool[i], roles[i]));
 
         return assignments;
-    }
-
-    /// <summary>A stable 64-bit hash of a string, for deriving stream keys. FNV-1a: tiny, and
-    /// fixed forever — unlike <see cref="string.GetHashCode()"/>, which is randomised per process
-    /// and would make every run produce a different squad.</summary>
-    private static ulong Hash(string value)
-    {
-        const ulong offsetBasis = 14695981039346656037;
-        const ulong prime = 1099511628211;
-
-        ulong hash = offsetBasis;
-        foreach (char c in value)
-        {
-            hash ^= c;
-            hash *= prime;
-        }
-
-        return hash;
     }
 
     /// <summary>Holds the per-squad state that must not leak between clubs: the numbers and names

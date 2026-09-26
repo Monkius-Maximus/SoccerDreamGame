@@ -17,7 +17,16 @@ public sealed record ClubIdentity(
     ClubKits Kits,
     ClubStadium Stadium,
     ClubAiProfile AiProfile,
-    ClubDeviationAudit Audit);
+    ClubDeviationAudit? Audit)
+{
+    /// <summary>
+    /// Whether this club was derived from a real one. Read from <see cref="Audit"/> rather than
+    /// stored beside it, so the two can never disagree: an anchored club carries its deviation
+    /// audit, and a generated (Regen) club has no anchor and therefore no audit to carry
+    /// (ADR-0011 §2) — the same rule a Regen player follows.
+    /// </summary>
+    public Provenance Provenance => Audit is null ? Provenance.Regen : Provenance.Anchored;
+}
 
 public sealed record ClubIdentityInfo(
     string OfficialName,

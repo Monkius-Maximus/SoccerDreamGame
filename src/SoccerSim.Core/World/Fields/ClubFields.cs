@@ -44,6 +44,14 @@ public static class ClubFields
             ? reader(club)
             : throw new FieldPatchException(path, "unknown field");
 
+    /// <summary>
+    /// The anchor audit an <c>audit.*</c> setter edits. A Regen club was never derived from a real
+    /// club, so it has no deviation to describe; writing one field would invent an anchor
+    /// (ADR-0011 §2). Refused by path, and nothing changes.
+    /// </summary>
+    private static ClubDeviationAudit AnchorAudit(ClubIdentity club, string path) =>
+        club.Audit ?? throw new FieldPatchException(path, "a Regen club has no anchor, so it has no deviation audit to edit");
+
     // ------------------------------------------------------------------ groups
 
     private static WorldFieldGroup Group(string name, string id, params WorldField[] fields) =>
@@ -216,28 +224,28 @@ public static class ClubFields
         // Null clears the rivalry — a club without a derby is a normal state, not a missing value.
         ["aiProfile.derbyRivalClubId"] = (club, value) => club with { AiProfile = club.AiProfile with { DerbyRivalClubId = FieldValue.OptionalText(value) } },
 
-        ["audit.anchorClubName"] = (club, value) => club with { Audit = club.Audit with { AnchorClubName = FieldValue.RequireText("audit.anchorClubName", value) } },
-        ["audit.anchorCityName"] = (club, value) => club with { Audit = club.Audit with { AnchorCityName = FieldValue.RequireText("audit.anchorCityName", value) } },
-        ["audit.anchorFoundingYear"] = (club, value) => club with { Audit = club.Audit with { AnchorFoundingYear = FieldValue.Int("audit.anchorFoundingYear", value) } },
-        ["audit.foundingDecadePreserved"] = (club, value) => club with { Audit = club.Audit with { FoundingDecadePreserved = FieldValue.Int("audit.foundingDecadePreserved", value) } },
-        ["audit.foundingSourceCitation"] = (club, value) => club with { Audit = club.Audit with { FoundingSourceCitation = FieldValue.RequireText("audit.foundingSourceCitation", value) } },
-        ["audit.anchorNickname"] = (club, value) => club with { Audit = club.Audit with { AnchorNickname = FieldValue.RequireText("audit.anchorNickname", value) } },
-        ["audit.nicknameCommercialLevel"] = (club, value) => club with { Audit = club.Audit with { NicknameCommercialLevel = FieldValue.IntInRange("audit.nicknameCommercialLevel", value, 0, 2) } },
-        ["audit.nicknameTrademarked"] = (club, value) => club with { Audit = club.Audit with { NicknameTrademarked = FieldValue.Flag("audit.nicknameTrademarked", value) } },
-        ["audit.nicknameEvidence"] = (club, value) => club with { Audit = club.Audit with { NicknameEvidence = FieldValue.RequireText("audit.nicknameEvidence", value) } },
-        ["audit.namingRuleReason"] = (club, value) => club with { Audit = club.Audit with { NamingRuleReason = FieldValue.RequireText("audit.namingRuleReason", value) } },
+        ["audit.anchorClubName"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.anchorClubName") with { AnchorClubName = FieldValue.RequireText("audit.anchorClubName", value) } },
+        ["audit.anchorCityName"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.anchorCityName") with { AnchorCityName = FieldValue.RequireText("audit.anchorCityName", value) } },
+        ["audit.anchorFoundingYear"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.anchorFoundingYear") with { AnchorFoundingYear = FieldValue.Int("audit.anchorFoundingYear", value) } },
+        ["audit.foundingDecadePreserved"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.foundingDecadePreserved") with { FoundingDecadePreserved = FieldValue.Int("audit.foundingDecadePreserved", value) } },
+        ["audit.foundingSourceCitation"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.foundingSourceCitation") with { FoundingSourceCitation = FieldValue.RequireText("audit.foundingSourceCitation", value) } },
+        ["audit.anchorNickname"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.anchorNickname") with { AnchorNickname = FieldValue.RequireText("audit.anchorNickname", value) } },
+        ["audit.nicknameCommercialLevel"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.nicknameCommercialLevel") with { NicknameCommercialLevel = FieldValue.IntInRange("audit.nicknameCommercialLevel", value, 0, 2) } },
+        ["audit.nicknameTrademarked"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.nicknameTrademarked") with { NicknameTrademarked = FieldValue.Flag("audit.nicknameTrademarked", value) } },
+        ["audit.nicknameEvidence"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.nicknameEvidence") with { NicknameEvidence = FieldValue.RequireText("audit.nicknameEvidence", value) } },
+        ["audit.namingRuleReason"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.namingRuleReason") with { NamingRuleReason = FieldValue.RequireText("audit.namingRuleReason", value) } },
         // Nullable: the window only applies when the naming rule is Phonetic.
-        ["audit.phoneticSimilarity"] = (club, value) => club with { Audit = club.Audit with { PhoneticSimilarity = FieldValue.OptionalFloat("audit.phoneticSimilarity", value) } },
-        ["audit.crestOriginalChargeReplaced"] = (club, value) => club with { Audit = club.Audit with { CrestOriginalChargeReplaced = FieldValue.RequireText("audit.crestOriginalChargeReplaced", value) } },
-        ["audit.crestSubstituteCharge"] = (club, value) => club with { Audit = club.Audit with { CrestSubstituteCharge = FieldValue.RequireText("audit.crestSubstituteCharge", value) } },
-        ["audit.crestSourceCitation"] = (club, value) => club with { Audit = club.Audit with { CrestSourceCitation = FieldValue.RequireText("audit.crestSourceCitation", value) } },
-        ["audit.districtSourceCitation"] = (club, value) => club with { Audit = club.Audit with { DistrictSourceCitation = FieldValue.RequireText("audit.districtSourceCitation", value) } },
-        ["audit.tacticalStyleEvidence"] = (club, value) => club with { Audit = club.Audit with { TacticalStyleEvidence = FieldValue.RequireText("audit.tacticalStyleEvidence", value) } },
-        ["audit.chromaticPolicy"] = (club, value) => club with { Audit = club.Audit with { ChromaticPolicy = FieldValue.RequireText("audit.chromaticPolicy", value) } },
-        ["audit.anchorFactsVerified"] = (club, value) => club with { Audit = club.Audit with { AnchorFactsVerified = FieldValue.Flag("audit.anchorFactsVerified", value) } },
-        ["audit.reviewedBy"] = (club, value) => club with { Audit = club.Audit with { ReviewedBy = FieldValue.RequireText("audit.reviewedBy", value) } },
-        ["audit.reviewDate"] = (club, value) => club with { Audit = club.Audit with { ReviewDate = FieldValue.RequireText("audit.reviewDate", value) } },
-        ["audit.note"] = (club, value) => club with { Audit = club.Audit with { Note = FieldValue.OptionalText(value) } },
+        ["audit.phoneticSimilarity"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.phoneticSimilarity") with { PhoneticSimilarity = FieldValue.OptionalFloat("audit.phoneticSimilarity", value) } },
+        ["audit.crestOriginalChargeReplaced"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.crestOriginalChargeReplaced") with { CrestOriginalChargeReplaced = FieldValue.RequireText("audit.crestOriginalChargeReplaced", value) } },
+        ["audit.crestSubstituteCharge"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.crestSubstituteCharge") with { CrestSubstituteCharge = FieldValue.RequireText("audit.crestSubstituteCharge", value) } },
+        ["audit.crestSourceCitation"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.crestSourceCitation") with { CrestSourceCitation = FieldValue.RequireText("audit.crestSourceCitation", value) } },
+        ["audit.districtSourceCitation"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.districtSourceCitation") with { DistrictSourceCitation = FieldValue.RequireText("audit.districtSourceCitation", value) } },
+        ["audit.tacticalStyleEvidence"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.tacticalStyleEvidence") with { TacticalStyleEvidence = FieldValue.RequireText("audit.tacticalStyleEvidence", value) } },
+        ["audit.chromaticPolicy"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.chromaticPolicy") with { ChromaticPolicy = FieldValue.RequireText("audit.chromaticPolicy", value) } },
+        ["audit.anchorFactsVerified"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.anchorFactsVerified") with { AnchorFactsVerified = FieldValue.Flag("audit.anchorFactsVerified", value) } },
+        ["audit.reviewedBy"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.reviewedBy") with { ReviewedBy = FieldValue.RequireText("audit.reviewedBy", value) } },
+        ["audit.reviewDate"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.reviewDate") with { ReviewDate = FieldValue.RequireText("audit.reviewDate", value) } },
+        ["audit.note"] = (club, value) => club with { Audit = AnchorAudit(club, "audit.note") with { Note = FieldValue.OptionalText(value) } },
     };
 
     // ----------------------------------------------------------------- readers
@@ -297,26 +305,26 @@ public static class ClubFields
         ["aiProfile.homeAdvantageModifier"] = club => FieldValue.Format(club.AiProfile.HomeAdvantageModifier),
         ["aiProfile.derbyRivalClubId"] = club => club.AiProfile.DerbyRivalClubId,
 
-        ["audit.anchorClubName"] = club => club.Audit.AnchorClubName,
-        ["audit.anchorCityName"] = club => club.Audit.AnchorCityName,
-        ["audit.anchorFoundingYear"] = club => FieldValue.Format(club.Audit.AnchorFoundingYear),
-        ["audit.foundingDecadePreserved"] = club => FieldValue.Format(club.Audit.FoundingDecadePreserved),
-        ["audit.foundingSourceCitation"] = club => club.Audit.FoundingSourceCitation,
-        ["audit.anchorNickname"] = club => club.Audit.AnchorNickname,
-        ["audit.nicknameCommercialLevel"] = club => FieldValue.Format(club.Audit.NicknameCommercialLevel),
-        ["audit.nicknameTrademarked"] = club => FieldValue.Format(club.Audit.NicknameTrademarked),
-        ["audit.nicknameEvidence"] = club => club.Audit.NicknameEvidence,
-        ["audit.namingRuleReason"] = club => club.Audit.NamingRuleReason,
-        ["audit.phoneticSimilarity"] = club => club.Audit.PhoneticSimilarity is { } value ? FieldValue.Format(value) : null,
-        ["audit.crestOriginalChargeReplaced"] = club => club.Audit.CrestOriginalChargeReplaced,
-        ["audit.crestSubstituteCharge"] = club => club.Audit.CrestSubstituteCharge,
-        ["audit.crestSourceCitation"] = club => club.Audit.CrestSourceCitation,
-        ["audit.districtSourceCitation"] = club => club.Audit.DistrictSourceCitation,
-        ["audit.tacticalStyleEvidence"] = club => club.Audit.TacticalStyleEvidence,
-        ["audit.chromaticPolicy"] = club => club.Audit.ChromaticPolicy,
-        ["audit.anchorFactsVerified"] = club => FieldValue.Format(club.Audit.AnchorFactsVerified),
-        ["audit.reviewedBy"] = club => club.Audit.ReviewedBy,
-        ["audit.reviewDate"] = club => club.Audit.ReviewDate,
-        ["audit.note"] = club => club.Audit.Note,
+        ["audit.anchorClubName"] = club => club.Audit?.AnchorClubName,
+        ["audit.anchorCityName"] = club => club.Audit?.AnchorCityName,
+        ["audit.anchorFoundingYear"] = club => club.Audit is { } audit ? FieldValue.Format(audit.AnchorFoundingYear) : null,
+        ["audit.foundingDecadePreserved"] = club => club.Audit is { } audit ? FieldValue.Format(audit.FoundingDecadePreserved) : null,
+        ["audit.foundingSourceCitation"] = club => club.Audit?.FoundingSourceCitation,
+        ["audit.anchorNickname"] = club => club.Audit?.AnchorNickname,
+        ["audit.nicknameCommercialLevel"] = club => club.Audit is { } audit ? FieldValue.Format(audit.NicknameCommercialLevel) : null,
+        ["audit.nicknameTrademarked"] = club => club.Audit is { } audit ? FieldValue.Format(audit.NicknameTrademarked) : null,
+        ["audit.nicknameEvidence"] = club => club.Audit?.NicknameEvidence,
+        ["audit.namingRuleReason"] = club => club.Audit?.NamingRuleReason,
+        ["audit.phoneticSimilarity"] = club => club.Audit?.PhoneticSimilarity is { } value ? FieldValue.Format(value) : null,
+        ["audit.crestOriginalChargeReplaced"] = club => club.Audit?.CrestOriginalChargeReplaced,
+        ["audit.crestSubstituteCharge"] = club => club.Audit?.CrestSubstituteCharge,
+        ["audit.crestSourceCitation"] = club => club.Audit?.CrestSourceCitation,
+        ["audit.districtSourceCitation"] = club => club.Audit?.DistrictSourceCitation,
+        ["audit.tacticalStyleEvidence"] = club => club.Audit?.TacticalStyleEvidence,
+        ["audit.chromaticPolicy"] = club => club.Audit?.ChromaticPolicy,
+        ["audit.anchorFactsVerified"] = club => club.Audit is { } audit ? FieldValue.Format(audit.AnchorFactsVerified) : null,
+        ["audit.reviewedBy"] = club => club.Audit?.ReviewedBy,
+        ["audit.reviewDate"] = club => club.Audit?.ReviewDate,
+        ["audit.note"] = club => club.Audit?.Note,
     };
 }

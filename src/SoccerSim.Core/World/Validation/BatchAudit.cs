@@ -196,8 +196,14 @@ public static class BatchAudit
             }
 
             AuditCode(findings, club, duplicateCodes);
-            AuditFounding(findings, club);
-            AuditCitations(findings, club);
+            // Founding and citation checks audit the deviation from a real anchor. A Regen club
+            // has no anchor to deviate from; its numbers come from the club profiles, whose
+            // sources travel with that file (ADR-0011 §2–3).
+            if (club.Audit is { } audit)
+            {
+                AuditFounding(findings, club, audit);
+                AuditCitations(findings, club, audit);
+            }
             AuditDerby(findings, club, clubs);
             AuditGeography(findings, club, nodes);
             AuditSquad(findings, club, squads[club.ClubId].ToList(), world.Calibration);
@@ -232,9 +238,8 @@ public static class BatchAudit
         }
     }
 
-    private static void AuditFounding(List<BatchFinding> findings, ClubIdentity club)
+    private static void AuditFounding(List<BatchFinding> findings, ClubIdentity club, ClubDeviationAudit audit)
     {
-        ClubDeviationAudit audit = club.Audit;
 
         // The whole point of the anchor is that the world DEVIATES from it. A generated year
         // identical to the real one is a club that quietly asserts a real fact.
@@ -269,11 +274,11 @@ public static class BatchAudit
         }
     }
 
-    private static void AuditCitations(List<BatchFinding> findings, ClubIdentity club)
+    private static void AuditCitations(List<BatchFinding> findings, ClubIdentity club, ClubDeviationAudit audit)
     {
         foreach ((string field, Func<ClubDeviationAudit, string?> read) in Citations)
         {
-            if (string.IsNullOrWhiteSpace(read(club.Audit)))
+            if (string.IsNullOrWhiteSpace(read(audit)))
             {
                 findings.Add(Club(FindingLevel.Error, "CITATION_MISSING", "Citação ausente",
                     $"{field} está vazio", club));
