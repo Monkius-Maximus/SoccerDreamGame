@@ -5,7 +5,14 @@ using SoccerSim.Core.World;
 namespace SoccerSim.Infrastructure.Sqlite.Repositories;
 
 /// <summary>
-/// Clubs and their 1:1 deviation audit.
+/// Clubs and, for anchored clubs, their 1:1 deviation audit.
+///
+/// <para>
+/// <c>Clubs.Provenance</c> and the audit row must agree: an Anchored club has exactly one audit
+/// row, a Regen club has none (ADR-0011 §2). Core computes provenance from the audit; the table
+/// stores it so a lost audit row is detected as corruption instead of being read as Regen. Every
+/// read checks the two, and a write that would change a club's provenance is refused.
+/// </para>
 ///
 /// <para>
 /// Every write runs the club through <see cref="WorldDerivations.Recalculate(ClubIdentity, WorldCalibration)"/>
@@ -28,7 +35,8 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
           AwayPattern, AwayShirt, AwayShorts, AwaySocks,
           DeltaE, DeltaEThreshold, PolarityRule,
           StadiumName, StadiumCapacity, AtmosphereArchetype, PitchSurface,
-          DefaultTacticalStyle, TacticalStyleProvenance, HomeAdvantageModifier, DerbyRivalClubId";
+          DefaultTacticalStyle, TacticalStyleProvenance, HomeAdvantageModifier, DerbyRivalClubId,
+          Provenance";
 
     private const string AuditColumns =
         @"ClubId, AnchorClubName, AnchorCityName, AnchorFoundingYear, GeneratedFoundingYear,
@@ -93,7 +101,8 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
                   AwayPattern, AwayShirt, AwayShorts, AwaySocks,
                   DeltaE, DeltaEThreshold, PolarityRule,
                   StadiumName, StadiumCapacity, AtmosphereArchetype, PitchSurface,
-                  DefaultTacticalStyle, TacticalStyleProvenance, HomeAdvantageModifier, DerbyRivalClubId)
+                  DefaultTacticalStyle, TacticalStyleProvenance, HomeAdvantageModifier, DerbyRivalClubId,
+                  Provenance)
               VALUES ($id, $code, $official, $short, $nick, $founded,
                   $city, $uf, $country, $geo, $district,
                   $band, $strength, $squad, $naming,
@@ -104,13 +113,15 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
                   $awayPattern, $awayShirt, $awayShorts, $awaySocks,
                   $deltaE, $deltaEThreshold, $polarity,
                   $stadium, $capacity, $atmosphere, $pitch,
-                  $tactical, $tacticalProv, $homeAdv, $rival);"))
+                  $tactical, $tacticalProv, $homeAdv, $rival,
+                  $provenance);"))
         {
             Bind(command, club);
             command.ExecuteNonQuery();
         }
 
-        WriteAudit(club.Audit, insert: true);
+        if (club.Audit is not null)
+            WriteAudit(club.Audit, insert: true);
         return Task.FromResult(club.ClubId);
     }
 
@@ -137,6 +148,7 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
     private long Write(ClubIdentity entity, long? expectedVersion)
     {
         ClubIdentity club = WorldDerivations.Recalculate(entity, _calibration());
+        RefuseProvenanceChange(club);
 
         // The version guard rides along in the WHERE clause, so checking and writing are one
         // atomic statement — a read-then-write would have a race of its own.
@@ -174,8 +186,25 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
             throw new WorldConcurrencyException(club.ClubId, expectedVersion.Value, ReadVersion(club.ClubId));
         }
 
-        WriteAudit(club.Audit, insert: false);
+        if (club.Audit is not null)
+            WriteAudit(club.Audit, insert: false);
         return ReadVersion(club.ClubId);
+    }
+
+    /// <summary>Turning an anchored club into a Regen one would discard its anchor, and the reverse
+    /// would invent one (ADR-0011 §2). Neither is an edit; both are a different club.</summary>
+    private void RefuseProvenanceChange(ClubIdentity club)
+    {
+        using SqliteCommand command = CreateCommand("SELECT Provenance FROM Clubs WHERE ClubId = $id;");
+        command.Parameters.AddWithValue("$id", club.ClubId);
+        if (command.ExecuteScalar() is not string stored)
+            return;
+
+        if (stored != club.Provenance.ToString())
+        {
+            throw new InvalidOperationException(
+                $"Club '{club.ClubId}' is {stored}; an update cannot make it {club.Provenance}.");
+        }
     }
 
     private long ReadVersion(string clubId)
@@ -215,11 +244,7 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
 
         var clubs = new List<ClubIdentity>(rows.Count);
         foreach (ClubRow row in rows)
-        {
-            if (!audits.TryGetValue(row.ClubId, out ClubDeviationAudit? audit))
-                throw new InvalidOperationException($"Club '{row.ClubId}' has no deviation audit row; the two are written together.");
-            clubs.Add(row.ToClub(audit));
-        }
+            clubs.Add(row.ToClub(audits.GetValueOrDefault(row.ClubId)));
 
         return clubs;
     }
@@ -236,16 +261,13 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
         return byClub;
     }
 
-    private ClubDeviationAudit LoadAudit(string clubId)
+    private ClubDeviationAudit? LoadAudit(string clubId)
     {
         using SqliteCommand command = CreateCommand($"SELECT {AuditColumns} FROM ClubDeviationAudit WHERE ClubId = $id;");
         command.Parameters.AddWithValue("$id", clubId);
         using SqliteDataReader reader = command.ExecuteReader();
 
-        if (!reader.Read())
-            throw new InvalidOperationException($"Club '{clubId}' has no deviation audit row; the two are written together.");
-
-        return MapAudit(reader);
+        return reader.Read() ? MapAudit(reader) : null;
     }
 
     private static ClubDeviationAudit MapAudit(SqliteDataReader reader) =>
@@ -385,10 +407,12 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
         command.Parameters.AddWithValue("$tacticalProv", club.AiProfile.TacticalStyleProvenance.ToString());
         command.Parameters.AddWithValue("$homeAdv", club.AiProfile.HomeAdvantageModifier);
         command.Parameters.AddWithValue("$rival", WorldRow.OrNull(club.AiProfile.DerbyRivalClubId));
+        command.Parameters.AddWithValue("$provenance", club.Provenance.ToString());
     }
 
     private static ClubRow ReadRow(SqliteDataReader reader) => new(
         reader.GetString(0),
+        WorldRow.Enum<Provenance>(reader, 44),
         new ClubIdentity(
             ClubId: reader.GetString(0),
             DisplayCode: reader.GetString(1),
@@ -443,12 +467,23 @@ internal sealed class ClubRepository : SqliteRepositoryBase, IClubRepository
                 WorldRow.Enum<TacticalStyleProvenance>(reader, 41),
                 reader.GetDouble(42),
                 WorldRow.NullableString(reader, 43)),
-            // Filled in by LoadAudit once the reader is closed.
-            Audit: null!));
+            // Filled in by ToClub once the audit query has run.
+            Audit: null));
 
-    /// <summary>A club read from the Clubs table, still missing its audit row.</summary>
-    private readonly record struct ClubRow(string ClubId, ClubIdentity Club)
+    /// <summary>A club read from the Clubs table, with the provenance the table stores for it and
+    /// still missing its audit row.</summary>
+    private readonly record struct ClubRow(string ClubId, Provenance Provenance, ClubIdentity Club)
     {
-        public ClubIdentity ToClub(ClubDeviationAudit audit) => Club with { Audit = audit };
+        /// <summary>Joins the audit row, which must match the stored provenance: a missing row on
+        /// an Anchored club, or any row on a Regen club, is corruption, never a provenance.</summary>
+        public ClubIdentity ToClub(ClubDeviationAudit? audit)
+        {
+            if (Provenance == Provenance.Anchored && audit is null)
+                throw new InvalidOperationException($"Club '{ClubId}' is Anchored but has no deviation audit row.");
+            if (Provenance == Provenance.Regen && audit is not null)
+                throw new InvalidOperationException($"Club '{ClubId}' is Regen but has a deviation audit row.");
+
+            return Club with { Audit = audit };
+        }
     }
 }

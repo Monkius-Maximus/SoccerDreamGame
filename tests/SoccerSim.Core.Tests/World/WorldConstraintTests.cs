@@ -121,14 +121,14 @@ public sealed class WorldConstraintTests
         ClubIdentity outsideWindow = club with
         {
             World = club.World with { NamingRule = NamingRule.Phonetic },
-            Audit = club.Audit with { NamingRule = NamingRule.Phonetic, PhoneticSimilarity = 0.867 },
+            Audit = club.Audit! with { NamingRule = NamingRule.Phonetic, PhoneticSimilarity = 0.867 },
         };
 
         await unitOfWork.Clubs.AddAsync(outsideWindow);
         ClubIdentity? stored = await unitOfWork.Clubs.GetAsync(outsideWindow.ClubId);
 
         Assert.NotNull(stored);
-        Assert.Equal(0.867, stored!.Audit.PhoneticSimilarity);
+        Assert.Equal(0.867, stored!.Audit!.PhoneticSimilarity);
 
         Finding phonetic = ClubInvariants
             .Check(stored, WorldFixture.BuildCalibration())

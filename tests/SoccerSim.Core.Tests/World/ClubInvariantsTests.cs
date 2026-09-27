@@ -38,7 +38,7 @@ public sealed class ClubInvariantsTests
     [Fact]
     public void AnchorFactsUnverified_IsError()
     {
-        var club = ValidClub() with { Audit = ValidClub().Audit with { AnchorFactsVerified = false } };
+        var club = ValidClub() with { Audit = ValidClub().Audit! with { AnchorFactsVerified = false } };
 
         var finding = Find(ClubInvariants.Check(club, Calibration), "ANCHOR_VERIFIED");
 
@@ -48,7 +48,7 @@ public sealed class ClubInvariantsTests
     [Fact]
     public void PhoneticSimilarity_OutsideWindow_IsError()
     {
-        var club = ValidClub() with { Audit = ValidClub().Audit with { PhoneticSimilarity = 0.40 } };
+        var club = ValidClub() with { Audit = ValidClub().Audit! with { PhoneticSimilarity = 0.40 } };
 
         var finding = Find(ClubInvariants.Check(club, Calibration), "PHONETIC_WINDOW");
 
@@ -58,7 +58,7 @@ public sealed class ClubInvariantsTests
     [Fact]
     public void PhoneticSimilarity_InsideWindow_IsOk()
     {
-        var club = ValidClub() with { Audit = ValidClub().Audit with { PhoneticSimilarity = 0.70 } };
+        var club = ValidClub() with { Audit = ValidClub().Audit! with { PhoneticSimilarity = 0.70 } };
 
         var finding = Find(ClubInvariants.Check(club, Calibration), "PHONETIC_WINDOW");
 

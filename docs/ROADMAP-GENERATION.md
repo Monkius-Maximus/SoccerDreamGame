@@ -21,10 +21,10 @@ Rules that apply to every sprint (see `CLAUDE.md`):
 
 ## Sprint 10 — A club from nothing
 
-### 10a — Core ✔ (branch `claude/world-builder-sprint-10a`, delivered as a patch)
+### 10a — Core ✔
 
-Implemented and tested in `SoccerSim.Core`. **Do not merge alone.** The SQLite repository still
-assumes every club has an audit (see 10b).
+Delivered as a patch from a session without NuGet or SQLite, applied on branch
+`claude/world-builder-sprint-10`.
 
 - `ClubIdentity.Audit` is nullable, and `ClubIdentity.Provenance` is computed from it (existing
   `Provenance` enum).
@@ -42,25 +42,33 @@ assumes every club has an audit (see 10b).
 - Data: `tests/SoccerSim.Core.Tests/TestData/club_profiles.json` (BRA, 11 cities). Measured
   from the pilot where possible, `authored` elsewhere.
 - Tests: `ClubGeneratorTests`, `KitDerivationTests`, `ClubProfilesReaderTests`,
-  `RegenClubTests`. Core suite: 3,172 cases green, excluding the SQLite-backed files, which could
-  not be run in that environment.
+  `RegenClubTests`.
 
-### 10b — Persistence, CLI, API, UI (Claude Code, in the repo)
+### 10b — Persistence, CLI, API, UI ✔
 
-- Migration `0018`: `Clubs.Provenance` (CHECK Anchored/Regen, existing rows = Anchored).
-  `ClubRepository` writes and reads the audit row only for Anchored clubs, and throws if the
-  column and the audit row disagree.
-- Persistence for club profiles: a table (or tables) plus `worldbuilder import-club-profiles
-  <file> [db]`, following the `import-profiles` pattern (migration 0013).
+- Migration `0018`: `Clubs.Provenance` (CHECK Anchored/Regen; the DEFAULT marks rows written
+  before it as Anchored). `ClubRepository` writes and reads the audit row only for Anchored
+  clubs, throws on read if the column and the audit row disagree, and refuses an update that
+  would change a club's provenance.
+- Club profiles are stored as the imported document, one row per country
+  (`ClubProfileDocuments`), and read back through `ClubProfilesReader`. The document has some two
+  dozen sourced sections and the generator only reads it whole, so normalising it bought
+  nothing. `worldbuilder import-club-profiles <file> [db]`.
+- `ClubCreation.PreviewAsync/ApplyAsync` (Core): loads the inputs, generates, and writes one
+  history entry plus one edit in a transaction. The CLI and the API both call it.
 - CLI: `worldbuilder generate-club <countryId> <band> <strength> <seed> [db]`.
-- API: `POST /api/clubs/generate/preview` and `/apply` (`ClubGenerationRequest`), written in
-  one history entry and covered by undo.
-- UI: a "Gerar clube" action with a preview of the club page, and the Regen badge (no audit
-  block) on the club page.
-- `WorldBuilder.Tests`: preview writes nothing; apply persists the Regen club; undo removes it;
-  CSV export/import of a Regen club via the API.
-- Re-run the SQLite-backed Core tests (`WorldPersistenceTests`, `DerivedFieldsTests`,
-  `WorldJsonReaderTests`, …) that were not executed in 10a.
+- API: `GET /api/clubs/generate/options` (countries with profiles, bands, a fresh seed),
+  `POST /api/clubs/generate/preview` and `/apply` (`ClubGenerationRequest`).
+- UI: "+ Gerar clube" in the rail opens a dialog with the four choices and a preview drawn with
+  the club page's own header and kit/palette cards. The club page shows a Regen badge and hides
+  the audit group for a Regen club.
+- A generated club is **not enrolled** in any division (owner's decision): enrol it from the
+  "Ligas" tab. Until then `worldbuilder project` refuses it, as it refuses any club outside a
+  national competition. Sprint 11 enrols the batch.
+- Tests: `ClubProvenancePersistenceTests` (Core, SQLite) and `ClubGenerationApiTests`
+  (WorldBuilder: preview writes nothing, apply persists a Regen club, undo removes it, JSON
+  `"audit": null`, CSV export and re-import of a Regen club). The SQLite-backed Core tests
+  that 10a could not run all pass.
 
 ## Sprint 11 — A whole division in one go (first usable batch)
 

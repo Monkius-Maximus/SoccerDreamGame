@@ -21,6 +21,7 @@ const state = {
   filters: { text: '', band: '', city: '' },
   squadSort: 'ovr',
   gen: null,          // the generator panel: { options, preview } while it is open
+  clubGen: null,      // the "Gerar clube" dialog: { options, request, preview, error, busy }
   exchange: null,     // the export/import dialog: { manifest, files, preview, error }
   view: 'clube',      // which screen the content panel shows
   audit: null,        // /api/audit, while the audit screen is open
@@ -619,14 +620,12 @@ function generatorHtml() {
     </div>`;
 }
 
-function clubPageHtml(page) {
-  const club = page.club;
-  const healthLabel = { Ok: 'invariantes ok', Warning: 'com avisos', Error: 'com erros' }[page.invariantLevel];
-  const capacityOutsideProfile = page.stadiumProfile
-    && (club.stadium.capacity < page.stadiumProfile.min || club.stadium.capacity > page.stadiumProfile.max);
+/** The club's name, place and tags — shared by the club page and the "Gerar clube" preview, so
+ *  a generated club is shown exactly as it will look once it exists. */
+function clubHeaderHtml(club, geoPath, invariantLevel, trailing) {
+  const healthLabel = { Ok: 'invariantes ok', Warning: 'com avisos', Error: 'com erros' }[invariantLevel];
 
   return `
-    <div class="page">
       <div class="club-header">
         ${crestHtml(club, 92)}
         <div style="flex: 1; min-width: 0">
@@ -639,22 +638,27 @@ function clubPageHtml(page) {
             <span class="sep">·</span>
             <span>${esc(club.geography.cityName)} / ${esc(club.geography.uf)}</span>
             <span class="sep">·</span>
-            <span>${esc(page.geoPath.join(' › '))}</span>
+            <span>${esc(geoPath.join(' › '))}</span>
           </div>
           <div class="club-tags">
+            ${club.provenance === 'Regen'
+              ? '<span class="tag tag-regen" title="Gerado do zero: sem âncora real, sem auditoria de desvio">Regen</span>'
+              : ''}
             <span class="tag tag-accent">Banda ${esc(club.world.prestigeBand)}</span>
             <span class="tag tag-outline">${esc(club.geography.districtArchetype)}</span>
             <span class="tag tag-outline">${esc(club.aiProfile.defaultTacticalStyle)}</span>
             <span class="tag tag-outline">${esc(club.world.namingRule)}</span>
-            <span class="health-tag badge-${LEVEL_CLASS[page.invariantLevel]}">${esc(healthLabel)}</span>
+            <span class="health-tag badge-${LEVEL_CLASS[invariantLevel]}">${esc(healthLabel)}</span>
           </div>
         </div>
 
-        <button class="btn btn-secondary" type="button" id="club-delete" style="flex: none">Apagar clube</button>
-      </div>
+        ${trailing}
+      </div>`;
+}
 
-      ${metricsHtml(page)}
-
+/** Kits and palette: the two cards that say what a club looks like. */
+function clubLookHtml(club) {
+  return `
       <div class="card-pair">
         <div class="card blueprint">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
@@ -702,7 +706,26 @@ function clubPageHtml(page) {
             <div class="factblock"><span class="factblock-key">Mote</span><span class="motto">“${esc(club.crest.motto)}”</span></div>
           </div>
         </div>
-      </div>
+      </div>`;
+}
+
+function clubPageHtml(page) {
+  const club = page.club;
+  // A Regen club has no anchor, so it has no deviation audit to show or edit (ADR-0011 §2).
+  const clubGroups = club.provenance === 'Regen'
+    ? state.fields.club.filter((group) => group.id !== 'audit')
+    : state.fields.club;
+  const capacityOutsideProfile = page.stadiumProfile
+    && (club.stadium.capacity < page.stadiumProfile.min || club.stadium.capacity > page.stadiumProfile.max);
+
+  return `
+    <div class="page">
+      ${clubHeaderHtml(club, page.geoPath, page.invariantLevel,
+        '<button class="btn btn-secondary" type="button" id="club-delete" style="flex: none">Apagar clube</button>')}
+
+      ${metricsHtml(page)}
+
+      ${clubLookHtml(club)}
 
       <div class="card-pair">
         <div class="card blueprint">
@@ -780,7 +803,7 @@ function clubPageHtml(page) {
           <button type="button" class="btn btn-primary" id="gen-open-empty">Gerar elenco</button>
         </div>`}
 
-      ${fieldGroupsHtml(state.fields.club, readPaths(club, state.fields.club), 'club')}
+      ${fieldGroupsHtml(clubGroups, readPaths(club, clubGroups), 'club')}
     </div>`;
 }
 
@@ -2414,6 +2437,154 @@ async function applyImport() {
     + `${result.body.removed} saíram.`);
 }
 
+// -------------------------------------------------------- club generation
+
+/** The "Gerar clube" dialog (Sprint 10b): the four choices, then the club they produce, drawn
+ *  with the club page's own header and cards. Nothing is written until "Criar clube". */
+function clubGenHtml() {
+  const gen = state.clubGen;
+  const request = gen.request;
+
+  if (gen.options.countries.length === 0) {
+    return `
+      <div class="dialog" role="dialog" aria-label="Gerar clube">
+        <button class="dialog-close" type="button" id="clubgen-close" aria-label="Fechar">✕</button>
+        <div class="card-kicker">Gerar clube</div>
+        <h2 class="dialog-title">Nenhum país tem perfis de clube</h2>
+        <p class="dialog-intro">
+          Um clube do zero sai dos perfis do país: cidades, nomes, cores, estádios. Importe-os antes com
+          <code>worldbuilder import-club-profiles &lt;arquivo&gt;</code>.
+        </p>
+      </div>`;
+  }
+
+  const select = (key, values) => `
+    <select class="tpin" data-clubgen="${key}">
+      ${values.map((value) => `
+        <option value="${esc(value)}"${request[key] === value ? ' selected' : ''}>${esc(value)}</option>`).join('')}
+    </select>`;
+
+  return `
+    <div class="dialog" role="dialog" aria-label="Gerar clube">
+      <button class="dialog-close" type="button" id="clubgen-close" aria-label="Fechar">✕</button>
+
+      <div class="card-kicker">Gerar clube</div>
+      <h2 class="dialog-title">Um clube do zero</h2>
+      <p class="dialog-intro">
+        Você escolhe onde, o tamanho e a força; o resto sai dos perfis do país. O clube nasce Regen — sem
+        âncora real e sem auditoria de desvio — e fora de qualquer divisão. Mesma semente, mesmo clube.
+      </p>
+
+      <div class="clubgen-controls">
+        ${genControl('País', 'só países com perfis de clube', select('countryId', gen.options.countries))}
+        ${genControl('Banda de prestígio', 'o tamanho do clube', select('band', gen.options.bands))}
+        ${genControl('Força', 'entre 0 e 1, ex.: 0,55',
+          `<input class="tpin" type="number" min="0.01" max="1" step="0.01" data-clubgen="clubStrength"
+                  value="${request.clubStrength ?? ''}" placeholder="0.55">`)}
+        ${genControl('Semente', 'mesma semente, mesmo clube',
+          `<input class="tpin" type="number" min="1" step="1" data-clubgen="seed" value="${request.seed}">`)}
+      </div>
+
+      <div class="export-actions">
+        <button type="button" class="btn btn-secondary" id="clubgen-preview"${gen.busy ? ' disabled' : ''}>Prévia</button>
+        <button type="button" class="btn btn-ghost" id="clubgen-reseed">↺ Nova semente</button>
+      </div>
+
+      ${gen.error ? `<div class="diff-errors tpscroll">${esc(gen.error)}</div>` : ''}
+
+      ${gen.preview ? `
+        <div class="clubgen-preview">
+          ${clubHeaderHtml(gen.preview.club, gen.preview.geoPath, gen.preview.invariantLevel, '')}
+          ${clubLookHtml(gen.preview.club)}
+        </div>
+        <div class="export-actions">
+          <button type="button" class="btn btn-primary" id="clubgen-apply"${gen.busy ? ' disabled' : ''}>Criar clube</button>
+          <button type="button" class="btn btn-secondary" id="clubgen-close-foot">Cancelar</button>
+          <span class="export-note">entra no histórico: Desfazer remove o clube</span>
+        </div>` : ''}
+    </div>`;
+}
+
+function renderClubGen() {
+  const modal = document.getElementById('clubgen-modal');
+  modal.innerHTML = state.clubGen ? clubGenHtml() : '';
+  modal.hidden = !state.clubGen;
+}
+
+async function openClubGen() {
+  try {
+    const options = await getJson('/api/clubs/generate/options');
+    state.clubGen = {
+      options,
+      request: { countryId: options.countries[0], band: options.bands[0], clubStrength: null, seed: options.seed },
+      preview: null,
+      error: null,
+      busy: false,
+    };
+  } catch (error) {
+    toast(`Não foi possível abrir a geração de clube: ${error.message}`);
+    return;
+  }
+
+  renderClubGen();
+}
+
+function closeClubGen() {
+  state.clubGen = null;
+  renderClubGen();
+}
+
+/** Any change to the choices invalidates the club on screen: it was drawn from the old ones. */
+function changeClubGenOption(control) {
+  const key = control.dataset.clubgen;
+  const numeric = key === 'clubStrength' || key === 'seed';
+  state.clubGen.request[key] = numeric ? (control.value === '' ? null : Number(control.value)) : control.value;
+  state.clubGen.preview = null;
+  renderClubGen();
+}
+
+async function sendClubGen(url) {
+  const gen = state.clubGen;
+  if (gen.request.clubStrength === null) {
+    gen.error = 'Informe a força do clube, entre 0 e 1.';
+    renderClubGen();
+    return null;
+  }
+
+  gen.busy = true;
+  renderClubGen();
+  const result = await postJson(url, gen.request);
+  gen.busy = false;
+  gen.error = result.ok ? null : result.message;
+  return result;
+}
+
+async function previewClubGen() {
+  const result = await sendClubGen('/api/clubs/generate/preview');
+  if (!result) return;
+  state.clubGen.preview = result.ok ? result.body : null;
+  renderClubGen();
+}
+
+async function applyClubGen() {
+  const result = await sendClubGen('/api/clubs/generate/apply');
+  if (!result) return;
+  if (!result.ok) {
+    renderClubGen();
+    return;
+  }
+
+  closeClubGen();
+  setPending(result.body.pendingEdits);
+
+  state.clubs = await getJson('/api/clubs');
+  renderFilters();
+  await refreshUndo();
+  state.clubId = result.body.clubId;
+  await showView('clube');
+  toast(`Clube criado: ${result.body.officialName}.`);
+}
+
 // -------------------------------------------------------- generator wiring
 
 /** The generator posts whole option objects rather than one field at a time, so it needs
@@ -2788,6 +2959,25 @@ function bindEvents() {
   });
 
   document.getElementById('undo').addEventListener('click', undo);
+  document.getElementById('clubgen-open').addEventListener('click', openClubGen);
+
+  const clubGen = document.getElementById('clubgen-modal');
+
+  clubGen.addEventListener('change', (event) => {
+    if (event.target.dataset.clubgen) changeClubGenOption(event.target);
+  });
+
+  clubGen.addEventListener('click', (event) => {
+    const id = event.target.id;
+    if (event.target === clubGen || id === 'clubgen-close' || id === 'clubgen-close-foot') closeClubGen();
+    else if (id === 'clubgen-preview') previewClubGen();
+    else if (id === 'clubgen-apply') applyClubGen();
+    else if (id === 'clubgen-reseed') {
+      state.clubGen.request.seed = Math.floor(Math.random() * 999_999) + 1;
+      state.clubGen.preview = null;
+      renderClubGen();
+    }
+  });
   document.getElementById('export-open').addEventListener('click', openExchange);
 
   const exchange = document.getElementById('export-modal');
@@ -2821,6 +3011,7 @@ function bindEvents() {
     if (event.key !== 'Escape') return;
     if (!modal.hidden) closePlayer();
     else if (!exchange.hidden) closeExchange();
+    else if (!clubGen.hidden) closeClubGen();
   });
 }
 

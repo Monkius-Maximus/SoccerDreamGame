@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.World;
 using SoccerSim.Core.World.Generation;
@@ -17,7 +18,7 @@ internal static class WorldBuilderCommands
 {
     private const string DefaultDatabase = "world.db";
 
-    private static readonly string[] Verbs = ["import", "import-profiles", "project", "help", "--help", "-h"];
+    private static readonly string[] Verbs = ["import", "import-profiles", "import-club-profiles", "generate-club", "project", "help", "--help", "-h"];
 
     /// <summary>
     /// Whether these arguments are one of the tool's own commands. Everything else — including
@@ -32,6 +33,8 @@ internal static class WorldBuilderCommands
         {
             "import" => await ImportAsync(args),
             "import-profiles" => await ImportProfilesAsync(args),
+            "import-club-profiles" => await ImportClubProfilesAsync(args),
+            "generate-club" => await GenerateClubAsync(args),
             "project" => await ProjectAsync(args),
             _ => Usage(exitCode: 0),
         };
@@ -136,6 +139,100 @@ internal static class WorldBuilderCommands
         }
     }
 
+    /// <summary>
+    /// worldbuilder import-club-profiles &lt;club_profiles.json&gt; [database]
+    ///
+    /// <para>One country per document (ADR-0011 §3). Importing a country again replaces that
+    /// country's profiles and leaves the others alone.</para>
+    /// </summary>
+    private static async Task<int> ImportClubProfilesAsync(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            return Usage(exitCode: 1,
+                "import-club-profiles needs a profile document: worldbuilder import-club-profiles <file.json> [database]");
+        }
+
+        string documentPath = args[1];
+        string databasePath = args.Length > 2 ? args[2] : DefaultDatabase;
+
+        if (!File.Exists(documentPath))
+        {
+            Console.Error.WriteLine($"Club profile document not found: {documentPath}");
+            return 1;
+        }
+
+        string json = await File.ReadAllTextAsync(documentPath);
+
+        var factory = SqliteConnectionFactory.ForFile(databasePath);
+        new MigrationRunner(factory).Migrate();
+
+        await using var unitOfWork = new SqliteWorldUnitOfWork(factory.Open());
+
+        try
+        {
+            // One statement, so no transaction: the document is validated before it is written.
+            ClubProfiles profiles = await unitOfWork.ClubProfiles.SaveAsync(json);
+
+            Console.WriteLine(
+                $"Imported club profiles for {profiles.CountryId} ({profiles.Cities.Count} cities) into {databasePath}.");
+            return 0;
+        }
+        catch (WorldImportException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// worldbuilder generate-club &lt;countryId&gt; &lt;band&gt; &lt;strength&gt; &lt;seed&gt; [database]
+    ///
+    /// <para>Writes one Regen club through <see cref="ClubCreation"/>, the same path the web tool's
+    /// "Gerar clube" takes, so it lands on the undo stack there too. Strength uses a dot decimal:
+    /// it is a command-line number, not the CSV dialect.</para>
+    /// </summary>
+    private static async Task<int> GenerateClubAsync(string[] args)
+    {
+        const string usage = "generate-club needs: worldbuilder generate-club <countryId> <band> <strength> <seed> [database]";
+        if (args.Length < 5)
+            return Usage(exitCode: 1, usage);
+
+        if (!Enum.TryParse(args[2], ignoreCase: false, out PrestigeBand band) || !Enum.IsDefined(band))
+        {
+            return Usage(exitCode: 1,
+                $"'{args[2]}' is not a prestige band (allowed: {string.Join(", ", Enum.GetNames<PrestigeBand>())}).");
+        }
+
+        if (!double.TryParse(args[3], NumberStyles.Float, CultureInfo.InvariantCulture, out double strength))
+            return Usage(exitCode: 1, $"'{args[3]}' is not a strength; use a dot decimal in (0, 1], e.g. 0.55.");
+
+        if (!long.TryParse(args[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out long seed))
+            return Usage(exitCode: 1, $"'{args[4]}' is not a seed; use an integer.");
+
+        string databasePath = args.Length > 5 ? args[5] : DefaultDatabase;
+
+        var factory = SqliteConnectionFactory.ForFile(databasePath);
+        new MigrationRunner(factory).Migrate();
+
+        await using var unitOfWork = new SqliteWorldUnitOfWork(factory.Open());
+
+        try
+        {
+            ClubIdentity club = await ClubCreation.ApplyAsync(
+                unitOfWork, new ClubGenerationRequest(args[1], band, strength, seed));
+
+            Console.WriteLine(
+                $"Generated {club.ClubId} {club.Identity.OfficialName} ({club.Geography.CityName}/{club.Geography.Uf}) into {databasePath}.");
+            return 0;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
     /// <summary>worldbuilder import &lt;file.json&gt; [database]</summary>
     private static async Task<int> ImportAsync(string[] args)
     {
@@ -186,6 +283,10 @@ internal static class WorldBuilderCommands
               worldbuilder                              start the web tool
               worldbuilder import <file.json> [db]      load a world document (default db: world.db)
               worldbuilder import-profiles <f> [db]     load the squad-generation profiles
+              worldbuilder import-club-profiles <f> [db]
+                                                        load one country's club-generation profiles
+              worldbuilder generate-club <countryId> <band> <strength> <seed> [db]
+                                                        generate one Regen club (strength in (0, 1])
               worldbuilder project [db]                 rewrite the legacy game tables from the world
 
             Importing is all-or-nothing: a document with any malformed record is rejected in full,

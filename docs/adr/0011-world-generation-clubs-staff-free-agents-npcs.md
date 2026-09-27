@@ -1,6 +1,6 @@
 # ADR-0011 — Generating the world: clubs from scratch, staff, free agents and career NPCs
 
-- Status: Accepted (Sprint 10a implemented in Core)
+- Status: Accepted (Sprint 10 implemented: Core, SQLite, CLI, API and UI)
 - Date: 2026-09-25, amended 2026-09-26
 - Applies to: `src/SoccerSim.Core/World/Generation/`, `src/SoccerSim.Core/World/`,
   `sql/`, `tools/SoccerSim.WorldBuilder/`, and (NPCs only) the career save schema

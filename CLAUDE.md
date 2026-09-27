@@ -82,9 +82,14 @@ dotnet test tools/SoccerSim.WorldBuilder.Tests
 # World Builder: load the canonical world into a local SQLite db, then serve the UI
 dotnet run --project tools/SoccerSim.WorldBuilder -- import tests/SoccerSim.Core.Tests/TestData/world.json
 dotnet run --project tools/SoccerSim.WorldBuilder -- import-profiles tests/SoccerSim.Core.Tests/TestData/gen_profiles.json
+dotnet run --project tools/SoccerSim.WorldBuilder -- import-club-profiles tests/SoccerSim.Core.Tests/TestData/club_profiles.json
 dotnet run --project tools/SoccerSim.WorldBuilder            # then open the URL it prints
 dotnet run --project tools/SoccerSim.WorldBuilder -- project  # rewrite legacy game tables from the world
 ```
+
+`dotnet run --project` runs with `tools/SoccerSim.WorldBuilder/` as the working directory, so
+relative paths (the documents above, and `world.db`) resolve there, not at the repo root. Pass
+absolute paths, or run from that directory.
 
 `world.db` is created in the working directory and is gitignored (`*.db`). Schema migrations
 run on startup, but data never does: a fresh checkout serves an empty world until you import.
