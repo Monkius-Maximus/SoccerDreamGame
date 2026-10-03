@@ -72,7 +72,7 @@ Delivered as a patch from a session without NuGet or SQLite, applied on branch
 
 ## Sprint 11 — A whole division in one go (first usable batch)
 
-### 11a — Core and data ✔ (branch `claude/world-builder-sprint-11`, delivered as a patch)
+### 11a — Core and data ✔ (delivered as a patch, applied on branch `claude/world-builder-sprint-11`)
 
 - `DivisionGenerator.Generate(request, pyramid, clubProfiles, playerProfiles, country, geoNodes,
   calibration, existingClubs, masterSeed)` → `DivisionGenerationResult(Clubs, Characters,
@@ -101,30 +101,48 @@ Delivered as a patch from a session without NuGet or SQLite, applied on branch
     `reservedNames`.
   - Tests that counted 18 geo nodes now count 75.
 - Tests: `DivisionGeneratorTests` (18 cases). Core suite without SQLite: 3,190 cases green. The
-  SQLite and WorldBuilder suites were not run in that environment.
+  SQLite and WorldBuilder suites were not run in that environment. Once applied, both suites ran:
+  two more literals in `WorldJsonReaderTests` still counted 18 geo nodes and were fixed.
 
-### 11b — Persistence, CLI, API, UI (Claude Code, in the repo)
+### 11b — Persistence, CLI, API, UI ✔
 
 - `DivisionCreation.PreviewAsync/ApplyAsync` in Core, following `ClubCreation`:
   - load the pyramid, the club and player profiles, the country profile, the calibration and
-    the master seed;
+    the master seed (a missing one throws with its remedy, the same messages as `ClubCreation`);
   - generate;
-  - write clubs, characters and the pyramid in **one transaction**, with **one history entry**
-    and one edit per club;
+  - write clubs, characters and every division of the country in **one transaction**, with
+    **one history entry** (`Gerar divisão <name> (<n> clubes)`) and one edit per club. The
+    pyramid is upserted inside that transaction, not through `WorldScale.SavePyramidAsync`,
+    which opens its own;
   - whole-world undo reverts the batch.
 - CLI: `worldbuilder generate-division <countryId> <divisionId> <clubCount> <band> <strengthMin>
   <strengthMax> <seed> [db]`.
 - API: `POST /api/countries/{countryId}/divisions/{divisionId}/generate/preview` and `/apply`.
-- UI: "Gerar divisão" on the "Ligas" tab. The preview table shows club, city, band, strength
-  and XI OVR, then a confirm step.
-- An existing `world.db` was imported before the 56 new cities existed. Re-import the world
-  document (or add the cities on the geo screen) before generating there.
-- Tests: preview writes nothing; apply persists N clubs and their squads, all enrolled; a
-  failure mid-batch writes nothing; undo restores the previous world exactly; after apply,
-  `worldbuilder project` succeeds.
+  The dialog's bands and fresh seed come from the existing `/api/clubs/generate/options`.
+- UI: "Gerar divisão" on each division row of the "Ligas" tab (disabled when the division is
+  full). The preview table shows club, city, band, strength, players and XI OVR
+  (`ProbableEleven`), then a confirm step.
+- An existing `world.db` was imported before the 56 new cities existed. With the new
+  `club_profiles.json` imported, generation there fails fast ("… which is not a City in the geo
+  tree"). Delete `world.db` and re-import the three documents, or add the cities on the geo
+  screen with the exact `geo_city_<slug>` ids.
+- Tests: `DivisionCreationPersistenceTests` (preview writes nothing; apply persists N clubs and
+  their squads, all enrolled, as one act; a failure mid-batch writes nothing; undo restores the
+  previous world exactly; missing profiles throw) and `DivisionGenerationApiTests`.
+- **Projection is not part of Sprint 11** (ADR-0011 amendment of 2026-10-03). The legacy
+  projection builds leagues from national competitions, not divisions (ADR-0005 §5, ADR-0007
+  §1), so a club enrolled only in a division cannot be projected. `worldbuilder project`
+  refuses and names every such club; a test pins that refusal. The same was already true of a
+  club from `generate-club`.
 
-**Owner can then:** generate Série B/C/D (or any country with profiles), inspect the result,
-export JSON/CSV and project it into the game tables.
+**Owner can now:** generate Série B/C/D (or any country with profiles), inspect the result and
+export JSON/CSV. Projecting the generated divisions into the game tables waits for its own step.
+
+### Next: projecting divisions
+
+Decide how a division becomes a legacy `League`: either the projection reads the pyramid, or
+generating a division also writes a national `Competition` edition (season, tier float and the
+other authored fields it needs). Either way it changes ADR-0005 and needs its own ADR first.
 
 ### Moved out of Sprint 11: name pools per nationality
 

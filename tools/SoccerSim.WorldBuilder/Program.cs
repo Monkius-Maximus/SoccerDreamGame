@@ -52,6 +52,7 @@ app.MapWorldApi();
 app.MapEditApi();
 app.MapGenerationApi();
 app.MapClubGenerationApi();
+app.MapDivisionGenerationApi();
 app.MapExchangeApi();
 app.MapAuditApi();
 app.MapScaleApi();

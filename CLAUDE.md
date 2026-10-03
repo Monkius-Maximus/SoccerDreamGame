@@ -84,6 +84,7 @@ dotnet run --project tools/SoccerSim.WorldBuilder -- import tests/SoccerSim.Core
 dotnet run --project tools/SoccerSim.WorldBuilder -- import-profiles tests/SoccerSim.Core.Tests/TestData/gen_profiles.json
 dotnet run --project tools/SoccerSim.WorldBuilder -- import-club-profiles tests/SoccerSim.Core.Tests/TestData/club_profiles.json
 dotnet run --project tools/SoccerSim.WorldBuilder            # then open the URL it prints
+dotnet run --project tools/SoccerSim.WorldBuilder -- generate-division BRA <divisionId> 20 B4 0.62 0.80 <seed>  # fill a division
 dotnet run --project tools/SoccerSim.WorldBuilder -- project  # rewrite legacy game tables from the world
 ```
 

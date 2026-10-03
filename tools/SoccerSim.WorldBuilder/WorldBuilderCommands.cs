@@ -18,7 +18,7 @@ internal static class WorldBuilderCommands
 {
     private const string DefaultDatabase = "world.db";
 
-    private static readonly string[] Verbs = ["import", "import-profiles", "import-club-profiles", "generate-club", "project", "help", "--help", "-h"];
+    private static readonly string[] Verbs = ["import", "import-profiles", "import-club-profiles", "generate-club", "generate-division", "project", "help", "--help", "-h"];
 
     /// <summary>
     /// Whether these arguments are one of the tool's own commands. Everything else — including
@@ -35,6 +35,7 @@ internal static class WorldBuilderCommands
             "import-profiles" => await ImportProfilesAsync(args),
             "import-club-profiles" => await ImportClubProfilesAsync(args),
             "generate-club" => await GenerateClubAsync(args),
+            "generate-division" => await GenerateDivisionAsync(args),
             "project" => await ProjectAsync(args),
             _ => Usage(exitCode: 0),
         };
@@ -233,6 +234,71 @@ internal static class WorldBuilderCommands
         }
     }
 
+    /// <summary>
+    /// worldbuilder generate-division &lt;countryId&gt; &lt;divisionId&gt; &lt;clubCount&gt; &lt;band&gt;
+    /// &lt;strengthMin&gt; &lt;strengthMax&gt; &lt;seed&gt; [database]
+    ///
+    /// <para>Fills a division with Regen clubs and their squads through
+    /// <see cref="DivisionCreation"/>, the same path the web tool's "Gerar divisão" takes: one
+    /// transaction, one step on the undo stack. Strengths use dot decimals, like
+    /// <c>generate-club</c>.</para>
+    /// </summary>
+    private static async Task<int> GenerateDivisionAsync(string[] args)
+    {
+        const string usage = "generate-division needs: worldbuilder generate-division <countryId> <divisionId> "
+            + "<clubCount> <band> <strengthMin> <strengthMax> <seed> [database]";
+        if (args.Length < 8)
+            return Usage(exitCode: 1, usage);
+
+        if (!int.TryParse(args[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out int clubCount))
+            return Usage(exitCode: 1, $"'{args[3]}' is not a club count; use an integer.");
+
+        if (!Enum.TryParse(args[4], ignoreCase: false, out PrestigeBand band) || !Enum.IsDefined(band))
+        {
+            return Usage(exitCode: 1,
+                $"'{args[4]}' is not a prestige band (allowed: {string.Join(", ", Enum.GetNames<PrestigeBand>())}).");
+        }
+
+        if (!double.TryParse(args[5], NumberStyles.Float, CultureInfo.InvariantCulture, out double strengthMin))
+            return Usage(exitCode: 1, $"'{args[5]}' is not a strength; use a dot decimal in (0, 1], e.g. 0.55.");
+
+        if (!double.TryParse(args[6], NumberStyles.Float, CultureInfo.InvariantCulture, out double strengthMax))
+            return Usage(exitCode: 1, $"'{args[6]}' is not a strength; use a dot decimal in (0, 1], e.g. 0.80.");
+
+        if (!long.TryParse(args[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out long seed))
+            return Usage(exitCode: 1, $"'{args[7]}' is not a seed; use an integer.");
+
+        string databasePath = args.Length > 8 ? args[8] : DefaultDatabase;
+
+        var factory = SqliteConnectionFactory.ForFile(databasePath);
+        new MigrationRunner(factory).Migrate();
+
+        await using var unitOfWork = new SqliteWorldUnitOfWork(factory.Open());
+
+        try
+        {
+            DivisionGenerationResult batch = await DivisionCreation.ApplyAsync(
+                unitOfWork,
+                new DivisionGenerationRequest(args[1], args[2], clubCount, band, strengthMin, strengthMax, seed));
+
+            foreach (ClubIdentity club in batch.Clubs)
+            {
+                Console.WriteLine(
+                    $"  {club.ClubId} {club.Identity.OfficialName} ({club.Geography.CityName}/{club.Geography.Uf}) "
+                    + $"strength {club.World.ClubStrength.ToString("0.00", CultureInfo.InvariantCulture)}");
+            }
+
+            Console.WriteLine(
+                $"Generated {batch.Clubs.Count} clubs and {batch.Characters.Count} players into {args[2]} in {databasePath}.");
+            return 0;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
     /// <summary>worldbuilder import &lt;file.json&gt; [database]</summary>
     private static async Task<int> ImportAsync(string[] args)
     {
@@ -287,6 +353,8 @@ internal static class WorldBuilderCommands
                                                         load one country's club-generation profiles
               worldbuilder generate-club <countryId> <band> <strength> <seed> [db]
                                                         generate one Regen club (strength in (0, 1])
+              worldbuilder generate-division <countryId> <divisionId> <clubCount> <band> <strengthMin> <strengthMax> <seed> [db]
+                                                        fill a division with Regen clubs and squads
               worldbuilder project [db]                 rewrite the legacy game tables from the world
 
             Importing is all-or-nothing: a document with any malformed record is rejected in full,

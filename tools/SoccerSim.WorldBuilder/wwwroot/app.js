@@ -22,6 +22,7 @@ const state = {
   squadSort: 'ovr',
   gen: null,          // the generator panel: { options, preview } while it is open
   clubGen: null,      // the "Gerar clube" dialog: { options, request, preview, error, busy }
+  divGen: null,       // the "Gerar divisão" dialog: { countryId, division, free, options, request, preview, error, busy }
   exchange: null,     // the export/import dialog: { manifest, files, preview, error }
   view: 'clube',      // which screen the content panel shows
   audit: null,        // /api/audit, while the audit screen is open
@@ -1359,6 +1360,8 @@ function divisionRowsHtml(entry, division, unenrolled) {
       <td class="num">${division.shape ? division.shape.matches : '—'}</td>
       <td class="pyramid-actions">
         <button class="btn btn-secondary" type="button" data-division-save>Gravar</button>
+        <button class="btn btn-secondary" type="button" data-division-generate
+                ${enrolled.length >= division.clubCount ? 'disabled' : ''}>Gerar divisão</button>
         <button class="btn btn-secondary" type="button" data-division-delete
                 ${enrolled.length ? 'disabled' : ''}>Apagar</button>
       </td>
@@ -1583,6 +1586,11 @@ function handleLeaguesClick(event) {
 
   const row = button.closest('[data-division]');
   if (!row) return false;
+
+  if (button.dataset.divisionGenerate !== undefined) {
+    openDivGen(row.dataset.country, row.dataset.division);
+    return true;
+  }
 
   if (button.dataset.divisionSave !== undefined) {
     editScale(scaleUrl(row.dataset.country, row.dataset.division), 'PUT', {
@@ -2585,6 +2593,182 @@ async function applyClubGen() {
   toast(`Clube criado: ${result.body.officialName}.`);
 }
 
+// ------------------------------------------------------ division generation
+
+/** The "Gerar divisão" dialog (Sprint 11b): how many clubs, how big, how strong, then the batch
+ *  they produce as a table. Nothing is written until "Criar divisão". */
+function divGenHtml() {
+  const gen = state.divGen;
+  const request = gen.request;
+  const title = `${esc(gen.division.name)} · ${gen.free} vaga(s) livre(s) de ${gen.division.clubCount}`;
+
+  if (!gen.options.countries.includes(gen.countryId)) {
+    return `
+      <div class="dialog" role="dialog" aria-label="Gerar divisão">
+        <button class="dialog-close" type="button" id="divgen-close" aria-label="Fechar">✕</button>
+        <div class="card-kicker">Gerar divisão</div>
+        <h2 class="dialog-title">${esc(gen.countryId)} não tem perfis de clube</h2>
+        <p class="dialog-intro">
+          Os clubes de uma divisão saem dos perfis do país: cidades, nomes, cores, estádios. Importe-os antes com
+          <code>worldbuilder import-club-profiles &lt;arquivo&gt;</code>.
+        </p>
+      </div>`;
+  }
+
+  const number = (key, attrs, placeholder) => `
+    <input class="tpin" type="number" ${attrs} data-divgen="${key}"
+           value="${request[key] ?? ''}" placeholder="${placeholder}">`;
+
+  return `
+    <div class="dialog" role="dialog" aria-label="Gerar divisão">
+      <button class="dialog-close" type="button" id="divgen-close" aria-label="Fechar">✕</button>
+
+      <div class="card-kicker">Gerar divisão</div>
+      <h2 class="dialog-title">${title}</h2>
+      <p class="dialog-intro">
+        Você escolhe quantos clubes, a banda e a faixa de força; as forças descem em escada do máximo
+        ao mínimo. Cada clube nasce Regen, com elenco, e já inscrito nesta divisão. Mesma semente,
+        mesma divisão.
+      </p>
+
+      <div class="divgen-controls">
+        ${genControl('Clubes', `até ${gen.free}`, number('clubCount', `min="1" max="${gen.free}" step="1"`, gen.free))}
+        ${genControl('Banda de prestígio', 'uma para o lote', `
+          <select class="tpin" data-divgen="band">
+            ${gen.options.bands.map((band) => `
+              <option value="${esc(band)}"${request.band === band ? ' selected' : ''}>${esc(band)}</option>`).join('')}
+          </select>`)}
+        ${genControl('Força mínima', 'entre 0 e 1, ex.: 0,62', number('strengthMin', 'min="0.01" max="1" step="0.01"', '0.62'))}
+        ${genControl('Força máxima', 'entre 0 e 1, ex.: 0,80', number('strengthMax', 'min="0.01" max="1" step="0.01"', '0.80'))}
+        ${genControl('Semente', 'mesma semente, mesma divisão', number('seed', 'min="1" step="1"', ''))}
+      </div>
+
+      <div class="export-actions">
+        <button type="button" class="btn btn-secondary" id="divgen-preview"${gen.busy ? ' disabled' : ''}>Prévia</button>
+        <button type="button" class="btn btn-ghost" id="divgen-reseed">↺ Nova semente</button>
+      </div>
+
+      ${gen.error ? `<div class="diff-errors tpscroll">${esc(gen.error)}</div>` : ''}
+
+      ${gen.preview ? `
+        <div class="clubgen-preview">
+          <table class="table divgen-table">
+            <thead>
+              <tr><th>Clube</th><th>Cidade</th><th>Banda</th>
+                  <th class="num">Força</th><th class="num">Jogadores</th><th class="num">OVR do XI</th></tr>
+            </thead>
+            <tbody>
+              ${gen.preview.clubs.map((club) => `
+                <tr>
+                  <td><strong>${esc(club.shortName)}</strong>
+                    <span class="export-note">${esc(club.officialName)}</span></td>
+                  <td>${esc(club.cityName)}/${esc(club.uf)}</td>
+                  <td>${esc(club.band)}</td>
+                  <td class="num">${decimal(club.strength, 2)}</td>
+                  <td class="num">${club.players}</td>
+                  <td class="num">${club.xiOverall}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="export-actions">
+          <button type="button" class="btn btn-primary" id="divgen-apply"${gen.busy ? ' disabled' : ''}>Criar divisão</button>
+          <button type="button" class="btn btn-secondary" id="divgen-close-foot">Cancelar</button>
+          <span class="export-note">${gen.preview.clubs.length} clubes · ${gen.preview.players} jogadores ·
+            entra no histórico como um passo: Desfazer remove o lote inteiro</span>
+        </div>` : ''}
+    </div>`;
+}
+
+function renderDivGen() {
+  const modal = document.getElementById('divgen-modal');
+  modal.innerHTML = state.divGen ? divGenHtml() : '';
+  modal.hidden = !state.divGen;
+}
+
+async function openDivGen(countryId, divisionId) {
+  const entry = state.countries.find((country) => country.country.countryId === countryId);
+  const division = entry.pyramid.divisions.find((d) => d.divisionId === divisionId);
+  const free = division.clubCount - division.clubIds.length;
+
+  try {
+    const options = await getJson('/api/clubs/generate/options');
+    state.divGen = {
+      countryId,
+      division,
+      free,
+      options,
+      request: { clubCount: free, band: options.bands[0], strengthMin: null, strengthMax: null, seed: options.seed },
+      preview: null,
+      error: null,
+      busy: false,
+    };
+  } catch (error) {
+    toast(`Não foi possível abrir a geração de divisão: ${error.message}`);
+    return;
+  }
+
+  renderDivGen();
+}
+
+function closeDivGen() {
+  state.divGen = null;
+  renderDivGen();
+}
+
+/** Any change to the choices invalidates the table on screen: it was drawn from the old ones. */
+function changeDivGenOption(control) {
+  const key = control.dataset.divgen;
+  state.divGen.request[key] = key === 'band' ? control.value : (control.value === '' ? null : Number(control.value));
+  state.divGen.preview = null;
+  renderDivGen();
+}
+
+async function sendDivGen(action) {
+  const gen = state.divGen;
+  if (gen.request.clubCount === null || gen.request.strengthMin === null || gen.request.strengthMax === null) {
+    gen.error = 'Informe o número de clubes e as forças mínima e máxima.';
+    renderDivGen();
+    return null;
+  }
+
+  gen.busy = true;
+  renderDivGen();
+  const url = `/api/countries/${encodeURIComponent(gen.countryId)}/divisions/`
+    + `${encodeURIComponent(gen.division.divisionId)}/generate/${action}`;
+  const result = await postJson(url, gen.request);
+  gen.busy = false;
+  gen.error = result.ok ? null : result.message;
+  return result;
+}
+
+async function previewDivGen() {
+  const result = await sendDivGen('preview');
+  if (!result) return;
+  state.divGen.preview = result.ok ? result.body : null;
+  renderDivGen();
+}
+
+async function applyDivGen() {
+  const name = state.divGen.division.name;
+  const result = await sendDivGen('apply');
+  if (!result) return;
+  if (!result.ok) {
+    renderDivGen();
+    return;
+  }
+
+  closeDivGen();
+  setPending(result.body.pendingEdits);
+
+  state.clubs = await getJson('/api/clubs');
+  renderFilters();
+  renderRail();
+  await refreshUndo();
+  await showLeagues();
+  toast(`${name}: ${result.body.clubs} clubes e ${result.body.players} jogadores criados.`);
+}
+
 // -------------------------------------------------------- generator wiring
 
 /** The generator posts whole option objects rather than one field at a time, so it needs
@@ -2976,6 +3160,24 @@ function bindEvents() {
       state.clubGen.request.seed = Math.floor(Math.random() * 999_999) + 1;
       state.clubGen.preview = null;
       renderClubGen();
+    }
+  });
+
+  const divGen = document.getElementById('divgen-modal');
+
+  divGen.addEventListener('change', (event) => {
+    if (event.target.dataset.divgen) changeDivGenOption(event.target);
+  });
+
+  divGen.addEventListener('click', (event) => {
+    const id = event.target.id;
+    if (event.target === divGen || id === 'divgen-close' || id === 'divgen-close-foot') closeDivGen();
+    else if (id === 'divgen-preview') previewDivGen();
+    else if (id === 'divgen-apply') applyDivGen();
+    else if (id === 'divgen-reseed') {
+      state.divGen.request.seed = Math.floor(Math.random() * 999_999) + 1;
+      state.divGen.preview = null;
+      renderDivGen();
     }
   });
   document.getElementById('export-open').addEventListener('click', openExchange);
