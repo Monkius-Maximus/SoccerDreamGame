@@ -74,7 +74,7 @@ public sealed class ExchangeApiTests : IClassFixture<WorldBuilderApp>
         Assert.Contains("terraparalela_base_de_mundo.json", response.Content.Headers.ContentDisposition!.ToString());
         Assert.Equal(20, document["clubs"]!.AsArray().Count);
         Assert.Equal(688, document["players"]!.AsArray().Count);
-        Assert.Equal(18, document["geoNodes"]!.AsArray().Count);
+        Assert.Equal(75, document["geoNodes"]!.AsArray().Count);
         Assert.NotNull(document["calibration"]);
         Assert.NotNull(document["positionWeights"]);
     }

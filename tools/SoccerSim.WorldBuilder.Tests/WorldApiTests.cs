@@ -33,7 +33,7 @@ public sealed class WorldApiTests : IClassFixture<WorldBuilderApp>
         Assert.Equal("ClubIdentity v2", world["schemaVersion"]!.GetValue<string>());
         Assert.Equal(20, world["counts"]!["clubs"]!.GetValue<int>());
         Assert.Equal(688, world["counts"]!["characters"]!.GetValue<int>());
-        Assert.Equal(18, world["counts"]!["geoNodes"]!.GetValue<int>());
+        Assert.Equal(75, world["counts"]!["geoNodes"]!.GetValue<int>());
         Assert.Equal(27, world["counts"]!["sources"]!.GetValue<int>());
     }
 
@@ -166,7 +166,7 @@ public sealed class WorldApiTests : IClassFixture<WorldBuilderApp>
     {
         JsonArray geo = (await GetJsonAsync("/api/geo")).AsArray();
 
-        Assert.Equal(18, geo.Count);
+        Assert.Equal(75, geo.Count);
         JsonNode root = geo.Single(node => node!["geoNodeId"]!.GetValue<string>() == "geo_world")!;
         Assert.Equal("World", root["kind"]!.GetValue<string>());
 

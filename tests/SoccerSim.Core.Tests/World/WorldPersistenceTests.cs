@@ -21,7 +21,7 @@ public sealed class WorldPersistenceTests
 
         WorldImportReport report = await new WorldImporter(unitOfWork).ImportAsync(WorldFixture.Json);
 
-        Assert.Equal(18, report.GeoNodes);
+        Assert.Equal(75, report.GeoNodes);
         Assert.Equal(20, report.Clubs);
         Assert.Equal(688, report.Characters);
         Assert.Equal(1, report.Competitions);
@@ -34,7 +34,7 @@ public sealed class WorldPersistenceTests
         await using WorldDatabase database = await WorldDatabase.WithRealWorldImported();
         await using SqliteWorldUnitOfWork unitOfWork = database.OpenUnitOfWork();
 
-        Assert.Equal(18, (await unitOfWork.GeoNodes.ListAsync()).Count);
+        Assert.Equal(75, (await unitOfWork.GeoNodes.ListAsync()).Count);
         Assert.Equal(20, (await unitOfWork.Clubs.ListAsync()).Count);
         Assert.Equal(688, (await unitOfWork.Characters.ListAsync()).Count);
         Assert.Single(await unitOfWork.Competitions.ListAsync());

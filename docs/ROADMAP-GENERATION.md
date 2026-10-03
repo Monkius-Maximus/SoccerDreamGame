@@ -72,32 +72,67 @@ Delivered as a patch from a session without NuGet or SQLite, applied on branch
 
 ## Sprint 11 — A whole division in one go (first usable batch)
 
-**Delivers:** `DivisionGenerator.Generate(country, divisionId, clubCount, band, strengthMin,
-strengthMax, seed)` → clubs + squads (existing `SquadGenerator`, `SquadGenerationOptions.For`).
+### 11a — Core and data ✔ (branch `claude/world-builder-sprint-11`, delivered as a patch)
 
-- Strength is spread across `[strengthMin, strengthMax]` and each club's squad targets its own
-  strength.
-- The same division never repeats a city more times than the city pool allows, and never
-  repeats a display code.
-- **Data prerequisites:**
-  - **More cities.** The 11 profile cities have room for only about 28 more clubs
-    (`maxClubs`), and every new city needs a geo node first.
-  - **Name pools per nationality**, replacing the single 108/338 pool, with the source
-    recorded. `GenerationProfiles` gains `NamesByNationality`. A nationality in the
-  country mix with no pool throws.
-- Writing: preview first, then apply as one transaction. Every club goes through
-  `PyramidEditor.Enrol`. One history entry covers the batch, and whole-world undo reverts it.
+- `DivisionGenerator.Generate(request, pyramid, clubProfiles, playerProfiles, country, geoNodes,
+  calibration, existingClubs, masterSeed)` → `DivisionGenerationResult(Clubs, Characters,
+  Pyramid)`. Pure. Each club comes from `ClubGenerator` and its squad from `SquadGenerator`, each
+  club is enrolled with `PyramidEditor.Enrol`, and the context is folded so the batch never
+  collides with itself or the world.
+- Strength is a ladder from `strengthMax` down to `strengthMin` (two decimals). It is not
+  sampled, because a seeded spread can bunch the whole field together.
+- Refused before anything is drawn:
+  - an unknown division;
+  - more clubs than free seats;
+  - a strength range outside 0 < min ≤ max ≤ 1;
+  - a pyramid or country profile from another country.
+- **Bug fixed on the way.** `SquadGenerator` cut club slugs to 12 characters, so two clubs in a
+  long-named city (`clb_bra_saogoncalo_001`/`_002`) shared player ids. The slug is no longer cut.
+  Every pilot slug is at most 9 characters, so pilot player ids are unchanged.
+- **Data: more cities.**
+  - The world document now has the Centro-Oeste region and 56 more cities (75 geo nodes). Rule:
+    every state capital plus every municipality with at least 400,000 residents in the IBGE Censo
+    2022.
+  - `club_profiles.json` has 67 cities: `population2022` (IBGE), `weight = √population` (an
+    authored transform, because linear weights gave São Paulo a quarter of every division), and
+    `maxClubs` by population (≥5M 8, ≥2M 6, ≥1M 4, otherwise 3; 2 for the small pilot towns).
+  - Districts: measured for the 11 pilot cities, an authored rule for the rest.
+  - Real clubs named after the new cities (Joinville, Manaus, Brasília, …) were added to
+    `reservedNames`.
+  - Tests that counted 18 geo nodes now count 75.
+- Tests: `DivisionGeneratorTests` (18 cases). Core suite without SQLite: 3,190 cases green. The
+  SQLite and WorldBuilder suites were not run in that environment.
+
+### 11b — Persistence, CLI, API, UI (Claude Code, in the repo)
+
+- `DivisionCreation.PreviewAsync/ApplyAsync` in Core, following `ClubCreation`:
+  - load the pyramid, the club and player profiles, the country profile, the calibration and
+    the master seed;
+  - generate;
+  - write clubs, characters and the pyramid in **one transaction**, with **one history entry**
+    and one edit per club;
+  - whole-world undo reverts the batch.
 - CLI: `worldbuilder generate-division <countryId> <divisionId> <clubCount> <band> <strengthMin>
   <strengthMax> <seed> [db]`.
 - API: `POST /api/countries/{countryId}/divisions/{divisionId}/generate/preview` and `/apply`.
-- UI: a "Gerar divisão" action on the pyramid screen (the "Ligas" tab), with a preview table (club, city, band,
-  strength, XI OVR) and a confirm step.
+- UI: "Gerar divisão" on the "Ligas" tab. The preview table shows club, city, band, strength
+  and XI OVR, then a confirm step.
+- An existing `world.db` was imported before the 56 new cities existed. Re-import the world
+  document (or add the cities on the geo screen) before generating there.
+- Tests: preview writes nothing; apply persists N clubs and their squads, all enrolled; a
+  failure mid-batch writes nothing; undo restores the previous world exactly; after apply,
+  `worldbuilder project` succeeds.
 
-**Tests:** determinism; count and enrolment are correct; a failure mid-batch writes nothing;
-undo restores the previous world exactly; after apply, `worldbuilder project` succeeds.
-
-**Owner can now:** generate Série B/C/D (or any country with profiles), inspect the result,
+**Owner can then:** generate Série B/C/D (or any country with profiles), inspect the result,
 export JSON/CSV and project it into the game tables.
+
+### Moved out of Sprint 11: name pools per nationality
+
+They were listed as a prerequisite, but they turned out not to be one. With 108 first names
+and 338 surnames (~36,000 combinations) a 20-club division does not run out of names. What is
+missing is realism: an Uruguayan named "João Silva". That needs sourced pools per nationality
+and a `GenerationProfiles` change that touches persistence (migration 0013). It is its own step,
+after Sprint 11 and before the staff (Sprint 12), which will reuse the same pools.
 
 ## Sprint 12 — Staff (coach first)
 
