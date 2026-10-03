@@ -1,0 +1,642 @@
+{
+  "countryId": "BRA",
+  "sources": {
+    "pilot20": {
+      "description": "Frequências medidas nos 20 clubes da liga piloto (tests/SoccerSim.Core.Tests/TestData/world.json, schema ClubIdentity v2, masterSeed 20260814). Amostra pequena: pesos refletem a Série A piloto, não o país inteiro."
+    },
+    "authored": {
+      "description": "Autorado para a Sprint 10 (ADR-0011): pools inventados e genéricos, sem fonte externa e sem referência a clubes reais. PROVISÓRIO — revisar antes do lote."
+    }
+  },
+  "cities": {
+    "source": [
+      "pilot20",
+      "authored"
+    ],
+    "note": "weight e districts medidos no piloto; preposition e maxClubs autorados. Só as 11 cidades que já existem na árvore geográfica — a Sprint 11 precisa de mais cidades.",
+    "items": [
+      {
+        "geoNodeId": "geo_city_rio",
+        "uf": "RJ",
+        "preposition": "do",
+        "weight": 4,
+        "maxClubs": 6,
+        "districts": {
+          "Affluent": 3,
+          "WorkingClass": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_sao",
+        "uf": "SP",
+        "preposition": "de",
+        "weight": 3,
+        "maxClubs": 6,
+        "districts": {
+          "WorkingClass": 2,
+          "Affluent": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_bhz",
+        "uf": "MG",
+        "preposition": "de",
+        "weight": 2,
+        "maxClubs": 4,
+        "districts": {
+          "Affluent": 1,
+          "HistoricCenter": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_cwb",
+        "uf": "PR",
+        "preposition": "de",
+        "weight": 2,
+        "maxClubs": 4,
+        "districts": {
+          "Affluent": 2
+        }
+      },
+      {
+        "geoNodeId": "geo_city_poa",
+        "uf": "RS",
+        "preposition": "de",
+        "weight": 2,
+        "maxClubs": 4,
+        "districts": {
+          "Affluent": 1,
+          "WorkingClass": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_ssa",
+        "uf": "BA",
+        "preposition": "de",
+        "weight": 2,
+        "maxClubs": 4,
+        "districts": {
+          "HistoricCenter": 1,
+          "Outskirts": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_bel",
+        "uf": "PA",
+        "preposition": "de",
+        "weight": 1,
+        "maxClubs": 4,
+        "districts": {
+          "Affluent": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_bra",
+        "uf": "SP",
+        "preposition": "de",
+        "weight": 1,
+        "maxClubs": 4,
+        "districts": {
+          "HistoricCenter": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_cha",
+        "uf": "SC",
+        "preposition": "de",
+        "weight": 1,
+        "maxClubs": 4,
+        "districts": {
+          "HistoricCenter": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_mir",
+        "uf": "SP",
+        "preposition": "de",
+        "weight": 1,
+        "maxClubs": 4,
+        "districts": {
+          "HistoricCenter": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_san",
+        "uf": "SP",
+        "preposition": "de",
+        "weight": 1,
+        "maxClubs": 4,
+        "districts": {
+          "Coastal": 1
+        }
+      }
+    ]
+  },
+  "clubPrefixes": {
+    "source": [
+      "pilot20"
+    ],
+    "note": "Prefixos genéricos de tipo de clube vistos nos nomes oficiais do piloto (os disfarces 'Sociedade <Estado> <Direção> <Letra>' da regra RegionalCode ficam de fora, e 'Clube Náutico' também: é tipo de clube de beira d'água, não serve para qualquer cidade).",
+    "weights": {
+      "Associação Atlética": 2,
+      "Esporte Clube": 1,
+      "Clube Atlético": 1,
+      "Sociedade Esportiva": 1,
+      "Sport Club": 1
+    }
+  },
+  "qualifiers": {
+    "source": [
+      "authored"
+    ],
+    "note": "Segundo nome quando a cidade já tem um clube com o nome dela. Palavras genéricas comuns em nomes de clubes brasileiros, por tipo de bairro.",
+    "values": {
+      "WorkingClass": [
+        "Operário",
+        "Ferroviário",
+        "Industrial",
+        "Proletário"
+      ],
+      "Docklands": [
+        "Portuário",
+        "Marítimo",
+        "Estivador"
+      ],
+      "HistoricCenter": [
+        "Comercial",
+        "Central",
+        "Colonial"
+      ],
+      "Affluent": [
+        "Recreativo",
+        "Ginástico",
+        "Social"
+      ],
+      "University": [
+        "Universitário",
+        "Acadêmico",
+        "Estudantil"
+      ],
+      "Outskirts": [
+        "Independente",
+        "União",
+        "Periférico"
+      ],
+      "Coastal": [
+        "Praiano",
+        "Atlântico",
+        "Litorâneo"
+      ]
+    }
+  },
+  "reservedNames": {
+    "source": [
+      "authored"
+    ],
+    "note": "Nomes curtos de clubes reais conhecidos que um clube gerado não pode usar como nome curto (higiene de IP). Lista inicial autorada a partir de conhecimento geral das Séries A e B — revisar e ampliar.",
+    "items": [
+      "São Paulo",
+      "Santos",
+      "Palmeiras",
+      "Corinthians",
+      "Flamengo",
+      "Fluminense",
+      "Vasco",
+      "Botafogo",
+      "Grêmio",
+      "Internacional",
+      "Cruzeiro",
+      "Atlético Mineiro",
+      "Bahia",
+      "Vitória",
+      "Sport",
+      "Náutico",
+      "Santa Cruz",
+      "Fortaleza",
+      "Ceará",
+      "Coritiba",
+      "Athletico",
+      "Paraná",
+      "Goiás",
+      "Guarani",
+      "Ponte Preta",
+      "Juventude",
+      "Chapecoense",
+      "Avaí",
+      "Figueirense",
+      "Remo",
+      "Paysandu",
+      "América",
+      "Criciúma",
+      "Cuiabá",
+      "Bragantino",
+      "Mirassol",
+      "Red Bull Bragantino",
+      "Atlético Goianiense",
+      "CRB",
+      "CSA",
+      "ABC",
+      "Londrina",
+      "Operário Ferroviário",
+      "Vila Nova",
+      "Botafogo-SP",
+      "Novorizontino",
+      "Ituano",
+      "Tombense"
+    ]
+  },
+  "colorFamilies": {
+    "source": [
+      "pilot20"
+    ],
+    "note": "Cores do piloto agrupadas por família; o hex é o representante mais frequente. Pesos = contagem por posição na paleta.",
+    "items": [
+      {
+        "id": "vermelho",
+        "hex": "#C8102E",
+        "primaryWeight": 5,
+        "secondaryWeight": 2,
+        "tertiaryWeight": 1
+      },
+      {
+        "id": "azul",
+        "hex": "#1B3F8B",
+        "primaryWeight": 4,
+        "secondaryWeight": 0,
+        "tertiaryWeight": 1
+      },
+      {
+        "id": "preto",
+        "hex": "#000000",
+        "primaryWeight": 4,
+        "secondaryWeight": 6,
+        "tertiaryWeight": 4
+      },
+      {
+        "id": "verde",
+        "hex": "#0B6E3E",
+        "primaryWeight": 3,
+        "secondaryWeight": 2,
+        "tertiaryWeight": 0
+      },
+      {
+        "id": "branco",
+        "hex": "#FFFFFF",
+        "primaryWeight": 2,
+        "secondaryWeight": 10,
+        "tertiaryWeight": 8
+      },
+      {
+        "id": "grena",
+        "hex": "#7E2233",
+        "primaryWeight": 1,
+        "secondaryWeight": 0,
+        "tertiaryWeight": 0
+      },
+      {
+        "id": "amarelo",
+        "hex": "#F5C518",
+        "primaryWeight": 1,
+        "secondaryWeight": 0,
+        "tertiaryWeight": 0
+      },
+      {
+        "id": "dourado",
+        "hex": "#C9A227",
+        "primaryWeight": 0,
+        "secondaryWeight": 0,
+        "tertiaryWeight": 3
+      },
+      {
+        "id": "cinza",
+        "hex": "#8A8A8A",
+        "primaryWeight": 0,
+        "secondaryWeight": 0,
+        "tertiaryWeight": 3
+      }
+    ]
+  },
+  "nicknames": {
+    "source": [
+      "authored"
+    ],
+    "note": "Pares valem em qualquer ordem (primária+secundária); a entrada de uma família vale quando o par não tem apelido próprio.",
+    "items": [
+      {
+        "families": [
+          "preto",
+          "branco"
+        ],
+        "text": "Os Alvinegros"
+      },
+      {
+        "families": [
+          "vermelho",
+          "preto"
+        ],
+        "text": "Os Rubro-Negros"
+      },
+      {
+        "families": [
+          "vermelho",
+          "branco"
+        ],
+        "text": "Os Alvirrubros"
+      },
+      {
+        "families": [
+          "verde",
+          "branco"
+        ],
+        "text": "Os Alviverdes"
+      },
+      {
+        "families": [
+          "azul",
+          "branco"
+        ],
+        "text": "Os Alvianis"
+      },
+      {
+        "families": [
+          "amarelo",
+          "verde"
+        ],
+        "text": "Os Canarinhos"
+      },
+      {
+        "families": [
+          "vermelho"
+        ],
+        "text": "Os Colorados"
+      },
+      {
+        "families": [
+          "azul"
+        ],
+        "text": "Os Azulões"
+      },
+      {
+        "families": [
+          "verde"
+        ],
+        "text": "Os Esmeraldinos"
+      },
+      {
+        "families": [
+          "grena"
+        ],
+        "text": "Os Grenás"
+      },
+      {
+        "families": [
+          "amarelo"
+        ],
+        "text": "O Amarelão"
+      },
+      {
+        "families": [
+          "preto"
+        ],
+        "text": "O Esquadrão de Preto"
+      },
+      {
+        "families": [
+          "branco"
+        ],
+        "text": "O Esquadrão de Branco"
+      }
+    ]
+  },
+  "foundingDecades": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "1900": 6,
+      "1890": 4,
+      "1920": 4,
+      "1910": 3,
+      "1930": 2,
+      "1970": 1
+    }
+  },
+  "shieldShapes": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "Heater": 9,
+      "Round": 4,
+      "Square": 3,
+      "Ogival": 2,
+      "Oval": 2
+    }
+  },
+  "typographyStyles": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "ClassicSerif": 8,
+      "Geometric": 5,
+      "ModernSans": 5,
+      "Blackletter": 1,
+      "Stencil": 1
+    }
+  },
+  "collarStyles": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "Crew": 7,
+      "VNeck": 5,
+      "Grandad": 4,
+      "Polo": 3,
+      "ButtonedSport": 1
+    }
+  },
+  "fitStyles": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "Slim": 8,
+      "Regular": 7,
+      "Retro": 5
+    }
+  },
+  "homePatterns": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "Solid": 8,
+      "VerticalStripes": 7,
+      "HorizontalStripes": 4,
+      "Sash": 1
+    }
+  },
+  "awayPatterns": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "HorizontalStripes": 5,
+      "ContrastSleeves": 4,
+      "Pinstripes": 4,
+      "Checks": 3,
+      "Sash": 2,
+      "Solid": 2
+    }
+  },
+  "homeSocks": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "Secondary": 7,
+      "Primary": 8,
+      "Tertiary": 5
+    }
+  },
+  "atmospheres": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "Cauldron": 11,
+      "Traditional": 6,
+      "Corporate": 2,
+      "Hostile": 1
+    }
+  },
+  "pitchSurfaces": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "Pristine": 12,
+      "Heavy": 4,
+      "Worn": 3,
+      "Synthetic": 1
+    }
+  },
+  "tacticalStyles": {
+    "source": [
+      "pilot20"
+    ],
+    "weights": {
+      "Possession": 6,
+      "Direct": 5,
+      "HighPress": 4,
+      "Counter": 2,
+      "LowBlock": 2,
+      "Controlled": 1
+    }
+  },
+  "centralCharges": {
+    "source": [
+      "authored"
+    ],
+    "note": "Cargas heráldicas genéricas. Nada de marcos de cidades reais: esses substituem cargas de clubes âncora e ficam com eles.",
+    "items": [
+      "Leão rampante",
+      "Águia de asas abertas",
+      "Âncora cruzada com remo",
+      "Roda dentada",
+      "Locomotiva a vapor",
+      "Estrela de cinco pontas",
+      "Farol",
+      "Coroa mural",
+      "Ramo de café",
+      "Folha de palmeira",
+      "Tocha acesa",
+      "Cavalo alado",
+      "Onça-pintada",
+      "Tucano",
+      "Ipê florido",
+      "Caravela",
+      "Sol nascente",
+      "Martelo e bigorna"
+    ]
+  },
+  "mottos": {
+    "source": [
+      "authored"
+    ],
+    "items": [
+      "Unidos Venceremos",
+      "Força e Tradição",
+      "Honra e Glória",
+      "Sempre Avante",
+      "Per Aspera ad Astra",
+      "Fortitudo et Honor",
+      "Raça e Coração",
+      "Labor Omnia Vincit",
+      "Pela Camisa",
+      "Em Frente, Sempre",
+      "Nascidos para Lutar",
+      "Fides et Virtus"
+    ]
+  },
+  "stadiumPatterns": {
+    "source": [
+      "pilot20"
+    ],
+    "note": "Formatos de nome contados no piloto (Estádio de/do …, Arena …, Estádio Municipal …).",
+    "weights": {
+      "Estádio Municipal {place}": 2,
+      "Arena {place}": 7,
+      "Estádio {place}": 11
+    }
+  },
+  "stadiumPlaces": {
+    "source": [
+      "authored"
+    ],
+    "items": [
+      "do Vale",
+      "da Colina",
+      "do Bosque",
+      "das Palmeiras",
+      "do Parque",
+      "da Várzea",
+      "do Ipê",
+      "da Baixada",
+      "do Cruzeiro",
+      "das Mangueiras",
+      "da Figueira",
+      "do Mirante",
+      "da Ponte",
+      "do Farol",
+      "da Estação",
+      "do Alto",
+      "dos Pinheiros",
+      "da Lagoa"
+    ]
+  },
+  "capacityStep": {
+    "source": [
+      "pilot20"
+    ],
+    "note": "As 20 capacidades do piloto são múltiplos de 500.",
+    "value": 500
+  },
+  "squadSizeByBand": {
+    "source": [
+      "pilot20",
+      "authored"
+    ],
+    "note": "B2–B5 = média do piloto arredondada a par; B1 e B6 não existem no piloto e são autorados (limites 28–40 do editor).",
+    "values": {
+      "B1": 40,
+      "B2": 38,
+      "B3": 34,
+      "B4": 30,
+      "B5": 28,
+      "B6": 28
+    }
+  }
+}

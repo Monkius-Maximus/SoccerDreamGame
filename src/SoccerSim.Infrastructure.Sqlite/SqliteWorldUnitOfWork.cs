@@ -32,6 +32,7 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
         Sources = new WorldSourceRepository(connection, transaction);
         Edits = new WorldEditLog(connection, transaction);
         GenerationProfiles = new GenerationProfileRepository(connection, transaction);
+        ClubProfiles = new ClubProfileRepository(connection, transaction);
         Settings = new WorldSettingsRepository(connection, transaction);
         Countries = new CountryRepository(connection, transaction);
         Divisions = new DivisionRepository(connection, transaction);
@@ -46,6 +47,7 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
     public IWorldSourceRepository Sources { get; }
     public IWorldEditLog Edits { get; }
     public IGenerationProfileRepository GenerationProfiles { get; }
+    public IClubProfileRepository ClubProfiles { get; }
     public IWorldSettingsRepository Settings { get; }
     public ICountryRepository Countries { get; }
     public IDivisionRepository Divisions { get; }

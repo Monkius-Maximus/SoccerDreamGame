@@ -137,7 +137,7 @@ internal static class WorldEndpoints
     }
 
     /// <summary>Walks up the geo tree to build the breadcrumb ("Mundo › CONMEBOL › Brasil › … › Cidade").</summary>
-    private static async Task<IReadOnlyList<string>> BuildGeoPathAsync(
+    internal static async Task<IReadOnlyList<string>> BuildGeoPathAsync(
         string geoNodeId,
         IWorldUnitOfWork unitOfWork,
         CancellationToken cancellationToken)

@@ -163,6 +163,26 @@ public interface IGenerationProfileRepository
 }
 
 /// <summary>
+/// The club generator's per-country pools and weights (ADR-0011 §3), stored as the
+/// <c>club_profiles.json</c> document that was imported. Every read goes back through
+/// <see cref="World.Serialization.ClubProfilesReader"/>, so what the generator sees is exactly
+/// what the import validated.
+/// </summary>
+public interface IClubProfileRepository
+{
+    /// <summary>The profiles for one country, or null when none have been imported for it.</summary>
+    Task<ClubProfiles?> GetAsync(string countryId, CancellationToken cancellationToken = default);
+
+    /// <summary>The countries that have profiles, ordered by id.</summary>
+    Task<IReadOnlyList<string>> ListCountriesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Validates the document and replaces that country's profiles with it. Returns what
+    /// was read, so the caller can report it. A malformed document throws
+    /// <see cref="World.Serialization.WorldImportException"/> and nothing is written.</summary>
+    Task<ClubProfiles> SaveAsync(string document, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// World-level facts from the document's meta block — the master seed every deterministic stream
 /// derives from, and the schema version. Kept with the world rather than in configuration, so a
 /// database always carries the seed that produced it.
@@ -284,6 +304,7 @@ public interface IWorldUnitOfWork : IAsyncDisposable
     IWorldSourceRepository Sources { get; }
     IWorldEditLog Edits { get; }
     IGenerationProfileRepository GenerationProfiles { get; }
+    IClubProfileRepository ClubProfiles { get; }
     IWorldSettingsRepository Settings { get; }
     ICountryRepository Countries { get; }
     IDivisionRepository Divisions { get; }

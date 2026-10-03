@@ -29,6 +29,19 @@ internal sealed class JsonCursor
 
     public JsonCursor Object(string name) => ForObject(Required(name), $"{Path}.{name}");
 
+    /// <summary>
+    /// A child object whose key must be present but whose value may be JSON <c>null</c>. The
+    /// document has to say "none" out loud: a missing key is still an error, so a forgotten
+    /// object is never read as a deliberate absence.
+    /// </summary>
+    public JsonCursor? NullableObject(string name)
+    {
+        if (!_node.ContainsKey(name))
+            throw new WorldFieldException($"{Path}.{name}", "missing required field (write null for none)");
+        JsonNode? node = _node[name];
+        return node is null ? null : ForObject(node, $"{Path}.{name}");
+    }
+
     public JsonArray Array(string name)
     {
         if (Required(name) is not JsonArray array)
@@ -45,6 +58,34 @@ internal sealed class JsonCursor
         JsonCursor child = Object(name);
         foreach ((string key, JsonNode? value) in child._node)
             yield return (key, ForObject(value, $"{child.Path}.{key}"));
+    }
+
+    /// <summary>A child object used as a table from data keys to numbers (e.g. weights keyed by
+    /// enum name), yielded in document order.</summary>
+    public IEnumerable<(string Key, double Value)> NumberEntries(string name)
+    {
+        JsonCursor child = Object(name);
+        foreach ((string key, JsonNode? value) in child._node)
+            yield return (key, Value<double>(value ?? throw new WorldFieldException($"{child.Path}.{key}", "expected a number"), $"{child.Path}.{key}", "a number"));
+    }
+
+    /// <summary>A non-empty array of non-empty strings.</summary>
+    public IReadOnlyList<string> Strings(string name)
+    {
+        JsonArray array = Array(name);
+        if (array.Count == 0)
+            throw new WorldFieldException($"{Path}.{name}", "must not be empty");
+
+        var values = new List<string>(array.Count);
+        for (int i = 0; i < array.Count; i++)
+        {
+            string? value = array[i] is null ? null : Value<string>(array[i]!, $"{Path}.{name}[{i}]", "a string");
+            if (string.IsNullOrWhiteSpace(value))
+                throw new WorldFieldException($"{Path}.{name}[{i}]", "must not be empty");
+            values.Add(value);
+        }
+
+        return values;
     }
 
     public string String(string name)

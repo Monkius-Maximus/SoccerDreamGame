@@ -36,6 +36,11 @@
     <None Include="TestData\gen_profiles.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Sprint 10 fixture: Brazil's club-generation pools and weights (ADR-0011 §3), measured
+         from the same twenty clubs where they can be and marked "authored" where they cannot. -->
+    <None Include="TestData\club_profiles.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

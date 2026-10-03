@@ -52,17 +52,21 @@ public static class ClubInvariants
         return worst;
     }
 
-    /// <summary>#1 — audit.anchorFactsVerified = 1. Error if not.</summary>
+    /// <summary>#1 — audit.anchorFactsVerified = 1. Error if not. A Regen club has no anchor, so
+    /// there are no real facts to verify and the check does not apply (ADR-0011 §2).</summary>
     private static Finding CheckAnchorFactsVerified(ClubIdentity club) =>
-        club.Audit.AnchorFactsVerified
-            ? new Finding(FindingLevel.Ok, "ANCHOR_VERIFIED", "Fatos da âncora verificados", "audit.anchorFactsVerified = 1")
-            : new Finding(FindingLevel.Error, "ANCHOR_VERIFIED", "Fatos da âncora verificados", "audit.anchorFactsVerified = 0");
+        club.Audit switch
+        {
+            null => new Finding(FindingLevel.Ok, "ANCHOR_VERIFIED", "Fatos da âncora verificados", "não se aplica (clube Regen, sem âncora)"),
+            { AnchorFactsVerified: true } => new Finding(FindingLevel.Ok, "ANCHOR_VERIFIED", "Fatos da âncora verificados", "audit.anchorFactsVerified = 1"),
+            _ => new Finding(FindingLevel.Error, "ANCHOR_VERIFIED", "Fatos da âncora verificados", "audit.anchorFactsVerified = 0"),
+        };
 
     /// <summary>#2 — when phoneticSimilarity is set (NamingRule = Phonetic), it must fall in
     /// [0.55, 0.80]. Null means the rule isn't Phonetic and the check does not apply.</summary>
     private static Finding CheckPhoneticWindow(ClubIdentity club)
     {
-        double? similarity = club.Audit.PhoneticSimilarity;
+        double? similarity = club.Audit?.PhoneticSimilarity;
         if (similarity is null)
             return new Finding(FindingLevel.Ok, "PHONETIC_WINDOW", "Janela fonética", "não se aplica (regra ≠ Phonetic)");
 

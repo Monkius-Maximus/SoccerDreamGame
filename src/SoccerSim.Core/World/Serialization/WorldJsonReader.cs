@@ -227,7 +227,8 @@ public static class WorldJsonReader
                 ai.Enum<TacticalStyleProvenance>("tacticalStyleProvenance"),
                 HomeAdvantageModifier: 0,   // derived
                 DerbyRivalClubId: ai.OptionalString("derbyRivalClubId")),
-            Audit: ReadClubAudit(node.Object("audit")));
+            // null marks a Regen club: no anchor, so no deviation audit (ADR-0011 §2).
+            Audit: node.NullableObject("audit") is { } audit ? ReadClubAudit(audit) : null);
     }
 
     private static ClubDeviationAudit ReadClubAudit(JsonCursor audit) => new(

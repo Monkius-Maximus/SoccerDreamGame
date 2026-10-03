@@ -119,7 +119,7 @@ public sealed class BatchInvariantTests
         // a real fact about a real club.
         WorldSnapshot world = WithClub(0, club => club with
         {
-            Audit = club.Audit with { GeneratedFoundingYear = club.Audit.AnchorFoundingYear },
+            Audit = club.Audit! with { GeneratedFoundingYear = club.Audit!.AnchorFoundingYear },
         });
 
         BatchFinding finding = Assert.Single(Run(world).Findings, f => f.Code == "FOUNDING_EQ");
@@ -136,7 +136,7 @@ public sealed class BatchInvariantTests
     {
         WorldSnapshot world = WithClub(0, club => club with
         {
-            Audit = club.Audit with { GeneratedFoundingYear = club.Audit.FoundingDecadePreserved + 45 },
+            Audit = club.Audit! with { GeneratedFoundingYear = club.Audit!.FoundingDecadePreserved + 45 },
         });
 
         BatchFinding finding = Assert.Single(Run(world).Findings, f => f.Code == "FOUNDING_DECADE");
@@ -150,7 +150,7 @@ public sealed class BatchInvariantTests
     {
         WorldSnapshot world = WithClub(0, club => club with
         {
-            Audit = club.Audit with { FoundingDecadePreserved = 1700 },
+            Audit = club.Audit! with { FoundingDecadePreserved = 1700 },
         });
 
         var findings = Run(world).Findings.Where(f => f.Code == "FOUNDING_DECADE").ToList();
@@ -165,7 +165,7 @@ public sealed class BatchInvariantTests
     {
         WorldSnapshot world = WithClub(0, club => club with
         {
-            Audit = club.Audit with { AnchorFactsVerified = false },
+            Audit = club.Audit! with { AnchorFactsVerified = false },
         });
 
         var codes = Run(world).Findings
@@ -187,7 +187,7 @@ public sealed class BatchInvariantTests
     [InlineData("tacticalStyleEvidence")]
     public void AnyOfTheFiveCitationsMissing_IsAnError(string field)
     {
-        WorldSnapshot world = WithClub(0, club => club with { Audit = Blank(club.Audit, field) });
+        WorldSnapshot world = WithClub(0, club => club with { Audit = Blank(club.Audit!, field) });
 
         BatchFinding finding = Assert.Single(Run(world).Findings, f => f.Code == "CITATION_MISSING");
         Assert.Equal(FindingLevel.Error, finding.Level);
@@ -321,7 +321,7 @@ public sealed class BatchInvariantTests
         // Fix that one club's phonetic similarity and the batch releases, four warnings and all.
         WorldSnapshot fixedWorld = WithClub(
             World.Clubs.ToList().FindIndex(club => club.ClubId == "clb_bra_bel_001"),
-            club => club with { Audit = club.Audit with { PhoneticSimilarity = 0.7 } });
+            club => club with { Audit = club.Audit! with { PhoneticSimilarity = 0.7 } });
 
         BatchAuditReport report = Run(fixedWorld);
         Assert.True(report.Released);

@@ -31,7 +31,7 @@ public sealed class ExchangeApiTests : IClassFixture<WorldBuilderApp>
         JsonNode clubs = tabs.First(tab => tab!["name"]!.GetValue<string>() == "Clubes")!;
         Assert.Equal("Clubes.csv", clubs["fileName"]!.GetValue<string>());
         Assert.Equal(20, clubs["rows"]!.GetValue<int>());
-        Assert.Equal(33, clubs["columns"]!.GetValue<int>());
+        Assert.Equal(34, clubs["columns"]!.GetValue<int>());
         Assert.False(clubs["authoringOnly"]!.GetValue<bool>());
         Assert.True(clubs["importable"]!.GetValue<bool>());
 
