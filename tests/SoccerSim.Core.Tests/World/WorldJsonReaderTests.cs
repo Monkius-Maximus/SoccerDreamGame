@@ -27,7 +27,7 @@ public sealed class WorldJsonReaderTests
     {
         WorldSnapshot snapshot = WorldJsonReader.Read(WorldFixture.Json);
 
-        Assert.Equal(18, snapshot.GeoNodes.Count);
+        Assert.Equal(75, snapshot.GeoNodes.Count);
         Assert.Equal(20, snapshot.Clubs.Count);
         Assert.Equal(688, snapshot.Characters.Count);
         Assert.Single(snapshot.Competitions);
@@ -50,7 +50,7 @@ public sealed class WorldJsonReaderTests
         var exception = Assert.Throws<WorldImportException>(() => WorldJsonReader.Read(json));
 
         string error = Assert.Single(exception.Errors);
-        Assert.Contains("geoNodes[18]", error);
+        Assert.Contains("geoNodes[75]", error);
         Assert.Contains("kind", error);
     }
 
