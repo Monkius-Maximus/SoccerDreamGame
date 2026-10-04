@@ -1,6 +1,7 @@
 # Roadmap — World generation (Sprints 10–14)
 
-Implements [ADR-0011](adr/0011-world-generation-clubs-staff-free-agents-npcs.md). This picks
+Implements [ADR-0011](adr/0011-world-generation-clubs-staff-free-agents-npcs.md) and, from
+Sprint 11c, [ADR-0012](adr/0012-competitions-as-composition.md). This picks
 up where the World Builder's Sprints 0–9 ended. Every sprint ends with both test suites green
 and a commit titled `World Builder Sprint N: …`.
 
@@ -138,11 +139,55 @@ Delivered as a patch from a session without NuGet or SQLite, applied on branch
 **Owner can now:** generate Série B/C/D (or any country with profiles), inspect the result and
 export JSON/CSV. Projecting the generated divisions into the game tables waits for its own step.
 
-### Next: projecting divisions
+## Sprint 11c — Competitions as composition (ADR-0012)
 
-Decide how a division becomes a legacy `League`: either the projection reads the pyramid, or
-generating a division also writes a national `Competition` edition (season, tier float and the
-other authored fields it needs). Either way it changes ADR-0005 and needs its own ADR first.
+Comes before the name pools and Sprint 12, because every later sprint generates into
+competitions, and because the owner's generated divisions cannot reach the game until this
+lands.
+
+**Delivers:** one competition model. `Competition` (the definition) with `CompetitionStage`
+(league only, 1 or 2 legs) and `TransitionRule`; `CompetitionSeason` with its participants; the
+world's `CurrentSeason`; the pyramid as a computed view. `Division` and `CompetitionFormat` are
+removed.
+
+- **Core:**
+  - The records of ADR-0012 §2.
+  - `LeaguePyramid` is computed from competitions with a level.
+  - `PyramidRules` uses the renamed codes (ADR-0012 §6) plus `STAGE_COUNT`,
+    `TRANSITION_RANGE`, `TRANSITION_OVERLAP` and `TRANSITION_TARGET`.
+  - `PyramidEditor` writes the promotion and relegation rules in pairs from one exchange number.
+  - The tier float is derived from the season (§7), and rounds and matches from the stage (§4).
+- **Generation:**
+  - `DivisionGenerator`'s request names a `CompetitionId`, and the clubs it generates are
+    appended to the current season's participants.
+  - `DivisionCreation` writes the clubs, the squads and the participants in one transaction,
+    as before.
+- **Projection:** leagues come from the current seasons of national leagues (§8).
+  `worldbuilder project` succeeds after `generate-division`. The Sprint 11 refusal test becomes a
+  success test.
+- **Persistence:** migration `0019_competitions_as_composition.sql`, exactly as ADR-0012 §11
+  describes: conversion, the two abort cases, and clearing the pre-0019 undo snapshots.
+- **Exchange:**
+  - The JSON document carries `competitions` (with stages and rules), `seasons` and
+    `meta.currentSeason`, and an old-shape document is refused by name.
+  - The pilot fixture is converted once.
+  - CSV tabs follow the new shape (name the new tabs in the plan).
+  - `Scale` keeps countries only.
+- **UI:** the "Ligas" tab shows the computed pyramid with the current season's participants, and
+  the exchange between adjacent levels is edited as one number. The competition card in search
+  shows derived rounds.
+- **Tests:**
+  - The pilot converts to Série A 2026 with 20 participants, a tier float of 0.86, and 38 rounds
+    and 380 matches derived.
+  - The pair-written rules keep `PYRAMID_FLOW` clean.
+  - Migration 0019 over a database with the pilot and an empty tier-1 division keeps the pilot
+    and drops the division; with a non-empty one, it aborts and writes nothing.
+  - Generating a division and then projecting succeeds.
+  - An old-shape document is refused.
+  - Undo works across a generation after 0019.
+
+**Before applying 0019 to an existing `world.db`:** in "Ligas", make sure no tier-1 division in
+a country with an imported league has clubs (ADR-0012 §11 step 5).
 
 ### Moved out of Sprint 11: name pools per nationality
 
@@ -163,6 +208,10 @@ staffProfiles, calibration, masterSeed, seed)`.
   `worldbuilder import-staff-profiles <file> [db]`.
 - Coaches get `PreferredTacticalStyle`, biased toward the club's `DefaultTacticalStyle`, and a
   `PreferredFormation`.
+- Every staff member gets an `Archetype`: an id into archetypes defined as **data** in the staff
+  profiles, each a set of decision weights (provisional, and audited as such). The tool only
+  assigns it; the game's AI reads the weights (ADR-0012 §1). Confirm the archetype list with the
+  owner at kickoff, together with the `StaffAttr` list.
 - `DivisionGenerator` also generates staff. Existing clubs get staff through
   `POST /api/clubs/{clubId}/staff/generate` (preview/apply), plus a batch action for "every club
   without staff".
@@ -217,3 +266,18 @@ NPC's saved state overrides the generated defaults; generation reads no database
 Contracts and expiry dates, and in-game transfers and signing of free agents. Packaging the
 world for a game build (stripping audit and anchor data per the IP rule) also needs its own
 ADR.
+
+### Game-side epics (outside the World Builder, ADR-0012 §1)
+
+The tool authors the structure and the game plays it. These belong to the game and each needs its
+own ADR there:
+
+- Stages beyond the league: knockout, Swiss and groups, with points, extra time, penalties,
+  tie-breakers, play-offs and carried points. The tool gains the matching stage kinds when the
+  first cup or continental competition is authored.
+- Fixtures (round-robin pairing) and the calendar that slots matchdays.
+- End of season: applying transition rules and creating the next season.
+- Finances at runtime.
+- Academy intake, which may use provisional potential ranges as data.
+- Transfer and market AI. It reads the staff archetypes from Sprint 12 and keeps
+  `WorldEconomy.MarketValueEur` as the one value formula.

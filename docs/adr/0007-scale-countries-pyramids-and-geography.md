@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-11
 - Depends on: ADR-0003 (what the schema constrains), ADR-0005 (the legacy projection)
+- Amended by: ADR-0012 (§1 superseded; §2 and §3 restated over stages and transition rules)
 - Applies to: `src/SoccerSim.Core/World/Competitions/`, `src/SoccerSim.Core/World/GeoTree.cs`,
   `src/SoccerSim.Core/World/Validation/CalibrationReview.cs`, `sql/0014_world_countries.sql`
 
@@ -16,6 +17,13 @@ decision here is about a world that has more than one country in it, which the p
 
 ### 1. Divisions are not Competitions
 
+> **Superseded by ADR-0012 §2 and §6.** The distinction this section draws — a standing
+> structure versus a frozen edition — is kept, but it now lives inside one model: a `Competition`
+> (the definition, which outlives seasons) and its `CompetitionSeason`s (the editions, each with
+> its participants). A division is a national league competition with a pyramid level, and the
+> pyramid is computed from those. `Division`, `DivisionClubs` and the flat competition record are
+> removed by migration 0019. Kept below for the record.
+
 A `Competition` row is the **frozen edition** of a competition: its member list, its season, its
 prestige band, its 38 rounds of 2026. A `Division` is the **standing structure** editions hang
 off: it outlives a season, and it is what promotion and relegation connect.
@@ -27,6 +35,10 @@ in their own table (migration 0014), purely additively, and the existing competi
 working untouched.
 
 ### 2. Rounds and matches are derived, never typed
+
+> **Amended by ADR-0012 §4.** The rule stands. The five formats are replaced by stages: only the
+> league stage exists (one or two legs, the first two rows below); the group, knockout and cup
+> rows return as stage kinds when a competition needs them.
 
 `CompetitionFormats.Shape(format, clubs)` computes both from the five formats. A typed round count
 is a number with no source, and the project runs on the opposite rule.
@@ -49,6 +61,11 @@ The pilot league proves the whole table: 20 clubs playing `LeagueDouble` derive 
 distinction rather than two names for one bracket.
 
 ### 3. The flow balance is the pyramid's load-bearing rule
+
+> **Amended by ADR-0012 §5.** Promotion and relegation are transition rules (rank range → target
+> competition), not `PromotedIn`/`RelegatedOut` counts. The pyramid editor writes them in pairs
+> from one exchange number, so a pyramid authored on the screen is balanced by construction.
+> `PYRAMID_FLOW` stays, computed from the rules.
 
 For a division, clubs arriving are those relegated out of the division above plus those promoted
 in from below; clubs leaving are those promoted into the division above plus those relegated out

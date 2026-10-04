@@ -201,6 +201,9 @@ same pools.
 
 ### Projecting a generated division is not part of Sprint 11
 
+> **Resolved by ADR-0012.** A division becomes a national league competition with a level, and
+> the projection reads its current season (ADR-0012 §8–§9). Implemented in Sprint 11c.
+
 The roadmap expected `worldbuilder project` to succeed after a division is generated. The
 legacy projection builds its leagues from national **competitions** (ADR-0005 §5), and a
 division is not a competition (ADR-0007 §1). A generated club is enrolled in a division only,

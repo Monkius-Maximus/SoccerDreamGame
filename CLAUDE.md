@@ -27,8 +27,8 @@ Two things share one C#/.NET 8 codebase:
 | `tools/SoccerSim.WorldBuilder/` | ASP.NET Core Minimal API (`Api/*Endpoints.cs`) + static UI in `wwwroot/` (`index.html`, `app.js`, `app.css`, vanilla JS). |
 | `tests/SoccerSim.Core.Tests/` | Headless xUnit for core + infra. `TestData/world.json` and `gen_profiles.json` are the canonical world and generation profiles. |
 | `tools/SoccerSim.WorldBuilder.Tests/` | xUnit + `WebApplicationFactory` API tests and a shallow front-end smoke test. |
-| `docs/adr/` | One ADR per decision (0001–0011). Read the relevant one before changing behaviour. |
-| `docs/ROADMAP-GENERATION.md` | Current work: Sprints 10–14 (generating clubs, divisions, staff, free agents, career NPCs), per ADR-0011. |
+| `docs/adr/` | One ADR per decision (0001–0012). Read the relevant one before changing behaviour. |
+| `docs/ROADMAP-GENERATION.md` | Current work: Sprints 10–14 (generating clubs, divisions, staff, free agents, career NPCs), per ADR-0011, with Sprint 11c (competitions as composition) per ADR-0012. |
 
 ## Hard rules
 
@@ -43,6 +43,9 @@ Two things share one C#/.NET 8 codebase:
   `MatchEngine`, and the world schema (12 attrs, 1–99). The bridge is
   `World/Projection/WorldToLegacyProjection` (ADR-0005). Don't migrate `Simulation/` to the
   world schema.
+- **The tool authors the structure; the game plays it** (ADR-0012 §1). The World Builder writes
+  competitions, stages, transition rules and the current season's participants. Fixtures,
+  results, standings, next seasons and market AI belong to the game. Never write those here.
 - **Migrations:** add a new file with the next number in `sql/`. Don't rewrite one that has
   already shipped.
 
