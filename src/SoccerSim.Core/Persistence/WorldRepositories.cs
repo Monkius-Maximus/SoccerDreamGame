@@ -122,6 +122,11 @@ public sealed class WorldConcurrencyException : Exception
     public long ActualVersion { get; }
 }
 
+/// <summary>
+/// Competition definitions, each read and written whole with its stages and transition rules
+/// (ADR-0012 §2): a rule without its competition, or a competition missing its stage, describes
+/// nothing that can be played.
+/// </summary>
 public interface ICompetitionRepository : IRepository<Competition, string>
 {
 }
@@ -213,19 +218,18 @@ public interface ICountryRepository
 }
 
 /// <summary>
-/// The standing divisions of each country's pyramid. Read a whole country at a time: every rule
-/// worth checking — tier contiguity, the flow balance, a club enrolled twice — is about the set,
-/// not about one division.
+/// The editions of the competitions, each with its participants in their authored order
+/// (ADR-0012 §2). Read whole: the pyramid, the projection and the generator all ask "who plays
+/// where this season" across every competition at once.
 /// </summary>
-public interface IDivisionRepository
+public interface ICompetitionSeasonRepository
 {
-    Task<LeaguePyramid> GetPyramidAsync(string countryId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CompetitionSeason>> ListAsync(CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<Division>> ListAsync(CancellationToken cancellationToken = default);
+    /// <summary>Writes the season and replaces its participants with these, in this order.</summary>
+    Task SaveAsync(CompetitionSeason season, CancellationToken cancellationToken = default);
 
-    Task SaveAsync(string countryId, Division division, CancellationToken cancellationToken = default);
-
-    Task DeleteAsync(string divisionId, CancellationToken cancellationToken = default);
+    Task DeleteAsync(string seasonId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>One entry of the undo stack: what the world looked like, and what was about to
@@ -235,8 +239,8 @@ public sealed record WorldHistoryEntry(
     string Label,
     DateTime TakenAt,
     string Document,
-    /// <summary>Countries and divisions, which live outside the world document. Restored with it,
-    /// or the button would claim to have undone something it did not touch.</summary>
+    /// <summary>Countries, which live outside the world document. Restored with it, or the button
+    /// would claim to have undone something it did not touch.</summary>
     string Scale);
 
 /// <summary>
@@ -307,7 +311,7 @@ public interface IWorldUnitOfWork : IAsyncDisposable
     IClubProfileRepository ClubProfiles { get; }
     IWorldSettingsRepository Settings { get; }
     ICountryRepository Countries { get; }
-    IDivisionRepository Divisions { get; }
+    ICompetitionSeasonRepository Seasons { get; }
     IWorldHistory History { get; }
 
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);

@@ -19,16 +19,32 @@ public sealed record GeoTreeDto(IReadOnlyList<GeoTreeNodeDto> Nodes);
 
 public sealed record GeoEditRequest(string? ParentId, string? DisplayName, string? ChildId);
 
-/// <summary>A club of this country and the division it plays in, or null when it plays in none.
-/// One list rather than two: the chips need names for the enrolled and the select needs the rest,
-/// and a screen that received them separately could show a club in both.</summary>
+/// <summary>A club of this country and the division it plays in this season, or null when it
+/// plays in none. One list rather than two: the chips need names for the enrolled and the select
+/// needs the rest, and a screen that received them separately could show a club in both.</summary>
 public sealed record CountryClubDto(string ClubId, string ShortName, string? DivisionId);
+
+/// <summary>
+/// One level of the pyramid as the "Ligas" tab draws it: the competition, its current season, and
+/// what is derived from them — the stage's rounds and matches, the season's tier float, and the
+/// exchange with the level below, as the two counts it is made of (equal on a pyramid built here).
+/// </summary>
+public sealed record PyramidLevelDto(
+    int Level,
+    Competition Competition,
+    CompetitionSeason Season,
+    string? StageLabel,
+    CompetitionShape? Shape,
+    double? TierFloat,
+    int? DownBelow,
+    int? UpFromBelow);
 
 public sealed record CountryDto(
     CountryProfile Country,
     string? DisplayName,
     int Clubs,
-    LeaguePyramid Pyramid,
+    int Year,
+    IReadOnlyList<PyramidLevelDto> Levels,
     IReadOnlyList<Finding> Findings,
     IReadOnlyList<CountryClubDto> Roster);
 
@@ -38,13 +54,24 @@ public sealed record RecalculateResultDto(int Rewritten, int PendingEdits);
 /// knows where its players come from, and the sweep already reports a missing mix as an error.</summary>
 public sealed record NewCountryRequest(string? CountryId, string? Currency, double EurToLocal, int WageFloorMonthly);
 
-public sealed record DivisionRequest(
-    string? DivisionId,
+/// <summary>A new level at the bottom of the pyramid. <see cref="AnchorGeoNodeId"/> is the
+/// country's node on the map, which the author states (ADR-0012 clarifications); <see cref="Exchange"/>
+/// is how many clubs it swaps with the level above.</summary>
+public sealed record NewDivisionRequest(
+    string? CompetitionId,
     string? Name,
-    CompetitionFormat Format,
+    string? AnchorGeoNodeId,
+    int Legs,
     int ClubCount,
-    int PromotedIn,
-    int RelegatedOut);
+    int Exchange);
+
+/// <summary>What the author restates about a level. <see cref="Exchange"/> is the swap with the
+/// level below.</summary>
+public sealed record DivisionRequest(
+    string? Name,
+    int Legs,
+    int ClubCount,
+    int Exchange);
 
 public sealed record EnrolRequest(string? ClubId);
 
@@ -305,9 +332,9 @@ internal static class WorldScaleEndpoints
         if (clubs > 0)
             return Results.BadRequest(new { error = $"{countryId} tem {clubs} clube(s) — mova-os antes de apagá-lo." });
 
-        LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync(countryId, cancellationToken);
-        if (pyramid.Divisions.Count > 0)
-            return Results.BadRequest(new { error = $"{countryId} tem {pyramid.Divisions.Count} divisão(ões) — apague-as antes." });
+        int competitions = world.Competitions.Count(competition => competition.CountryId == countryId);
+        if (competitions > 0)
+            return Results.BadRequest(new { error = $"{countryId} tem {competitions} competição(ões) — apague-as antes." });
 
         await WorldHistory.RecordAsync(unitOfWork, $"Apagar o país {countryId}", cancellationToken);
 
@@ -330,13 +357,13 @@ internal static class WorldScaleEndpoints
 
     private static Task<IResult> AddDivisionAsync(
         string countryId,
-        DivisionRequest request,
+        NewDivisionRequest request,
         IWorldUnitOfWork unitOfWork,
         CancellationToken cancellationToken) =>
         EditPyramidAsync(unitOfWork, countryId, $"Criar a divisão {request.Name}", cancellationToken,
-            (pyramid, _) => PyramidEditor.AddDivision(
-                pyramid, request.DivisionId ?? string.Empty, request.Name ?? string.Empty,
-                request.Format, request.ClubCount));
+            (pyramid, world) => PyramidEditor.AddLevel(
+                pyramid, world, request.CompetitionId ?? string.Empty, request.Name ?? string.Empty,
+                request.AnchorGeoNodeId ?? string.Empty, request.Legs, request.ClubCount, request.Exchange));
 
     private static Task<IResult> RewriteDivisionAsync(
         string countryId,
@@ -346,8 +373,7 @@ internal static class WorldScaleEndpoints
         CancellationToken cancellationToken) =>
         EditPyramidAsync(unitOfWork, countryId, $"Editar a divisão {request.Name}", cancellationToken,
             (pyramid, _) => PyramidEditor.Rewrite(
-                pyramid, divisionId, request.Name ?? string.Empty, request.Format,
-                request.ClubCount, request.PromotedIn, request.RelegatedOut));
+                pyramid, divisionId, request.Name ?? string.Empty, request.Legs, request.ClubCount, request.Exchange));
 
     private static Task<IResult> DeleteDivisionAsync(
         string countryId,
@@ -355,7 +381,7 @@ internal static class WorldScaleEndpoints
         IWorldUnitOfWork unitOfWork,
         CancellationToken cancellationToken) =>
         EditPyramidAsync(unitOfWork, countryId, $"Apagar a divisão {divisionId}", cancellationToken,
-            (pyramid, _) => PyramidEditor.RemoveDivision(pyramid, divisionId));
+            (pyramid, _) => PyramidEditor.RemoveLevel(pyramid, divisionId));
 
     private static Task<IResult> EnrolAsync(
         string countryId,
@@ -406,7 +432,7 @@ internal static class WorldScaleEndpoints
             return Results.NotFound(new { error = $"não existe o país '{countryId}'." });
 
         WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
-        LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync(countryId, cancellationToken);
+        LeaguePyramid pyramid = LeaguePyramid.Of(countryId, world.Meta.CurrentSeason, world.Competitions, world.Seasons);
 
         LeaguePyramid edited;
         try
@@ -418,8 +444,20 @@ internal static class WorldScaleEndpoints
             return Results.BadRequest(new { error = ex.Message });
         }
 
-        await WorldHistory.RecordAsync(unitOfWork, label, cancellationToken);
-        await WorldScale.SavePyramidAsync(unitOfWork, edited, cancellationToken);
+        // The history entry and the write are one act: a rule can name a level written later in
+        // the same transaction, and nothing of it may land if any of it fails.
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await WorldHistory.RecordAsync(unitOfWork, label, cancellationToken);
+            await PyramidStore.WriteAsync(unitOfWork, pyramid, edited, cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
 
         return Results.Ok(await BuildCountriesAsync(unitOfWork, cancellationToken));
     }
@@ -433,25 +471,28 @@ internal static class WorldScaleEndpoints
 
         IReadOnlyDictionary<string, string> names = CountryProfiles.NamesFrom(world);
         ILookup<string, ClubIdentity> byCountry = world.Clubs.ToLookup(club => club.Geography.CountryId);
+        Dictionary<string, ClubIdentity> clubs = world.Clubs.ToDictionary(club => club.ClubId);
 
         var result = new List<CountryDto>();
 
         foreach (CountryProfile country in countries)
         {
-            LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync(country.CountryId, cancellationToken);
+            LeaguePyramid pyramid = LeaguePyramid.Of(
+                country.CountryId, world.Meta.CurrentSeason, world.Competitions, world.Seasons);
 
-            Dictionary<string, string> enrolledIn = pyramid.Divisions
-                .SelectMany(division => division.ClubIds.Select(clubId => (clubId, division.DivisionId)))
-                .ToDictionary(entry => entry.clubId, entry => entry.DivisionId);
+            Dictionary<string, string> enrolledIn = pyramid.Levels
+                .SelectMany(level => level.Season.ParticipantClubIds.Select(clubId => (clubId, level.Competition.CompetitionId)))
+                .ToDictionary(entry => entry.clubId, entry => entry.CompetitionId);
 
             result.Add(new CountryDto(
                 country,
                 names.GetValueOrDefault(country.CountryId),
                 byCountry[country.CountryId].Count(),
-                pyramid,
+                pyramid.Year,
+                [.. pyramid.Levels.Select(level => LevelDto(pyramid, level, clubs))],
                 // A country with no divisions yet is not broken, it is unfinished — so the rules
                 // only speak once there is a pyramid to speak about.
-                pyramid.Divisions.Count == 0 ? [] : PyramidRules.Check(pyramid),
+                pyramid.Levels.Count == 0 ? [] : PyramidRules.Check(pyramid, world.Competitions),
                 [.. byCountry[country.CountryId]
                     .OrderBy(club => club.Identity.ShortName, StringComparer.Ordinal)
                     .Select(club => new CountryClubDto(
@@ -461,5 +502,24 @@ internal static class WorldScaleEndpoints
         }
 
         return result;
+    }
+
+    private static PyramidLevelDto LevelDto(
+        LeaguePyramid pyramid,
+        PyramidLevel level,
+        IReadOnlyDictionary<string, ClubIdentity> clubs)
+    {
+        PyramidLevel? below = pyramid.Levels.FirstOrDefault(other => other.Level == level.Level + 1);
+        (int Down, int Up)? exchange = below is null ? null : PyramidEditor.Exchange(level, below);
+
+        return new PyramidLevelDto(
+            level.Level,
+            level.Competition,
+            level.Season,
+            level.Competition.Stages.Count == 1 ? CompetitionStages.Label(level.Competition.Stages[0]) : null,
+            level.Shape,
+            CompetitionStages.TierFloat(level.Season, clubs),
+            exchange?.Down,
+            exchange?.Up);
     }
 }

@@ -1,4 +1,5 @@
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Competitions;
 using SoccerSim.Core.World.Squad;
 using SoccerSim.Core.World.Validation;
 
@@ -50,3 +51,11 @@ public sealed record ClubPageDto(
     /// things this same page edits — a second request could answer about a squad the page had
     /// already changed.</summary>
     ProbableElevenResult Eleven);
+
+/// <summary>A competition as the API hands it out: the definition, its current season (null when it
+/// has none), and the numbers derived from them.</summary>
+public sealed record CompetitionDto(
+    Competition Competition,
+    CompetitionSeason? Season,
+    CompetitionShape? Shape,
+    double? TierFloat);

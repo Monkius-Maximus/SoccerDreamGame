@@ -139,7 +139,7 @@ Delivered as a patch from a session without NuGet or SQLite, applied on branch
 **Owner can now:** generate Série B/C/D (or any country with profiles), inspect the result and
 export JSON/CSV. Projecting the generated divisions into the game tables waits for its own step.
 
-## Sprint 11c — Competitions as composition (ADR-0012)
+## Sprint 11c — Competitions as composition (ADR-0012) ✔
 
 Comes before the name pools and Sprint 12, because every later sprint generates into
 competitions, and because the owner's generated divisions cannot reach the game until this
@@ -189,12 +189,26 @@ removed.
 **Before applying 0019 to an existing `world.db`:** in "Ligas", make sure no tier-1 division in
 a country with an imported league has clubs (ADR-0012 §11 step 5).
 
+**Done** (owner's decisions recorded in ADR-0012's Clarifications):
+
+- `PromotedIn` keeps the code's meaning in 0019 (clubs coming up into a level), so the pilot's 4
+  and 4 above a level 2 become a balanced pair. Level 1's counts are the imported league's.
+- A new level's geo anchor is chosen by the author (a `Country` node); 0019 takes it from the
+  country's national competition, and aborts if there is none.
+- Only the `Division` record left the Core; `DivisionGenerator` and `DivisionCreation` keep their
+  names, and the request names a `CompetitionId`.
+- 0019 also refuses ambiguous rounds, a world without a competition to take the season from, a
+  national competition with no members and two national competitions in one country.
+- CSV tabs: `Competicao`, `Fases`, `Temporadas`, `Transicoes`.
+- `generate-division` followed by `project` writes one legacy league per level, with its tier
+  from the season's quality (pilot 0.86 → 1, a 0.71 Série B → 2, a 0.54 Série C → 3).
+
 ### Moved out of Sprint 11: name pools per nationality
 
 They were listed as a prerequisite, but they turned out not to be one. With 108 first names
 and 338 surnames (~36,000 combinations) a 20-club division does not run out of names. What is
 missing is realism: an Uruguayan named "João Silva". That needs sourced pools per nationality
-and a `GenerationProfiles` change that touches persistence (migration 0013). It is its own step,
+and a `GenerationProfiles` change that touches persistence (a new migration, 0020 or later). It is its own step,
 after Sprint 11 and before the staff (Sprint 12), which will reuse the same pools.
 
 ## Sprint 12 — Staff (coach first)

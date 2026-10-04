@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
+using SoccerSim.Core.World.Competitions;
 
 namespace SoccerSim.Core.World.Serialization;
 
@@ -34,11 +35,24 @@ public static class WorldJsonReader
         var errors = new List<string>();
         var cursor = new JsonCursor(root, "$");
 
+        // A document from before ADR-0012 has flat competitions with member lists and no seasons.
+        // It is refused as a whole rather than read field by field into a pile of "missing" errors
+        // that would hide what actually happened.
+        if (!cursor.Has("seasons") || HasOldCompetitions(root))
+        {
+            throw new WorldImportException(
+            [
+                "document: this world predates ADR-0012 (competitions with member lists and no seasons). "
+                + "Re-export it from a database migrated by 0019_competitions_as_composition.",
+            ]);
+        }
+
         WorldCalibration? calibration = ReadOne(errors, () => ReadCalibration(cursor));
         IReadOnlyList<GeoNode> geoNodes = ReadMany(errors, cursor, "geoNodes", ReadGeoNode);
         IReadOnlyList<ClubIdentity> clubs = ReadMany(errors, cursor, "clubs", ReadClub);
         IReadOnlyList<CharacterRecord> characters = ReadMany(errors, cursor, "players", ReadCharacter);
         IReadOnlyList<Competition> competitions = ReadMany(errors, cursor, "competitions", ReadCompetition);
+        IReadOnlyList<CompetitionSeason> seasons = ReadMany(errors, cursor, "seasons", ReadSeason);
         IReadOnlyList<WorldSource> sources = ReadMany(errors, cursor, "sources", ReadSource);
 
         WorldMeta? meta = ReadOne(errors, () => ReadMeta(cursor));
@@ -46,8 +60,18 @@ public static class WorldJsonReader
         if (errors.Count > 0)
             throw new WorldImportException(errors);
 
-        return new WorldSnapshot(geoNodes, calibration!, clubs, characters, competitions, sources, meta!);
+        errors.AddRange(CompetitionIntegrity.Check(
+            competitions, seasons, meta!.CurrentSeason, clubs.Select(club => club.ClubId).ToHashSet(StringComparer.Ordinal)));
+
+        if (errors.Count > 0)
+            throw new WorldImportException(errors);
+
+        return new WorldSnapshot(geoNodes, calibration!, clubs, characters, competitions, seasons, sources, meta);
     }
+
+    private static bool HasOldCompetitions(JsonObject root) =>
+        root["competitions"] is JsonArray competitions
+        && competitions.Any(node => node is JsonObject competition && competition.ContainsKey("memberClubIds"));
 
     /// <summary>The document's meta block. The master seed is required: without it the world has
     /// no reproducible root for generation, and defaulting one would produce squads that differ
@@ -58,7 +82,8 @@ public static class WorldJsonReader
         return new WorldMeta(
             MasterSeed: meta.Int(WorldMeta.MasterSeedKey),
             SchemaVersion: meta.String(WorldMeta.SchemaVersionKey),
-            SourceFile: meta.OptionalString(WorldMeta.SourceFileKey));
+            SourceFile: meta.OptionalString(WorldMeta.SourceFileKey),
+            CurrentSeason: meta.Int(WorldMeta.CurrentSeasonKey));
     }
 
     // ---------------------------------------------------------------- sections
@@ -125,36 +150,26 @@ public static class WorldJsonReader
         node.OptionalString("fonte"),
         node.OptionalString("url"));
 
-    private static Competition ReadCompetition(JsonCursor node)
-    {
-        var members = new List<string>();
-        JsonArray memberIds = node.Array("memberClubIds");
-        for (int i = 0; i < memberIds.Count; i++)
-        {
-            string? clubId = memberIds[i]?.GetValue<string>();
-            if (string.IsNullOrWhiteSpace(clubId))
-                throw new WorldFieldException($"{node.Path}.memberClubIds[{i}]", "expected a club id");
-            members.Add(clubId);
-        }
+    private static Competition ReadCompetition(JsonCursor node) => new(
+        node.String("competitionId"),
+        node.String("name"),
+        node.Enum<CompetitionScope>("scope"),
+        node.String("anchorGeoNodeId"),
+        node.NullableString("countryId"),
+        node.NullableInt("level"),
+        node.Int("clubCount"),
+        node.Objects("stages")
+            .Select(stage => new CompetitionStage(stage.Int("ordinal"), stage.Enum<StageKind>("kind"), stage.Int("legs")))
+            .ToList(),
+        node.Objects("transitions")
+            .Select(rule => new TransitionRule(rule.Int("rankFrom"), rule.Int("rankTo"), rule.String("targetCompetitionId")))
+            .ToList());
 
-        return new Competition(
-            node.String("competitionId"),
-            node.String("name"),
-            node.Enum<CompetitionScope>("scope"),
-            node.String("anchorGeoNodeId"),
-            node.String("memberPredicateId"),
-            node.Enum<PrestigeBand>("prestigeBand"),
-            node.Double("leagueTierFloat"),
-            node.String("format"),
-            node.Int("clubCount"),
-            node.Int("rounds"),
-            node.Int("promotedIn"),
-            node.Int("relegatedOut"),
-            node.String("continentalSlots"),
-            node.String("editionId"),
-            node.Int("season"),
-            members);
-    }
+    private static CompetitionSeason ReadSeason(JsonCursor node) => new(
+        node.String("seasonId"),
+        node.String("competitionId"),
+        node.Int("year"),
+        node.StringList("participants"));
 
     private static ClubIdentity ReadClub(JsonCursor node)
     {

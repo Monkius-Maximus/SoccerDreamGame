@@ -3,10 +3,10 @@ namespace SoccerSim.Core.World;
 /// <summary>
 /// Removing a club or a player, with everything that pointed at them (ROADMAP.md Sprint 9).
 ///
-/// <para>Pure, and that is the point: a club is referenced from four places — its squad, the
-/// rivals that name it, the competitions that list it, and the divisions it is enrolled in — and
-/// forgetting one leaves a dangling pointer the batch audit then reports as somebody else's
-/// problem. Stating the whole cleanup in one function is what makes it checkable.</para>
+/// <para>Pure, and that is the point: a club is referenced from three places — its squad, the
+/// rivals that name it, and the seasons it takes part in — and forgetting one leaves a dangling
+/// pointer the batch audit then reports as somebody else's problem. Stating the whole cleanup in
+/// one function is what makes it checkable.</para>
 /// </summary>
 public static class WorldDeletions
 {
@@ -31,15 +31,13 @@ public static class WorldDeletions
             .Select(candidate => candidate.ClubId)
             .ToHashSet();
 
-        var competitions = world.Competitions
-            .Select(competition => competition.MemberClubIds.Contains(clubId)
-                ? competition with
-                {
-                    MemberClubIds = competition.MemberClubIds.Where(id => id != clubId).ToList(),
-                    // ClubCount describes the field, so it moves with it.
-                    ClubCount = competition.ClubCount - 1,
-                }
-                : competition)
+        // The season loses a participant; the competition keeps its declared size. The size is the
+        // structure the transition rules are written against (ADR-0012 §5), and an unfilled season
+        // is what SEASON_UNFILLED reports.
+        var seasons = world.Seasons
+            .Select(season => season.ParticipantClubIds.Contains(clubId)
+                ? season with { ParticipantClubIds = season.ParticipantClubIds.Where(id => id != clubId).ToList() }
+                : season)
             .ToList();
 
         int players = world.Characters.Count(player => player.ClubId == clubId);
@@ -54,12 +52,12 @@ public static class WorldDeletions
                         : candidate)
                     .ToList(),
                 Characters = world.Characters.Where(player => player.ClubId != clubId).ToList(),
-                Competitions = competitions,
+                Seasons = seasons,
             },
             club.Identity.ShortName,
             players,
             rivals.Count,
-            world.Competitions.Count(competition => competition.MemberClubIds.Contains(clubId)));
+            world.Seasons.Count(season => season.ParticipantClubIds.Contains(clubId)));
     }
 
     /// <summary>Removes one player. Nothing else points at a player, so this is the one deletion

@@ -17,7 +17,7 @@ namespace SoccerSim.Core.Tests.World;
 public sealed class DivisionGeneratorTests
 {
     private const long MasterSeed = 20260814;
-    private const string SerieA = "bra_t1";
+    private const string SerieA = "cmp_bra_tier1";
     private const string SerieB = "bra_t2";
 
     private static readonly Lazy<WorldSnapshot> Pilot =
@@ -41,24 +41,20 @@ public sealed class DivisionGeneratorTests
 
     private static WorldSnapshot World => Pilot.Value;
 
-    /// <summary>Série A holding the twenty pilot clubs, and an empty twenty-seat Série B.</summary>
-    private static LeaguePyramid Pyramid()
-    {
-        LeaguePyramid pyramid = new("BRA", []);
-        pyramid = PyramidEditor.AddDivision(pyramid, SerieA, "Série A", CompetitionFormat.LeagueDouble, 20);
-        pyramid = PyramidEditor.AddDivision(pyramid, SerieB, "Série B", CompetitionFormat.LeagueDouble, 20);
-        foreach (ClubIdentity club in World.Clubs)
-            pyramid = PyramidEditor.Enrol(pyramid, SerieA, club.ClubId);
-        return pyramid;
-    }
+    /// <summary>The pilot league at level 1 with its twenty clubs, and an empty twenty-seat Série B
+    /// below it exchanging four.</summary>
+    private static LeaguePyramid Pyramid() =>
+        PyramidEditor.AddLevel(
+            LeaguePyramid.Of("BRA", World.Meta.CurrentSeason, World.Competitions, World.Seasons),
+            World, SerieB, "Série B", "geo_bra", legs: 2, clubCount: 20, exchange: 4);
 
     private static DivisionGenerationRequest Request(
         int clubCount = 20,
-        string divisionId = SerieB,
+        string competitionId = SerieB,
         double min = 0.62,
         double max = 0.80,
         long seed = 2026) =>
-        new("BRA", divisionId, clubCount, PrestigeBand.B4, min, max, seed);
+        new("BRA", competitionId, clubCount, PrestigeBand.B4, min, max, seed);
 
     private static DivisionGenerationResult Generate(DivisionGenerationRequest? request = null, LeaguePyramid? pyramid = null) =>
         DivisionGenerator.Generate(
@@ -102,12 +98,12 @@ public sealed class DivisionGeneratorTests
     [Fact]
     public void TheBatch_FillsTheRequestedSeats_AndOnlyThose()
     {
-        Division serieB = Batch.Pyramid.Divisions.Single(division => division.DivisionId == SerieB);
-        Division serieA = Batch.Pyramid.Divisions.Single(division => division.DivisionId == SerieA);
+        PyramidLevel serieB = Batch.Pyramid.Find(SerieB)!;
+        PyramidLevel serieA = Batch.Pyramid.Find(SerieA)!;
 
         Assert.Equal(20, Batch.Clubs.Count);
-        Assert.Equal(Batch.Clubs.Select(club => club.ClubId), serieB.ClubIds);
-        Assert.Equal(World.Clubs.Select(club => club.ClubId), serieA.ClubIds);
+        Assert.Equal(Batch.Clubs.Select(club => club.ClubId), serieB.Season.ParticipantClubIds);
+        Assert.Equal(World.Seasons.Single().ParticipantClubIds, serieA.Season.ParticipantClubIds);
     }
 
     [Fact]
@@ -171,9 +167,11 @@ public sealed class DivisionGeneratorTests
     }
 
     [Fact]
-    public void ThePyramid_HasNoClubInTwoDivisions()
+    public void ThePyramid_HasNoClubInTwoLeagues()
     {
-        Assert.DoesNotContain(PyramidRules.Check(Batch.Pyramid), finding => finding.Code == "CLUB_TWO_DIVISIONS");
+        IReadOnlyList<Competition> competitions = [.. Batch.Pyramid.Levels.Select(level => level.Competition)];
+
+        Assert.DoesNotContain(PyramidRules.Check(Batch.Pyramid, competitions), finding => finding.Code == "CLUB_TWO_LEAGUES");
     }
 
     [Fact]
@@ -199,7 +197,7 @@ public sealed class DivisionGeneratorTests
     [Fact]
     public void ADivisionThePyramidDoesNotHave_IsRefusedByName()
     {
-        var ex = Assert.Throws<ArgumentException>(() => Generate(Request(divisionId: "bra_t9")));
+        var ex = Assert.Throws<ArgumentException>(() => Generate(Request(competitionId: "bra_t9")));
 
         Assert.Contains("bra_t9", ex.Message);
     }
@@ -215,7 +213,7 @@ public sealed class DivisionGeneratorTests
     [Fact]
     public void AFullDivision_TakesNoMoreClubs()
     {
-        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => Generate(Request(divisionId: SerieA, clubCount: 1)));
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => Generate(Request(competitionId: SerieA, clubCount: 1)));
 
         Assert.Contains("0 free seat(s)", ex.Message);
     }
@@ -232,6 +230,6 @@ public sealed class DivisionGeneratorTests
     [Fact]
     public void AnotherCountrysPyramid_IsRefused()
     {
-        Assert.Throws<ArgumentException>(() => Generate(pyramid: new LeaguePyramid("ARG", [])));
+        Assert.Throws<ArgumentException>(() => Generate(pyramid: new LeaguePyramid("ARG", 2026, [])));
     }
 }

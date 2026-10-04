@@ -27,7 +27,7 @@ public sealed class DivisionGenerationApiTests : IAsyncLifetime
     /// <summary>The undo stack's depth once the division exists: creating it is itself a step.</summary>
     private int _baseDepth;
 
-    /// <summary>The pilot world with an empty twenty-seat division to fill.</summary>
+    /// <summary>The pilot world with an empty twenty-seat Série B below the pilot league.</summary>
     public async Task InitializeAsync()
     {
         _app = new WorldBuilderApp();
@@ -35,7 +35,7 @@ public sealed class DivisionGenerationApiTests : IAsyncLifetime
 
         HttpResponseMessage response = await _client.PostAsJsonAsync(
             $"/api/countries/{Brazil}/divisions",
-            new { divisionId = Division, name = "Série B", format = "LeagueDouble", clubCount = 20 });
+            new { competitionId = Division, name = "Série B", anchorGeoNodeId = "geo_bra", legs = 2, clubCount = 20, exchange = 4 });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         _baseDepth = await DepthAsync();
     }
@@ -71,9 +71,9 @@ public sealed class DivisionGenerationApiTests : IAsyncLifetime
     {
         JsonArray countries = JsonNode.Parse(await _client.GetStringAsync("/api/countries"))!.AsArray();
         JsonNode brazil = countries.Single(country => country!["country"]!["countryId"]!.GetValue<string>() == Brazil)!;
-        JsonNode division = brazil["pyramid"]!["divisions"]!.AsArray()
-            .Single(d => d!["divisionId"]!.GetValue<string>() == Division)!;
-        return division["clubIds"]!.AsArray().Select(id => id!.GetValue<string>()).ToList();
+        JsonNode level = brazil["levels"]!.AsArray()
+            .Single(l => l!["competition"]!["competitionId"]!.GetValue<string>() == Division)!;
+        return level["season"]!["participantClubIds"]!.AsArray().Select(id => id!.GetValue<string>()).ToList();
     }
 
     [Fact]

@@ -6,11 +6,12 @@ namespace SoccerSim.Core.World.Generation;
 /// <summary>
 /// What the owner decides about a division's new clubs: how many, how prestigious (one band for
 /// the batch, authored per D-38) and how strong, as a range the clubs are spread across.
-/// <see cref="Seed"/> is the determinism contract for the whole batch.
+/// <see cref="CompetitionId"/> is a national league with a pyramid level — a "divisão" on the
+/// screen (ADR-0012 §9). <see cref="Seed"/> is the determinism contract for the whole batch.
 /// </summary>
 public sealed record DivisionGenerationRequest(
     string CountryId,
-    string DivisionId,
+    string CompetitionId,
     int ClubCount,
     PrestigeBand Band,
     double StrengthMin,
@@ -18,8 +19,9 @@ public sealed record DivisionGenerationRequest(
     long Seed);
 
 /// <summary>
-/// A generated batch: the clubs, their squads, and the pyramid with every club enrolled in the
-/// requested division. Nothing has been written; persisting it is one transaction (Sprint 11b).
+/// A generated batch: the clubs, their squads, and the pyramid with every club appended to the
+/// participants of the league's current season. Nothing has been written; persisting it is one
+/// transaction (<see cref="DivisionCreation"/>).
 /// </summary>
 public sealed record DivisionGenerationResult(
     IReadOnlyList<ClubIdentity> Clubs,
@@ -54,13 +56,13 @@ public static class DivisionGenerator
         IReadOnlyList<ClubIdentity> existingClubs,
         long masterSeed)
     {
-        Division division = Validate(request, pyramid, country);
+        PyramidLevel division = Validate(request, pyramid, country);
 
         IDeterministicRandom rng = DeterministicRng.CreateStream(
             (ulong)masterSeed,
             StableHash.Of("division"),
             StableHash.Of(request.CountryId),
-            StableHash.Of(division.DivisionId),
+            StableHash.Of(division.Competition.CompetitionId),
             unchecked((ulong)request.Seed));
 
         ClubGenerationContext taken = ClubGenerationContext.From(existingClubs);
@@ -87,7 +89,7 @@ public static class DivisionGenerator
                 masterSeed,
                 country));
 
-            pyramid = PyramidEditor.Enrol(pyramid, division.DivisionId, club.ClubId);
+            pyramid = PyramidEditor.Enrol(pyramid, division.Competition.CompetitionId, club.ClubId);
             taken = taken.With(club);
             clubs.Add(club);
         }
@@ -107,7 +109,7 @@ public static class DivisionGenerator
             .ToList();
     }
 
-    private static Division Validate(DivisionGenerationRequest request, LeaguePyramid pyramid, CountryProfile country)
+    private static PyramidLevel Validate(DivisionGenerationRequest request, LeaguePyramid pyramid, CountryProfile country)
     {
         if (pyramid.CountryId != request.CountryId)
         {
@@ -123,17 +125,18 @@ public static class DivisionGenerator
                 nameof(country));
         }
 
-        Division division = pyramid.Divisions.SingleOrDefault(d => d.DivisionId == request.DivisionId)
+        PyramidLevel division = pyramid.Find(request.CompetitionId)
             ?? throw new ArgumentException(
-                $"{request.CountryId} has no division '{request.DivisionId}' "
-                + $"(there are: {string.Join(", ", pyramid.Divisions.Select(d => d.DivisionId))}).",
+                $"{request.CountryId} has no division '{request.CompetitionId}' "
+                + $"(there are: {string.Join(", ", pyramid.Levels.Select(level => level.Competition.CompetitionId))}).",
                 nameof(request));
 
-        int seats = division.ClubCount - division.ClubIds.Count;
+        int declared = division.Competition.ClubCount;
+        int seats = declared - division.Season.ParticipantClubIds.Count;
         if (request.ClubCount < 1 || request.ClubCount > seats)
         {
             throw new ArgumentOutOfRangeException(nameof(request),
-                $"{division.Name} has {seats} free seat(s) of {division.ClubCount}; "
+                $"{division.Competition.Name} has {seats} free seat(s) of {declared}; "
                 + $"cannot generate {request.ClubCount} club(s).");
         }
 

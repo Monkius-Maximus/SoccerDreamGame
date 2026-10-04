@@ -13,8 +13,8 @@ namespace SoccerSim.Core.World;
 /// CSV import that removes rows, recalculating the batch) and a <c>confirm()</c> asks a question
 /// nobody can answer without seeing the result. This is the answer: do it, look, undo.</para>
 ///
-/// <para>A snapshot is two documents: the world, and the countries and divisions that live beside
-/// it (they are not in the export format, because the pilot batch predates both). Both are
+/// <para>A snapshot is two documents: the world, and the countries that live beside
+/// it (they are not in the export format, because the pilot batch predates them). Both are
 /// restored together — an undo that puts back half the world is the failure this pairing exists to
 /// prevent.</para>
 ///
@@ -92,8 +92,9 @@ public static class WorldHistory
 
         await WorldStore.ReplaceAsync(unitOfWork, restored, cancellationToken);
 
-        // Countries and divisions come back with the world, not after it: an undo that restores
-        // half the world is the failure this pairing exists to prevent.
+        // Countries come back with the world, not after it: an undo that restores half the world
+        // is the failure this pairing exists to prevent. Competitions and their seasons are in
+        // the document itself (ADR-0012 §10).
         await WorldScale.ReplaceAsync(unitOfWork, WorldScale.FromJson(entry.Scale), cancellationToken);
 
         return entry.Label;

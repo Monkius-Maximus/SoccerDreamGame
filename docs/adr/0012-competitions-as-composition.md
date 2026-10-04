@@ -1,7 +1,7 @@
 # ADR-0012 — Competitions as composition: one model, seasons, stages and transition rules
 
-- Status: Accepted (not yet implemented — Sprint 11c)
-- Date: 2026-10-04
+- Status: Accepted (implemented in Sprint 11c; see Clarifications)
+- Date: 2026-10-04, clarified 2026-10-04
 - Depends on: ADR-0002 (coexistence), ADR-0005 (projection), ADR-0007 (pyramids), ADR-0008
   (undo and pyramid authoring), ADR-0011 (generation)
 - Amends: ADR-0005 §5, ADR-0007 §1–§3, ADR-0008 §1, §2 and §4
@@ -260,8 +260,9 @@ It runs in the runner's transaction, so an abort writes nothing.
 5. **A tier-1 division in a country that already got a level-1 competition in step 3** is dropped
    if it is empty, since the pilot league is the authored one. If it has clubs,
    `UNIQUE (CountryId, Level)` aborts the migration. In the owner's database the tier-1 "Série A"
-   is empty and is dropped, and the generated Série B is kept at level 2.
-6. **Rules** are built from the old divisions' counts by level, after the competitions exist, so
+   is empty and is dropped, and the generated Série B is kept at level 2. *(That sentence did not
+   come from the owner's database; see Clarification 3.)*
+6. **Rules** *(the reading of `PromotedIn` below is reversed; see Clarifications 1–2)* are built from the old divisions' counts by level, after the competitions exist, so
    they attach to whichever competition now holds that level. For tier *t* above tier *t+1*:
    *t*'s `RelegatedOut` gives *t*'s bottom ranks → *t+1*, and *t+1*'s `PromotedIn` gives *t+1*'s
    top ranks → *t*. Counts with no level to point at (the bottom level's, and the pilot's 4 and 4
@@ -315,3 +316,56 @@ also has an imported league is the one case that aborts.
 - The game-side work this boundary implies (stages beyond the league, fixtures and calendar,
   applying transitions, finances, academy, market AI) is listed in the roadmap as future epics
   outside the World Builder.
+
+## Clarifications (2026-10-04, Sprint 11c)
+
+Decided by the owner while planning Sprint 11c, where the text above met the code.
+
+1. **§11 step 6 reversed the meaning of `PromotedIn`.** In the code, a division's `PromotedIn` is
+   how many clubs come **up into it** from the level below: that is the `Division` comment, the
+   `PYRAMID_FLOW` sum of ADR-0007 §3, and the pilot, a top flight with `PromotedIn = 4`. Migration
+   0019 follows the code: `RelegatedOut(t)` gives "the bottom ranks of *t* → *t+1*", and
+   `PromotedIn(t)` gives "the top ranks of *t+1* → *t*". With the pilot's 4 and 4 at level 1 and a
+   level 2 below it, 0019 writes the full pair and the pyramid comes out balanced.
+2. **Level 1's counts are the imported league's.** When an empty tier-1 division is dropped next to
+   the imported league (§11 step 5), the counts of level 1 are the league's (the pilot's 4 and 4),
+   not the dropped division's.
+3. **"In the owner's database the tier-1 Série A is empty" came from a test database.** It was
+   read off a screenshot of the database Claude Code built to check the Sprint 11 screen, not off
+   the owner's `world.db`, which was never inspected. That same test database later had five
+   clubs generated into its tier-1 Série A, and 0019 refuses it (step 5). Before applying 0019, the
+   owner checks the "Ligas" tab, as this ADR already says.
+4. **The geo anchor of a division is stated, not guessed.** A `Competition` needs an
+   `AnchorGeoNodeId`, and ADR-0007 §4 does not link an ISO code to a geo node. A level created on
+   the screen therefore takes the anchor the author picks, which must be a `Country` node. 0019
+   gives each converted division the anchor of its country's national competition, and aborts if
+   the country has none.
+5. **Only the `Division` record leaves the Core vocabulary.** `DivisionGenerator`,
+   `DivisionCreation` and their request and result keep their names, as the roadmap uses them;
+   the request's `DivisionId` becomes `CompetitionId`.
+6. **0019 refuses four more ambiguous cases**, each with a named message: typed rounds that are
+   neither a single nor a double round robin of the club count; a database with clubs or divisions
+   but no competition to take the current season from; a national competition with no members to
+   take its country from; and two national competitions in one country, which would both be level 1.
+7. **`Competitions.CountryId` has no foreign key to `Countries`**, like `Clubs.CountryId`. Undo
+   rewrites the countries, and a cascade from there would take the competitions with it. A
+   competition in a country with no profile is the audit's to report.
+8. **How 0019 handles the foreign keys.** The runner's connection has `foreign_keys = ON`, which
+   cannot change inside a transaction, so no table is renamed (SQLite would rewrite the children's
+   references, and `RENAME` is not portable). The old rows are copied to staging tables, the old
+   tables are dropped children first (`CompetitionMembers` before `Competitions`, `DivisionClubs`
+   before `Divisions`), and the new ones are built from the copies. A refusal is a named `CHECK` on
+   a guard table, so the owner reads "CHECK constraint failed: 0019 aborted: …" and nothing is written.
+9. **Structure is checked once, on every way in.** `CompetitionIntegrity` holds the rules a world's
+   competitions must satisfy (a country exactly where the scope needs one, a level only on a
+   national league, at least one stage of one or two legs, rule targets that exist, participants
+   that are clubs, every season of the current year, every level with its season) and runs on the
+   JSON document, the CSV tabs and every undo snapshot. Authoring state (an unbalanced flow, an
+   unfilled season) stays a `PyramidRules` finding.
+10. **Deleting a club no longer shrinks the competition.** `ClubCount` is now the definition the
+    transition rules are written against; the season loses a participant and `SEASON_UNFILLED`
+    says so.
+11. **CSV.** The tabs are `Competicao` (the definition), `Fases`, `Temporadas` (participants joined by
+    `|`) and `Transicoes`. A stage and a rule have no id of their own, so the import diff identifies
+    their rows by content, as it does `Fontes`.
+

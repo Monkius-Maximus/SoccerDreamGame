@@ -61,6 +61,7 @@ internal static class WorldBuilderCommands
         IReadOnlyList<ClubIdentity> clubs = await unitOfWork.Clubs.ListAsync();
         IReadOnlyList<CharacterRecord> characters = await unitOfWork.Characters.ListAsync();
         IReadOnlyList<Competition> competitions = await unitOfWork.Competitions.ListAsync();
+        IReadOnlyList<CompetitionSeason> seasons = await unitOfWork.Seasons.ListAsync();
         IReadOnlyList<GeoNode> geoNodes = await unitOfWork.GeoNodes.ListAsync();
 
         if (clubs.Count == 0)
@@ -72,7 +73,8 @@ internal static class WorldBuilderCommands
 
         try
         {
-            LegacyWorld projected = WorldToLegacyProjection.Project(clubs, characters, competitions, geoNodes);
+            LegacyWorld projected = WorldToLegacyProjection.Project(
+                clubs, characters, competitions, seasons, geoNodes, await WorldStore.CurrentSeasonAsync(unitOfWork));
 
             using SqliteConnection connection = factory.Open();
             new LegacyProjectionWriter(connection).Write(projected);
@@ -238,6 +240,9 @@ internal static class WorldBuilderCommands
     /// worldbuilder generate-division &lt;countryId&gt; &lt;divisionId&gt; &lt;clubCount&gt; &lt;band&gt;
     /// &lt;strengthMin&gt; &lt;strengthMax&gt; &lt;seed&gt; [database]
     ///
+    /// <para>&lt;divisionId&gt; is the competition id of a national league with a pyramid level —
+    /// what the screen calls a division (ADR-0012 §9).</para>
+    ///
     /// <para>Fills a division with Regen clubs and their squads through
     /// <see cref="DivisionCreation"/>, the same path the web tool's "Gerar divisão" takes: one
     /// transaction, one step on the undo stack. Strengths use dot decimals, like
@@ -354,7 +359,8 @@ internal static class WorldBuilderCommands
               worldbuilder generate-club <countryId> <band> <strength> <seed> [db]
                                                         generate one Regen club (strength in (0, 1])
               worldbuilder generate-division <countryId> <divisionId> <clubCount> <band> <strengthMin> <strengthMax> <seed> [db]
-                                                        fill a division with Regen clubs and squads
+                                                        fill a division (a levelled national league,
+                                                        by its competition id) with Regen clubs and squads
               worldbuilder project [db]                 rewrite the legacy game tables from the world
 
             Importing is all-or-nothing: a document with any malformed record is rejected in full,

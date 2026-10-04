@@ -146,28 +146,26 @@ public sealed class SearchApiTests : IClassFixture<WorldBuilderApp>
 
     // ----------------------------------------------------------- the register
 
+    /// <summary>One model (ADR-0012 §2): the pilot league is a "Divisão" — a national league with
+    /// a pyramid level — with its rounds derived from its stage.</summary>
     [Fact]
-    public async Task TheRegisterListsTheAuthoredCompetitionOfThePilotWorld()
+    public async Task TheRegisterListsThePilotLeague_AsLevelOneOfBrazil()
     {
         JsonArray rows = JsonNode.Parse(await _client.GetStringAsync("/api/register"))!.AsArray();
 
-        JsonNode competition = Assert.Single(
-            rows, row => row!["kind"]!.GetValue<string>() == "Competição");
+        JsonNode pilot = Assert.Single(rows)!;
 
-        Assert.Equal(20, competition["clubs"]!.GetValue<int>());
-        Assert.Equal(38, competition["rounds"]!.GetValue<int>());
-
-        // An edition has no tier: it is not a level of a pyramid, it is a season of one.
-        Assert.Null(competition["tier"]);
+        Assert.Equal("Divisão", pilot["kind"]!.GetValue<string>());
+        Assert.Equal(1, pilot["level"]!.GetValue<int>());
+        Assert.Equal("Brasil", pilot["countryName"]!.GetValue<string>());
+        Assert.Equal(20, pilot["clubs"]!.GetValue<int>());
+        Assert.Equal(20, pilot["participants"]!.GetValue<int>());
+        Assert.Equal(38, pilot["rounds"]!.GetValue<int>());
+        Assert.Equal(380, pilot["matches"]!.GetValue<int>());
     }
 
-    /// <summary>
-    /// A division and a competition are different things — the standing structure and a frozen
-    /// edition of it (docs/adr/0008). The register shows both and says which is which rather than
-    /// flattening them into one kind.
-    /// </summary>
     [Fact]
-    public async Task ADivisionAppearsBesideTheCompetitions_LabelledAsItsOwnKind()
+    public async Task ANewLevel_AppearsInTheRegister_WithItsMovesBothWays()
     {
         // Its own instance: this is the one test here that writes, and the rest share a fixture
         // that would then be describing a world they did not expect.
@@ -176,17 +174,13 @@ public sealed class SearchApiTests : IClassFixture<WorldBuilderApp>
 
         await client.PostAsJsonAsync(
             "/api/countries/BRA/divisions",
-            new { divisionId = "div_bra_1", name = "Série A", format = "LeagueDouble", clubCount = 20 });
+            new { competitionId = "div_bra_2", name = "Série B", anchorGeoNodeId = "geo_bra", legs = 2, clubCount = 20, exchange = 4 });
 
         JsonArray rows = JsonNode.Parse(await client.GetStringAsync("/api/register"))!.AsArray();
-        JsonNode division = Assert.Single(rows, row => row!["kind"]!.GetValue<string>() == "Divisão");
 
-        Assert.Equal("Série A", division["name"]!.GetValue<string>());
-        Assert.Equal(1, division["tier"]!.GetValue<int>());
-        Assert.Equal("Brasil", division["countryName"]!.GetValue<string>());
-
-        // Derived, on this surface as on the other one.
-        Assert.Equal(38, division["rounds"]!.GetValue<int>());
-        Assert.Equal(380, division["matches"]!.GetValue<int>());
+        Assert.Equal([1, 2], rows.Select(row => row!["level"]!.GetValue<int>()));
+        Assert.Equal((0, 4), (rows[0]!["up"]!.GetValue<int>(), rows[0]!["down"]!.GetValue<int>()));
+        Assert.Equal((4, 0), (rows[1]!["up"]!.GetValue<int>(), rows[1]!["down"]!.GetValue<int>()));
+        Assert.Equal(0, rows[1]!["participants"]!.GetValue<int>());
     }
 }

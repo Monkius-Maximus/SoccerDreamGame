@@ -17,7 +17,10 @@ public sealed class MigrationRunner
 
     public MigrationRunner(SqliteConnectionFactory factory) => _factory = factory;
 
-    public void Migrate(bool includeSeeds = false)
+    /// <param name="throughVersion">Stop after this version. Only a migration's own test needs it:
+    /// to build the database a data-converting migration (0019) meets, it has to stop just before
+    /// it.</param>
+    public void Migrate(bool includeSeeds = false, int throughVersion = int.MaxValue)
     {
         using SqliteConnection connection = _factory.Open();
         EnsureVersionTable(connection);
@@ -32,7 +35,7 @@ public sealed class MigrationRunner
         foreach (string resource in resources)
         {
             int version = ParseVersion(resource);
-            if (applied.Contains(version))
+            if (applied.Contains(version) || version > throughVersion)
                 continue;
 
             string sql = ReadResource(assembly, resource);

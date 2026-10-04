@@ -1,5 +1,6 @@
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Simulation;
+using SoccerSim.Core.World.Competitions;
 
 namespace SoccerSim.Core.World.Projection;
 
@@ -62,9 +63,8 @@ public static class WorldToLegacyProjection
         squad.Sum(player => (long)player.SalaryMonthlyBrl) * 12;
 
     /// <summary>
-    /// <c>leagueTierFloat</c> is a continuous measure of how strong a competition is — in the
-    /// current batch it is the mean club strength of its members (0.86 against a measured
-    /// 0.8605). The legacy <c>Tier</c> is a level of DETAIL, not of quality, so the mapping says
+    /// <c>leagueTierFloat</c> is a continuous measure of how strong a league is: the mean club
+    /// strength of its season's participants (ADR-0012 §7; 0.86 for the pilot). The legacy <c>Tier</c> is a level of DETAIL, not of quality, so the mapping says
     /// what it means: a stronger competition earns a more expensive simulation.
     /// </summary>
     public static SimulationTier TierFor(double leagueTierFloat) => leagueTierFloat switch
@@ -75,28 +75,50 @@ public static class WorldToLegacyProjection
     };
 
     /// <summary>
-    /// The legacy season is the calendar year the edition names. Real fixture windows differ by
+    /// The legacy season is the calendar year of the world's current season. Real fixture windows differ by
     /// country and are a scheduling concern; the projection's job is to give the season a span
     /// the fixtures can fall inside, not to invent a calendar.
     /// </summary>
     public static (DateTime Start, DateTime End) SeasonSpan(int season) =>
         (new DateTime(season, 1, 1), new DateTime(season, 12, 31));
 
+    /// <summary>
+    /// Projects the world's current season (ADR-0012 §8). A legacy <c>League</c> is a national
+    /// league with a pyramid level; its teams are the participants of its <paramref name="currentSeason"/>
+    /// season, and its <c>Tier</c> comes from that season's derived tier float.
+    /// </summary>
     public static LegacyWorld Project(
         IReadOnlyList<ClubIdentity> clubs,
         IReadOnlyList<CharacterRecord> characters,
         IReadOnlyList<Competition> competitions,
-        IReadOnlyList<GeoNode> geoNodes)
+        IReadOnlyList<CompetitionSeason> seasons,
+        IReadOnlyList<GeoNode> geoNodes,
+        int currentSeason)
     {
-        // Domestic leagues only. A continental cup is a competition, but it is not a League in
-        // the legacy model — Leagues own Seasons and fixtures, and a club plays in exactly one.
+        // National leagues of a pyramid only. A cup or a continental competition is a competition,
+        // but it is not a League in the legacy model — Leagues own Seasons and fixtures, and a club
+        // plays in exactly one.
         List<Competition> domestic = competitions
-            .Where(competition => competition.Scope == CompetitionScope.National)
+            .Where(competition => competition.Scope == CompetitionScope.National && competition.Level is not null)
             .OrderBy(competition => competition.CompetitionId, StringComparer.Ordinal)
             .ToList();
 
         var problems = new List<string>();
-        Dictionary<string, Competition> leagueOfClub = MapClubsToLeagues(clubs, domestic, problems);
+        Dictionary<string, CompetitionSeason> seasonOf = CurrentSeasons(domestic, seasons, currentSeason, problems);
+        Dictionary<string, ClubIdentity> clubsById = clubs.ToDictionary(club => club.ClubId);
+
+        // A season with nobody in it has no tier float, and a league without a tier cannot be
+        // given a level of simulation detail (ADR-0012 §7).
+        var tierFloats = new Dictionary<string, double>();
+        foreach ((string competitionId, CompetitionSeason season) in seasonOf)
+        {
+            if (CompetitionStages.TierFloat(season, clubsById) is { } tierFloat)
+                tierFloats[competitionId] = tierFloat;
+            else
+                problems.Add($"{competitionId} has no participants in {currentSeason}; a league with no clubs has no tier.");
+        }
+
+        Dictionary<string, Competition> leagueOfClub = MapClubsToLeagues(clubs, domestic, seasonOf, problems);
 
         if (problems.Count > 0)
             throw new ProjectionException(problems);
@@ -108,14 +130,14 @@ public static class WorldToLegacyProjection
         Dictionary<string, string> geoNames = geoNodes.ToDictionary(node => node.GeoNodeId, node => node.DisplayName);
 
         var leagues = new List<League>();
-        var seasons = new List<Season>();
+        var legacySeasons = new List<Season>();
 
         foreach (Competition competition in domestic)
         {
             int id = leagueIds[competition.CompetitionId];
-            (DateTime start, DateTime end) = SeasonSpan(competition.Season);
+            (DateTime start, DateTime end) = SeasonSpan(seasonOf[competition.CompetitionId].Year);
 
-            seasons.Add(new Season { Id = id, LeagueId = id, StartDate = start, EndDate = end });
+            legacySeasons.Add(new Season { Id = id, LeagueId = id, StartDate = start, EndDate = end });
             leagues.Add(new League
             {
                 Id = id,
@@ -123,8 +145,8 @@ public static class WorldToLegacyProjection
                 Country = geoNames.TryGetValue(competition.AnchorGeoNodeId, out string? name)
                     ? name
                     : competition.AnchorGeoNodeId,
-                Tier = TierFor(competition.LeagueTierFloat),
-                // One season per projection: the edition the competition names.
+                Tier = TierFor(tierFloats[competition.CompetitionId]),
+                // One season per projection: the world's current one.
                 CurrentSeasonId = id,
             });
         }
@@ -167,7 +189,7 @@ public static class WorldToLegacyProjection
             })
             .ToList();
 
-        return new LegacyWorld(leagues, seasons, teams, players);
+        return new LegacyWorld(leagues, legacySeasons, teams, players);
     }
 
     /// <summary>
@@ -178,12 +200,13 @@ public static class WorldToLegacyProjection
     private static Dictionary<string, Competition> MapClubsToLeagues(
         IReadOnlyList<ClubIdentity> clubs,
         IReadOnlyList<Competition> domestic,
+        IReadOnlyDictionary<string, CompetitionSeason> seasonOf,
         List<string> problems)
     {
         var byClub = new Dictionary<string, List<Competition>>();
-        foreach (Competition competition in domestic)
+        foreach (Competition competition in domestic.Where(competition => seasonOf.ContainsKey(competition.CompetitionId)))
         {
-            foreach (string clubId in competition.MemberClubIds)
+            foreach (string clubId in seasonOf[competition.CompetitionId].ParticipantClubIds)
             {
                 if (!byClub.TryGetValue(clubId, out List<Competition>? list))
                     byClub[clubId] = list = [];
@@ -198,16 +221,16 @@ public static class WorldToLegacyProjection
             if (!byClub.TryGetValue(club.ClubId, out List<Competition>? memberships))
             {
                 problems.Add(
-                    $"{club.ClubId} ({club.Identity.ShortName}) is not a member of any national competition. "
-                    + "A projected team has to belong to a league; add the club to one, or leave it out of the projection.");
+                    $"{club.ClubId} ({club.Identity.ShortName}) takes part in no national league this season. "
+                    + "A projected team has to belong to a league; enrol the club in one, or leave it out of the projection.");
                 continue;
             }
 
             if (memberships.Count > 1)
             {
                 problems.Add(
-                    $"{club.ClubId} ({club.Identity.ShortName}) is a member of "
-                    + $"{memberships.Count} national competitions ({string.Join(", ", memberships.Select(c => c.CompetitionId))}). "
+                    $"{club.ClubId} ({club.Identity.ShortName}) takes part in "
+                    + $"{memberships.Count} national leagues ({string.Join(", ", memberships.Select(c => c.CompetitionId))}). "
                     + "A legacy team plays in exactly one league.");
                 continue;
             }
@@ -216,5 +239,29 @@ public static class WorldToLegacyProjection
         }
 
         return resolved;
+    }
+
+    /// <summary>Each league's season of the current year. A levelled league without one is a world
+    /// the importer and the pyramid editor never produce, and it is reported by name.</summary>
+    private static Dictionary<string, CompetitionSeason> CurrentSeasons(
+        IReadOnlyList<Competition> domestic,
+        IReadOnlyList<CompetitionSeason> seasons,
+        int currentSeason,
+        List<string> problems)
+    {
+        var result = new Dictionary<string, CompetitionSeason>();
+
+        foreach (Competition competition in domestic)
+        {
+            CompetitionSeason? season = seasons.SingleOrDefault(candidate =>
+                candidate.CompetitionId == competition.CompetitionId && candidate.Year == currentSeason);
+
+            if (season is null)
+                problems.Add($"{competition.CompetitionId} has no {currentSeason} season.");
+            else
+                result[competition.CompetitionId] = season;
+        }
+
+        return result;
     }
 }

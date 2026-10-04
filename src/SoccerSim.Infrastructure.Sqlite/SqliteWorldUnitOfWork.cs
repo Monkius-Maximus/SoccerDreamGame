@@ -35,7 +35,7 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
         ClubProfiles = new ClubProfileRepository(connection, transaction);
         Settings = new WorldSettingsRepository(connection, transaction);
         Countries = new CountryRepository(connection, transaction);
-        Divisions = new DivisionRepository(connection, transaction);
+        Seasons = new CompetitionSeasonRepository(connection, transaction);
         History = new WorldHistoryRepository(connection, transaction);
     }
 
@@ -50,7 +50,7 @@ public sealed class SqliteWorldUnitOfWork : IWorldUnitOfWork
     public IClubProfileRepository ClubProfiles { get; }
     public IWorldSettingsRepository Settings { get; }
     public ICountryRepository Countries { get; }
-    public IDivisionRepository Divisions { get; }
+    public ICompetitionSeasonRepository Seasons { get; }
     public IWorldHistory History { get; }
 
     public Task BeginTransactionAsync(CancellationToken cancellationToken = default)

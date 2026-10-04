@@ -11,13 +11,14 @@ using Xunit;
 namespace SoccerSim.Core.Tests.World;
 
 /// <summary>
-/// Sprint 11b: <see cref="DivisionCreation"/>, the one write path the CLI and the API share for a
-/// whole division (ADR-0011 §6). Preview writes nothing; apply writes every club, squad and
-/// enrolment as one act; a failure mid-batch writes nothing; undo takes the batch back exactly.
+/// Sprints 11b and 11c: <see cref="DivisionCreation"/>, the one write path the CLI and the API
+/// share for a whole division (ADR-0011 §6, ADR-0012 §9). Preview writes nothing; apply writes
+/// every club, squad and season participant as one act; a failure mid-batch writes nothing; undo
+/// takes the batch back exactly; and the result projects onto the game tables.
 /// </summary>
 public sealed class DivisionCreationPersistenceTests
 {
-    private const string SerieA = "bra_t1";
+    private const string SerieA = "cmp_bra_tier1";
     private const string SerieB = "bra_t2";
     private const int PilotClubs = 20;
     private const int PilotPlayers = 688;
@@ -28,8 +29,8 @@ public sealed class DivisionCreationPersistenceTests
     private static string TestData(string file) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", file));
 
-    /// <summary>The pilot world with both profile documents, Série A holding the twenty pilot
-    /// clubs and an empty twenty-seat Série B.</summary>
+    /// <summary>The pilot world with both profile documents: the pilot league at level 1 with its
+    /// twenty clubs, and an empty twenty-seat Série B below it exchanging four.</summary>
     private static async Task<WorldDatabase> WorldWithPyramidAsync()
     {
         WorldDatabase database = await WorldDatabase.WithRealWorldImported();
@@ -38,12 +39,13 @@ public sealed class DivisionCreationPersistenceTests
         await unitOfWork.GenerationProfiles.SaveAsync(GenerationProfilesReader.Read(TestData("gen_profiles.json")));
         await unitOfWork.ClubProfiles.SaveAsync(TestData("club_profiles.json"));
 
-        LeaguePyramid pyramid = new("BRA", []);
-        pyramid = PyramidEditor.AddDivision(pyramid, SerieA, "Série A", CompetitionFormat.LeagueDouble, 20);
-        pyramid = PyramidEditor.AddDivision(pyramid, SerieB, "Série B", CompetitionFormat.LeagueDouble, 20);
-        foreach (ClubIdentity club in await unitOfWork.Clubs.ListAsync())
-            pyramid = PyramidEditor.Enrol(pyramid, SerieA, club.ClubId);
-        await WorldScale.SavePyramidAsync(unitOfWork, pyramid);
+        WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork);
+        LeaguePyramid before = await PyramidStore.LoadAsync(unitOfWork, "BRA");
+        LeaguePyramid after = PyramidEditor.AddLevel(before, world, SerieB, "Série B", "geo_bra", legs: 2, clubCount: 20, exchange: 4);
+
+        await unitOfWork.BeginTransactionAsync();
+        await PyramidStore.WriteAsync(unitOfWork, before, after);
+        await unitOfWork.CommitAsync();
 
         return database;
     }
@@ -92,9 +94,9 @@ public sealed class DivisionCreationPersistenceTests
             Assert.Equal(club.World.SquadSize, (await unitOfWork.Characters.ListByClubAsync(club.ClubId)).Count);
         }
 
-        LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync("BRA");
-        Assert.Equal(batch.Clubs.Select(club => club.ClubId), pyramid.Divisions.Single(d => d.DivisionId == SerieB).ClubIds);
-        Assert.Equal(PilotClubs, pyramid.Divisions.Single(d => d.DivisionId == SerieA).ClubIds.Count);
+        LeaguePyramid pyramid = await PyramidStore.LoadAsync(unitOfWork, "BRA");
+        Assert.Equal(batch.Clubs.Select(club => club.ClubId), pyramid.Find(SerieB)!.Season.ParticipantClubIds);
+        Assert.Equal(PilotClubs, pyramid.Find(SerieA)!.Season.ParticipantClubIds.Count);
 
         Assert.Equal(1, database.Scalar<long>("SELECT COUNT(*) FROM WorldHistory;"));
         Assert.Equal("Gerar divisão Série B (6 clubes)", (await unitOfWork.History.PeekAsync())!.Label);
@@ -141,31 +143,33 @@ public sealed class DivisionCreationPersistenceTests
     }
 
     /// <summary>
-    /// The legacy projection reads national competitions, not divisions (ADR-0005 §5, ADR-0007
-    /// §1), so a club enrolled only in a division cannot be projected. Projecting refuses and
-    /// names every new club rather than leaving them out quietly. Projecting divisions is its own
-    /// step (ADR-0011, amendment of 2026-10-03).
+    /// What Sprint 11 could not do and ADR-0012 §8 makes true: after a division is generated, the
+    /// world projects onto the game tables — the pilot and the new Série B as two leagues, every
+    /// club a team — the same way `worldbuilder project` does it.
     /// </summary>
     [Fact]
-    public async Task AfterApply_ProjectingRefuses_NamingEveryNewClub()
+    public async Task AfterApply_TheWorldProjects()
     {
         await using WorldDatabase database = await WorldWithPyramidAsync();
         await using SqliteWorldUnitOfWork unitOfWork = database.OpenUnitOfWork();
 
         DivisionGenerationResult batch = await DivisionCreation.ApplyAsync(unitOfWork, Request);
 
-        IReadOnlyList<ClubIdentity> clubs = await unitOfWork.Clubs.ListAsync();
-        IReadOnlyList<CharacterRecord> characters = await unitOfWork.Characters.ListAsync();
-        IReadOnlyList<Competition> competitions = await unitOfWork.Competitions.ListAsync();
-        IReadOnlyList<GeoNode> geoNodes = await unitOfWork.GeoNodes.ListAsync();
+        LegacyWorld legacy = WorldToLegacyProjection.Project(
+            await unitOfWork.Clubs.ListAsync(),
+            await unitOfWork.Characters.ListAsync(),
+            await unitOfWork.Competitions.ListAsync(),
+            await unitOfWork.Seasons.ListAsync(),
+            await unitOfWork.GeoNodes.ListAsync(),
+            await WorldStore.CurrentSeasonAsync(unitOfWork));
 
-        var error = Assert.Throws<ProjectionException>(() =>
-            WorldToLegacyProjection.Project(clubs, characters, competitions, geoNodes));
+        using (SqliteConnection connection = database.Factory.Open())
+            new LegacyProjectionWriter(connection).Write(legacy);
 
-        Assert.Equal(batch.Clubs.Count, error.Problems.Count);
-        Assert.All(batch.Clubs, club =>
-            Assert.Contains(error.Problems, problem => problem.StartsWith(club.ClubId, StringComparison.Ordinal)
-                && problem.Contains("not a member of any national competition", StringComparison.Ordinal)));
+        Assert.Equal(["Campeonato Nacional Brasileiro — Primeira Divisão", "Série B"], legacy.Leagues.Select(league => league.Name).Order());
+        Assert.Equal(2, database.Scalar<long>("SELECT COUNT(*) FROM Leagues;"));
+        Assert.Equal(PilotClubs + batch.Clubs.Count, database.Scalar<long>("SELECT COUNT(*) FROM Teams;"));
+        Assert.Equal(PilotPlayers + batch.Characters.Count, database.Scalar<long>("SELECT COUNT(*) FROM Players;"));
     }
 
     // ------------------------------------------------------------------ what generation needs

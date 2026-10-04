@@ -27,7 +27,9 @@ public sealed record CsvTab(
 /// row and data rows and nothing else: no title banners, no blank spacer rows, no merged
 /// sections. A decorated sheet is unreadable to an importer, and the decoration was never data.
 /// And <c>Competicao</c> is a table with one row per competition rather than the original's
-/// key/value column pair, which was an artifact of there being exactly one.</para>
+/// key/value column pair, which was an artifact of there being exactly one; its stages, seasons
+/// and transition rules are the <c>Fases</c>, <c>Temporadas</c> and <c>Transicoes</c> tabs
+/// (ADR-0012 §10).</para>
 ///
 /// <para><b>Columns the tool never stored are not emitted.</b> The source JSON had already
 /// dropped four of Audit_Jogadores' columns (anchorAgeApprox, generatedFullName, reviewedBy,
@@ -40,6 +42,9 @@ public static class WorldCsv
     [
         ReadMe,
         Competitions,
+        Stages,
+        Seasons,
+        Transitions,
         Clubs,
         KitsAndStadium,
         Players,
@@ -75,17 +80,20 @@ public static class WorldCsv
             ["Terra Paralela — Base de Mundo", "Exportado pela Ferramenta de Mundo."],
             ["Versão do schema", world.Meta.SchemaVersion],
             ["Semente-mestre", CsvValue.Number(world.Meta.MasterSeed)],
-            ["Conteúdo", $"{world.Competitions.Count} competições, {world.Clubs.Count} clubes, "
+            ["Temporada atual", CsvValue.Int(world.Meta.CurrentSeason)],
+            ["Conteúdo", $"{world.Competitions.Count} competições ({world.Seasons.Count} temporadas), {world.Clubs.Count} clubes, "
                 + $"{world.Characters.Count} jogadores, {world.GeoNodes.Count} nós geográficos, "
                 + $"{world.Sources.Count} fontes."],
             ["HIGIENE DE IP — LEIA ANTES",
                 "As abas Audit_Clubes e Audit_Jogadores contêm as ReferenceAnchor (nomes REAIS). "
                 + "Elas ficam no repositório de autoria e NÃO SÃO EMPACOTADAS no build. O que vai "
-                + "ao jogo são apenas Competicao, Clubes, Kits_Estadio e Jogadores, que não contêm "
+                + "ao jogo são apenas Competicao, Fases, Temporadas, Transicoes, Clubes, Kits_Estadio e "
+                + "Jogadores, que não contêm "
                 + "nenhum nome real de clube ou jogador."],
             ["Formato", "Separador ';' e vírgula decimal (Excel pt-BR). Listas unidas por '|'. "
                 + "Campos com aspas, ';' ou quebra de linha vêm entre aspas duplas, com '\"\"' como escape."],
-            ["Reimportar", "As abas Competicao, Clubes, Kits_Estadio, Jogadores, Audit_Clubes, "
+            ["Reimportar", "As abas Competicao, Fases, Temporadas, Transicoes, Clubes, Kits_Estadio, "
+                + "Jogadores, Audit_Clubes, "
                 + "Audit_Jogadores, GeoNodes e Fontes voltam para a ferramenta. Leia-me, Calibracao, "
                 + "Pesos_Posicao e Paises são só leitura."],
             ["Colunas ausentes", "Audit_Jogadores não traz anchorAgeApprox, generatedFullName, "
@@ -93,34 +101,66 @@ public static class WorldCsv
                 + "faria um round-trip incompleto parecer completo."],
         ]);
 
+    /// <summary>The competition definitions (ADR-0012 §2). Stages, seasons and transition rules
+    /// have their own tabs, one row per item, so the export stays a set of flat tables.</summary>
     private static CsvTab Competitions => new(
         "Competicao",
         AuthoringOnly: false,
         Importable: true,
-        [
-            "competitionId", "name", "scope", "anchorGeoNodeId", "memberPredicateId", "prestigeBand",
-            "leagueTierFloat", "format", "clubCount", "rounds", "promotedIn", "relegatedOut",
-            "continentalSlots", "editionId", "season", "memberClubIds",
-        ],
+        ["competitionId", "name", "scope", "anchorGeoNodeId", "countryId", "level", "clubCount"],
         world => world.Competitions.Select(competition => new string?[]
         {
             competition.CompetitionId,
             competition.Name,
             CsvValue.Enum(competition.Scope),
             competition.AnchorGeoNodeId,
-            competition.MemberPredicateId,
-            CsvValue.Enum(competition.PrestigeBand),
-            CsvValue.Number(competition.LeagueTierFloat),
-            competition.Format,
+            competition.CountryId,
+            competition.Level is { } level ? CsvValue.Int(level) : null,
             CsvValue.Int(competition.ClubCount),
-            CsvValue.Int(competition.Rounds),
-            CsvValue.Int(competition.PromotedIn),
-            CsvValue.Int(competition.RelegatedOut),
-            competition.ContinentalSlots,
-            competition.EditionId,
-            CsvValue.Int(competition.Season),
-            Csv.JoinArray(competition.MemberClubIds),
         }).ToList());
+
+    private static CsvTab Stages => new(
+        "Fases",
+        AuthoringOnly: false,
+        Importable: true,
+        ["competitionId", "ordinal", "kind", "legs"],
+        world => world.Competitions
+            .SelectMany(competition => competition.Stages.Select(stage => (IReadOnlyList<string?>)new string?[]
+            {
+                competition.CompetitionId,
+                CsvValue.Int(stage.Ordinal),
+                CsvValue.Enum(stage.Kind),
+                CsvValue.Int(stage.Legs),
+            }))
+            .ToList());
+
+    private static CsvTab Seasons => new(
+        "Temporadas",
+        AuthoringOnly: false,
+        Importable: true,
+        ["seasonId", "competitionId", "year", "participantes"],
+        world => world.Seasons.Select(season => new string?[]
+        {
+            season.SeasonId,
+            season.CompetitionId,
+            CsvValue.Int(season.Year),
+            Csv.JoinArray(season.ParticipantClubIds),
+        }).ToList());
+
+    private static CsvTab Transitions => new(
+        "Transicoes",
+        AuthoringOnly: false,
+        Importable: true,
+        ["competitionId", "rankFrom", "rankTo", "targetCompetitionId"],
+        world => world.Competitions
+            .SelectMany(competition => competition.Transitions.Select(rule => (IReadOnlyList<string?>)new string?[]
+            {
+                competition.CompetitionId,
+                CsvValue.Int(rule.RankFrom),
+                CsvValue.Int(rule.RankTo),
+                rule.TargetCompetitionId,
+            }))
+            .ToList());
 
     private static CsvTab Clubs => new(
         "Clubes",

@@ -161,15 +161,24 @@ public static class WorldSearch
     {
         foreach (Competition competition in world.Competitions)
         {
-            int? rank = Best(needle, competition.CompetitionId, competition.Name, competition.EditionId);
+            // A season id ("edt_bra_tier1_2026") finds its competition, as the edition id did.
+            int? rank = Best(needle, [competition.CompetitionId, competition.Name, .. world.Seasons
+                .Where(season => season.CompetitionId == competition.CompetitionId)
+                .Select(season => season.SeasonId)]);
             if (rank is null)
                 continue;
+
+            // Rounds are derived from the stage (ADR-0012 §4); a competition that cannot be played
+            // as authored says so instead of showing a number.
+            string rounds = CompetitionStages.ShapeOf(competition) is { } shape
+                ? $"{shape.Rounds} rodadas"
+                : "sem rodadas";
 
             yield return new SearchHit(
                 SearchCategory.Competition,
                 competition.CompetitionId,
                 competition.Name,
-                $"{competition.Scope} · {competition.ClubCount} clubes · {competition.Rounds} rodadas",
+                $"{competition.Scope} · {competition.ClubCount} clubes · {rounds}",
                 null,
                 rank.Value);
         }

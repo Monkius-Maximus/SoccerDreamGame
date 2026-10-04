@@ -56,6 +56,9 @@ public sealed class WorldExportTests
         var expected = new Dictionary<string, int>
         {
             ["Competicao"] = World.Competitions.Count,
+            ["Fases"] = World.Competitions.Sum(competition => competition.Stages.Count),
+            ["Temporadas"] = World.Seasons.Count,
+            ["Transicoes"] = World.Competitions.Sum(competition => competition.Transitions.Count),
             ["Clubes"] = World.Clubs.Count,
             ["Kits_Estadio"] = World.Clubs.Count,
             ["Jogadores"] = World.Characters.Count,
@@ -90,13 +93,16 @@ public sealed class WorldExportTests
             WorldCsv.Tabs.Where(tab => tab.AuthoringOnly).Select(tab => tab.Name));
     }
 
+    /// <summary>The twelve the roadmap named, plus the three ADR-0012 §10 adds for a competition's
+    /// stages, seasons and transition rules.</summary>
     [Fact]
-    public void TheTabsAreTheTwelveTheRoadmapNames()
+    public void TheTabsAreTheFifteenTheRoadmapAndADR0012Name()
     {
         Assert.Equal(
             [
-                "Leia-me", "Competicao", "Clubes", "Kits_Estadio", "Jogadores", "Audit_Clubes",
-                "Audit_Jogadores", "GeoNodes", "Calibracao", "Pesos_Posicao", "Paises", "Fontes",
+                "Leia-me", "Competicao", "Fases", "Temporadas", "Transicoes", "Clubes", "Kits_Estadio",
+                "Jogadores", "Audit_Clubes", "Audit_Jogadores", "GeoNodes", "Calibracao", "Pesos_Posicao",
+                "Paises", "Fontes",
             ],
             WorldCsv.Tabs.Select(tab => tab.Name));
     }

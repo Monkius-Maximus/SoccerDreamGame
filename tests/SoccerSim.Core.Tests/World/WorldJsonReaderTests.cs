@@ -195,4 +195,112 @@ public sealed class WorldJsonReaderTests
         Assert.Contains(snapshot.Characters, character => character.SecondaryPositions.Count == 1);
         Assert.Contains(snapshot.Characters, character => character.SecondaryPositions.Count == 0);
     }
+
+    // ------------------------------------------------------------- competitions (ADR-0012)
+
+    [Fact]
+    public void TheCompetition_IsADefinitionWithASeason()
+    {
+        WorldSnapshot snapshot = WorldJsonReader.Read(WorldFixture.Json);
+
+        Competition pilot = Assert.Single(snapshot.Competitions);
+        CompetitionSeason season = Assert.Single(snapshot.Seasons);
+
+        Assert.Equal(("BRA", 1, 20), (pilot.CountryId, pilot.Level, pilot.ClubCount));
+        Assert.Equal([new CompetitionStage(1, StageKind.League, 2)], pilot.Stages);
+        Assert.Empty(pilot.Transitions);
+        Assert.Equal(("edt_bra_tier1_2026", "cmp_bra_tier1", 2026, 20),
+            (season.SeasonId, season.CompetitionId, season.Year, season.ParticipantClubIds.Count));
+        Assert.Equal(2026, snapshot.Meta.CurrentSeason);
+    }
+
+    /// <summary>A document exported before 0019 is refused by name, not read field by field into
+    /// a pile of "missing" errors that would hide what happened.</summary>
+    [Fact]
+    public void ADocumentFromBeforeADR0012_IsRefusedAsAWhole()
+    {
+        string json = Mutate(document =>
+        {
+            document.Remove("seasons");
+            ((JsonObject)document["competitions"]![0]!)["memberClubIds"] = new JsonArray();
+        });
+
+        var exception = Assert.Throws<WorldImportException>(() => WorldJsonReader.Read(json));
+
+        string error = Assert.Single(exception.Errors);
+        Assert.Contains("predates ADR-0012", error);
+        Assert.Contains("0019_competitions_as_composition", error);
+    }
+
+    [Fact]
+    public void TheCurrentSeason_IsRequired()
+    {
+        string json = Mutate(document => ((JsonObject)document["meta"]!).Remove("currentSeason"));
+
+        var exception = Assert.Throws<WorldImportException>(() => WorldJsonReader.Read(json));
+
+        Assert.Contains("meta.currentSeason", Assert.Single(exception.Errors));
+    }
+
+    [Fact]
+    public void ASeasonOfAnotherYear_IsRefused_TheToolAuthorsOnlyTheCurrentOne()
+    {
+        string json = Mutate(document => document["seasons"]![0]!["year"] = 2027);
+
+        var exception = Assert.Throws<WorldImportException>(() => WorldJsonReader.Read(json));
+
+        Assert.Contains(exception.Errors, error => error.Contains("current season is 2026, and this one is 2027"));
+        Assert.Contains(exception.Errors, error => error.Contains("a pyramid level needs its 2026 season"));
+    }
+
+    [Fact]
+    public void ANationalCompetitionWithoutACountry_IsRefused()
+    {
+        string json = Mutate(document => document["competitions"]![0]!["countryId"] = null);
+
+        var exception = Assert.Throws<WorldImportException>(() => WorldJsonReader.Read(json));
+
+        Assert.Contains(exception.Errors, error => error.Contains("a National competition needs a countryId"));
+    }
+
+    [Fact]
+    public void AParticipantThatIsNotAClub_IsRefused()
+    {
+        string json = Mutate(document => ((JsonArray)document["seasons"]![0]!["participants"]!).Add("clb_nobody"));
+
+        var exception = Assert.Throws<WorldImportException>(() => WorldJsonReader.Read(json));
+
+        Assert.Contains("participant 'clb_nobody' is not a club", Assert.Single(exception.Errors));
+    }
+
+    [Fact]
+    public void AStageKindOutsideTheVocabulary_IsRefused()
+    {
+        string json = Mutate(document => document["competitions"]![0]!["stages"]![0]!["kind"] = "Knockout");
+
+        var exception = Assert.Throws<WorldImportException>(() => WorldJsonReader.Read(json));
+
+        Assert.Contains("stages[0].kind", Assert.Single(exception.Errors));
+    }
+
+    [Fact]
+    public void TwoRulesStartingAtTheSameRank_AreRefused()
+    {
+        string json = Mutate(document =>
+        {
+            var rules = (JsonArray)document["competitions"]![0]!["transitions"]!;
+            var second = (JsonObject)document["competitions"]![0]!.DeepClone();
+            second["competitionId"] = "cmp_bra_cup";
+            second["scope"] = "National";
+            second["level"] = null;
+            second["transitions"] = new JsonArray();
+            ((JsonArray)document["competitions"]!).Add(second);
+            rules.Add(new JsonObject { ["rankFrom"] = 17, ["rankTo"] = 20, ["targetCompetitionId"] = "cmp_bra_cup" });
+            rules.Add(new JsonObject { ["rankFrom"] = 17, ["rankTo"] = 18, ["targetCompetitionId"] = "cmp_bra_cup" });
+        });
+
+        var exception = Assert.Throws<WorldImportException>(() => WorldJsonReader.Read(json));
+
+        Assert.Contains("two transition rules start at rank 17", Assert.Single(exception.Errors));
+    }
 }

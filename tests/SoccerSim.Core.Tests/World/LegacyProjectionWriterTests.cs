@@ -4,6 +4,7 @@ using SoccerSim.Core.Persistence;
 using SoccerSim.Core.Random;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Import;
 using SoccerSim.Core.World.Projection;
 using SoccerSim.Infrastructure.Sqlite;
 using Xunit;
@@ -38,7 +39,9 @@ public sealed class LegacyProjectionWriterTests
             await world.Clubs.ListAsync(),
             await world.Characters.ListAsync(),
             await world.Competitions.ListAsync(),
-            await world.GeoNodes.ListAsync());
+            await world.Seasons.ListAsync(),
+            await world.GeoNodes.ListAsync(),
+            await WorldStore.CurrentSeasonAsync(world));
     }
 
     [Fact]

@@ -35,7 +35,7 @@ public static class DivisionCreation
                 $"{request.CountryId} has no country profile. A country needs a nationality "
                 + "distribution before squads can be generated in it.");
 
-        LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync(request.CountryId, cancellationToken);
+        LeaguePyramid pyramid = await PyramidStore.LoadAsync(unitOfWork, request.CountryId, cancellationToken);
         IReadOnlyList<GeoNode> geoNodes = await unitOfWork.GeoNodes.ListAsync(cancellationToken);
         IReadOnlyList<ClubIdentity> clubs = await unitOfWork.Clubs.ListAsync(cancellationToken);
 
@@ -44,9 +44,9 @@ public static class DivisionCreation
     }
 
     /// <summary>
-    /// Generates the batch and writes it: every club, every squad and the pyramid, in one
-    /// transaction behind one history entry, with one edit per club on the trail. A failure
-    /// anywhere writes nothing, and undo takes the whole batch back.
+    /// Generates the batch and writes it: every club, every squad and the season's participants,
+    /// in one transaction behind one history entry, with one edit per club on the trail
+    /// (ADR-0012 §9). A failure anywhere writes nothing, and undo takes the whole batch back.
     /// </summary>
     public static async Task<DivisionGenerationResult> ApplyAsync(
         IWorldUnitOfWork unitOfWork,
@@ -54,14 +54,14 @@ public static class DivisionCreation
         CancellationToken cancellationToken = default)
     {
         DivisionGenerationResult batch = await PreviewAsync(unitOfWork, request, cancellationToken);
-        Division division = batch.Pyramid.Divisions.Single(d => d.DivisionId == request.DivisionId);
+        PyramidLevel division = batch.Pyramid.Find(request.CompetitionId)!;
         ILookup<string, CharacterRecord> squads = batch.Characters.ToLookup(player => player.ClubId);
 
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
             long act = await WorldHistory.RecordAsync(
-                unitOfWork, $"Gerar divisão {division.Name} ({batch.Clubs.Count} clubes)", cancellationToken);
+                unitOfWork, $"Gerar divisão {division.Competition.Name} ({batch.Clubs.Count} clubes)", cancellationToken);
 
             foreach (ClubIdentity club in batch.Clubs)
             {
@@ -76,17 +76,15 @@ public static class DivisionCreation
                         club.ClubId,
                         "club",
                         null,
-                        $"{club.Identity.OfficialName} gerado em {division.Name} (semente {request.Seed})",
+                        $"{club.Identity.OfficialName} gerado em {division.Competition.Name} (semente {request.Seed})",
                         DateTime.UtcNow,
                         act),
                     cancellationToken);
             }
 
-            // Upserts every division of the country. Not WorldScale.SavePyramidAsync: that opens
-            // its own transaction, and this write has to be inside this one. The set of divisions
-            // is the stored one, so there is nothing to delete.
-            foreach (Division standing in batch.Pyramid.Divisions)
-                await unitOfWork.Divisions.SaveAsync(request.CountryId, standing, cancellationToken);
+            // Only the league's season changes: the clubs are new, so enrolling them took them out
+            // of no other level.
+            await unitOfWork.Seasons.SaveAsync(division.Season, cancellationToken);
 
             await unitOfWork.CommitAsync(cancellationToken);
         }

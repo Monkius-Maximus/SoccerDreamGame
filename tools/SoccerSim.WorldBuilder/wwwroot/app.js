@@ -22,7 +22,7 @@ const state = {
   squadSort: 'ovr',
   gen: null,          // the generator panel: { options, preview } while it is open
   clubGen: null,      // the "Gerar clube" dialog: { options, request, preview, error, busy }
-  divGen: null,       // the "Gerar divisão" dialog: { countryId, division, free, options, request, preview, error, busy }
+  divGen: null,       // the "Gerar divisão" dialog: { countryId, division, year, free, options, request, preview, error, busy }
   exchange: null,     // the export/import dialog: { manifest, files, preview, error }
   view: 'clube',      // which screen the content panel shows
   audit: null,        // /api/audit, while the audit screen is open
@@ -30,6 +30,7 @@ const state = {
   geo: null,          // /api/geo/tree
   geoSel: null,       // the selected node on the geography screen
   countries: [],      // /api/countries, with each country's pyramid
+  countryNodes: [],   // the geo tree's Country nodes: where a new league can be anchored
   leagueView: 'piramide', // which of the two surfaces the Ligas tab shows
   register: [],       // /api/register — the flat surface of the same data
   calibration: null,  // /api/calibration
@@ -816,7 +817,7 @@ function introHtml() {
     ['ClubIdentity', 'Identidade, geografia, escudo, paleta, uniformes, estádio e perfil de IA — uma página por clube, no lugar de 11 abas.'],
     ['CharacterRecord', '12 atributos em escala 1–99, com OVR, valor e salário calculados pela calibração.'],
     ['GeoNode', 'Hierarquia geográfica: Mundo › Confederação › País › Região › Cidade.'],
-    ['Competition', 'Escopo, banda, promoção e rebaixamento. Nenhuma rodada é simulada aqui.'],
+    ['Competition', 'Definição, fases, regras de transição e os participantes da temporada atual. Nenhuma rodada é simulada aqui.'],
     ['Calibração', 'Todo número com a origem declarada: constantes, curva de idade, bandas e pesos por posição.'],
     ['Auditoria de desvio', 'A citação ao lado de cada afirmação factual sobre a âncora do clube.'],
   ];
@@ -1241,14 +1242,15 @@ function isDescendant(tree, ancestorId, nodeId) {
   return false;
 }
 
-/** The five formats, labelled as CompetitionFormats.Label writes them. */
-const FORMATS = {
-  LeagueSingle: 'Pontos corridos, turno único',
-  LeagueDouble: 'Pontos corridos, turno e returno',
-  GroupsKnockout: 'Grupos + mata-mata',
-  KnockoutOnly: 'Mata-mata, jogo único',
-  NationalCup: 'Copa: ida e volta, final única',
+/** A league stage's legs, labelled as CompetitionStages.Label writes them (ADR-0012 §4). */
+const LEGS = {
+  1: 'Pontos corridos, turno único',
+  2: 'Pontos corridos, turno e returno',
 };
+
+function legsOf(competition) {
+  return competition.stages.length === 1 ? competition.stages[0].legs : null;
+}
 
 /**
  * Two surfaces over the same data (ROADMAP.md Sprint 9). The pyramid reads down one country and is
@@ -1263,8 +1265,8 @@ function leaguesPageHtml(countries) {
       <div class="section-head">
         <h2>Ligas</h2>
         <span class="section-note">${register
-          ? 'todas as divisões e competições do mundo, lado a lado'
-          : 'rodadas e jogos são derivados do formato e do tamanho — nunca digitados'}</span>
+          ? 'todas as competições do mundo, lado a lado'
+          : 'rodadas e jogos são derivados dos turnos e do tamanho — nunca digitados'}</span>
         <span class="grow"></span>
         <div class="surface-switch">
           <button class="btn ${register ? 'btn-secondary' : 'btn-primary'}" type="button"
@@ -1281,7 +1283,7 @@ function leaguesPageHtml(countries) {
 }
 
 function countryCardHtml(entry) {
-  const divisions = entry.pyramid.divisions;
+  const levels = entry.levels;
   const unenrolled = entry.roster.filter((club) => !club.divisionId);
 
   return `
@@ -1292,10 +1294,10 @@ function countryCardHtml(entry) {
         <span class="country-name">${esc(entry.displayName || entry.country.countryId)}</span>
         <span class="geo-id">${esc(entry.country.countryId)}</span>
         <span class="field-group-rule"></span>
-        <span class="export-note">${entry.clubs} clubes · ${esc(entry.country.currency)}
+        <span class="export-note">${entry.clubs} clubes · temporada ${entry.year} · ${esc(entry.country.currency)}
           · piso ${fmtBrl(entry.country.wageFloorMonthly)}</span>
         <button class="btn btn-secondary" type="button" data-country-delete="${esc(entry.country.countryId)}"
-                ${entry.clubs || divisions.length ? 'disabled' : ''}>Apagar país</button>
+                ${entry.clubs || levels.length ? 'disabled' : ''}>Apagar país</button>
       </div>
 
       <div class="country-mix">
@@ -1309,17 +1311,17 @@ function countryCardHtml(entry) {
         </span>
       </div>
 
-      ${divisions.length === 0 ? `
+      ${levels.length === 0 ? `
         <div class="export-note">Sem divisões — o país existe, mas ninguém joga nada nele ainda.</div>` : `
         <table class="table pyramid">
           <thead>
-            <tr><th style="width: 40px">Tier</th><th>Divisão</th><th>Formato</th>
+            <tr><th style="width: 46px">Nível</th><th>Divisão</th><th>Turnos</th>
                 <th class="num" style="width: 78px">Clubes</th>
-                <th class="num" style="width: 70px">Sobe</th><th class="num" style="width: 70px">Desce</th>
-                <th class="num">Rodadas</th><th class="num">Jogos</th><th></th></tr>
+                <th class="num" style="width: 92px" title="quantos descem desta divisão e quantos sobem da de baixo, por temporada">Troca abaixo</th>
+                <th class="num">Rodadas</th><th class="num">Jogos</th><th class="num">Força</th><th></th></tr>
           </thead>
           <tbody>
-            ${divisions.map((division) => divisionRowsHtml(entry, division, unenrolled)).join('')}
+            ${levels.map((level) => divisionRowsHtml(entry, level, unenrolled)).join('')}
           </tbody>
         </table>`}
 
@@ -1335,33 +1337,54 @@ function countryCardHtml(entry) {
 }
 
 /**
- * Two rows per division: what is declared about it, and who is in it. The declared row's inputs
- * write on "Gravar"; the derived columns are text, so it is visible that rodadas and jogos are
- * not something to type.
+ * The exchange with the level below as the one number the author types. A pyramid built here
+ * always has the pair equal; data migrated from before ADR-0012 can differ, and then both counts
+ * are shown — "4 ↓ / 0 ↑" — next to the PYRAMID_FLOW finding that explains it. Typing a number
+ * rewrites both rules.
  */
-function divisionRowsHtml(entry, division, unenrolled) {
-  const where = `data-country="${esc(entry.country.countryId)}" data-division="${esc(division.divisionId)}"`;
-  const enrolled = entry.roster.filter((club) => club.divisionId === division.divisionId);
+function exchangeCellHtml(level) {
+  if (level.downBelow === null || level.downBelow === undefined) {
+    return '<td class="num"><span class="export-note">—</span></td>';
+  }
+
+  const paired = level.downBelow === level.upFromBelow;
+  return `
+    <td class="num">
+      <input class="tpin num" type="number" min="0" data-field="exchange" value="${level.downBelow}">
+      ${paired ? '' : `<span class="export-note">${level.downBelow} ↓ / ${level.upFromBelow} ↑</span>`}
+    </td>`;
+}
+
+/**
+ * Two rows per level: what is declared about it, and who takes part in its current season. The
+ * declared row's inputs write on "Gravar"; the derived columns are text, so it is visible that
+ * rodadas, jogos and força are not something to type.
+ */
+function divisionRowsHtml(entry, level, unenrolled) {
+  const competition = level.competition;
+  const where = `data-country="${esc(entry.country.countryId)}" data-division="${esc(competition.competitionId)}"`;
+  const enrolled = entry.roster.filter((club) => club.divisionId === competition.competitionId);
+  const legs = legsOf(competition);
 
   return `
     <tr ${where}>
-      <td class="num">${division.tier}</td>
-      <td><input class="tpin" data-field="name" value="${esc(division.name)}"></td>
+      <td class="num">${level.level}</td>
+      <td><input class="tpin" data-field="name" value="${esc(competition.name)}"></td>
       <td>
-        <select class="tpin" data-field="format">
-          ${Object.entries(FORMATS).map(([value, label]) => `
-            <option value="${value}"${value === division.format ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+        <select class="tpin" data-field="legs">
+          ${Object.entries(LEGS).map(([value, label]) => `
+            <option value="${value}"${Number(value) === legs ? ' selected' : ''}>${esc(label)}</option>`).join('')}
         </select>
       </td>
-      <td><input class="tpin num" type="number" min="0" data-field="clubCount" value="${division.clubCount}"></td>
-      <td><input class="tpin num" type="number" min="0" data-field="promotedIn" value="${division.promotedIn}"></td>
-      <td><input class="tpin num" type="number" min="0" data-field="relegatedOut" value="${division.relegatedOut}"></td>
-      <td class="num">${division.shape ? division.shape.rounds : '—'}</td>
-      <td class="num">${division.shape ? division.shape.matches : '—'}</td>
+      <td><input class="tpin num" type="number" min="2" data-field="clubCount" value="${competition.clubCount}"></td>
+      ${exchangeCellHtml(level)}
+      <td class="num">${level.shape ? level.shape.rounds : '—'}</td>
+      <td class="num">${level.shape ? level.shape.matches : '—'}</td>
+      <td class="num">${level.tierFloat === null ? '—' : decimal(level.tierFloat, 2)}</td>
       <td class="pyramid-actions">
         <button class="btn btn-secondary" type="button" data-division-save>Gravar</button>
         <button class="btn btn-secondary" type="button" data-division-generate
-                ${enrolled.length >= division.clubCount ? 'disabled' : ''}>Gerar divisão</button>
+                ${enrolled.length >= competition.clubCount ? 'disabled' : ''}>Gerar divisão</button>
         <button class="btn btn-secondary" type="button" data-division-delete
                 ${enrolled.length ? 'disabled' : ''}>Apagar</button>
       </td>
@@ -1371,11 +1394,11 @@ function divisionRowsHtml(entry, division, unenrolled) {
       <td colspan="8">
         <div class="chips">
           ${enrolled.length === 0
-            ? '<span class="export-note">nenhum clube inscrito</span>'
+            ? `<span class="export-note">nenhum clube na temporada ${entry.year}</span>`
             : enrolled.map((club) => `
                 <span class="chip">${esc(club.shortName)}
                   <button class="chip-x" type="button" data-withdraw="${esc(club.clubId)}"
-                          title="retirar de ${esc(division.name)}">×</button>
+                          title="retirar de ${esc(competition.name)}">×</button>
                 </span>`).join('')}
 
           ${unenrolled.length === 0 ? '' : `
@@ -1390,24 +1413,33 @@ function divisionRowsHtml(entry, division, unenrolled) {
 }
 
 function newDivisionHtml(entry) {
-  const next = entry.pyramid.divisions.length + 1;
+  const next = entry.levels.length + 1;
+  const first = entry.levels.length === 0;
 
   return `
     <div class="gen-control" style="margin-top: var(--space-4)">
-      <span class="gen-control-label">Nova divisão · tier ${next}</span>
+      <span class="gen-control-label">Nova divisão · nível ${next}</span>
       <div class="division-new" data-country="${esc(entry.country.countryId)}">
-        <input class="tpin" data-field="divisionId" placeholder="div_${esc(entry.country.countryId.toLowerCase())}_${next}" autocomplete="off">
+        <input class="tpin" data-field="competitionId" placeholder="div_${esc(entry.country.countryId.toLowerCase())}_${next}" autocomplete="off">
         <input class="tpin" data-field="name" placeholder="Nome da divisão" autocomplete="off">
-        <select class="tpin" data-field="format">
-          ${Object.entries(FORMATS).map(([value, label]) => `
-            <option value="${value}"${value === 'LeagueDouble' ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+        <select class="tpin" data-field="anchorGeoNodeId">
+          <option value="">país no mapa…</option>
+          ${state.countryNodes.map((node) => `
+            <option value="${esc(node.geoNodeId)}">${esc(node.displayName)}</option>`).join('')}
         </select>
-        <input class="tpin num" type="number" min="0" data-field="clubCount" value="20">
+        <select class="tpin" data-field="legs">
+          ${Object.entries(LEGS).map(([value, label]) => `
+            <option value="${value}"${value === '2' ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+        </select>
+        <input class="tpin num" type="number" min="2" data-field="clubCount" value="20" title="clubes">
+        <input class="tpin num" type="number" min="0" data-field="exchange" value="${first ? 0 : 4}"
+               title="troca com o nível de cima" ${first ? 'disabled' : ''}>
         <button class="btn btn-secondary" type="button" data-division-add>Criar</button>
       </div>
       <span class="gen-control-hint">
-        id, nome, formato e número de clubes. Entra sempre na base da pirâmide, sem promoção nem
-        rebaixamento — o fluxo se declara depois, na linha da divisão.
+        id, nome, o país no mapa, turnos, clubes e a troca com o nível de cima: quantos descem de lá
+        e sobem daqui por temporada — um número, as duas regras. Entra sempre na base da pirâmide,
+        com a temporada ${entry.year} vazia.
       </span>
     </div>`;
 }
@@ -1485,12 +1517,14 @@ async function showLeagues() {
   try {
     // Both surfaces at once: they are the same data, and a toggle that has to fetch is a toggle
     // that flickers.
-    const [countries, register] = await Promise.all([
+    const [countries, register, tree] = await Promise.all([
       getJson('/api/countries'),
       getJson('/api/register'),
+      getJson('/api/geo/tree'),
     ]);
     state.countries = countries;
     state.register = register;
+    state.countryNodes = tree.nodes.map((row) => row.node).filter((node) => node.kind === 'Country');
   } catch (error) {
     content.innerHTML = errorHtml(`Os países não responderam: ${error.message}`);
     return;
@@ -1576,10 +1610,12 @@ function handleLeaguesClick(event) {
   if (button.dataset.divisionAdd !== undefined) {
     const block = button.closest('[data-country]');
     editScale(`${scaleUrl(block.dataset.country)}/divisions`, 'POST', {
-      divisionId: fieldOf(block, 'divisionId'),
+      competitionId: fieldOf(block, 'competitionId'),
       name: fieldOf(block, 'name'),
-      format: fieldOf(block, 'format'),
+      anchorGeoNodeId: fieldOf(block, 'anchorGeoNodeId'),
+      legs: Number(fieldOf(block, 'legs')),
       clubCount: Number(fieldOf(block, 'clubCount')),
+      exchange: Number(fieldOf(block, 'exchange')),
     });
     return true;
   }
@@ -1593,12 +1629,13 @@ function handleLeaguesClick(event) {
   }
 
   if (button.dataset.divisionSave !== undefined) {
+    // The bottom level has no exchange input: it has nobody below to exchange with.
+    const exchange = row.querySelector('[data-field="exchange"]');
     editScale(scaleUrl(row.dataset.country, row.dataset.division), 'PUT', {
       name: fieldOf(row, 'name'),
-      format: fieldOf(row, 'format'),
+      legs: Number(fieldOf(row, 'legs')),
       clubCount: Number(fieldOf(row, 'clubCount')),
-      promotedIn: Number(fieldOf(row, 'promotedIn')),
-      relegatedOut: Number(fieldOf(row, 'relegatedOut')),
+      exchange: exchange ? Number(exchange.value) : 0,
     });
     return true;
   }
@@ -1614,7 +1651,8 @@ function handleLeaguesClick(event) {
 // --------------------------------------------------------------- the register
 
 /**
- * The pyramid's other surface: every division and every competition of every country, flat. The
+ * The pyramid's other surface: every competition of every country, flat — a "Divisão" is a
+ * national league with a level, anything else a "Competição" (ADR-0012 §2). The
  * pyramid page reads DOWN one country; this reads ACROSS them, which is the only way to see that
  * two countries disagree about what a second division is.
  */
@@ -1622,29 +1660,30 @@ function registerHtml(rows) {
   return `
     <table class="table register">
       <thead>
-        <tr><th>País</th><th style="width: 78px">Tipo</th><th style="width: 40px">Tier</th>
+        <tr><th>País</th><th style="width: 78px">Tipo</th><th style="width: 46px">Nível</th>
             <th>Nome</th><th>Formato</th>
-            <th class="num">Clubes</th><th class="num">Rodadas</th><th class="num">Jogos</th>
-            <th class="num">Sobe</th><th class="num">Desce</th><th>Id</th></tr>
+            <th class="num">Clubes</th><th class="num">Inscritos</th><th class="num">Rodadas</th><th class="num">Jogos</th>
+            <th class="num">Sobem</th><th class="num">Descem</th><th>Id</th></tr>
       </thead>
       <tbody>
         ${rows.map((row) => `
           <tr>
             <td>${esc(row.countryName || row.countryId)}</td>
             <td><span class="badge badge-${row.kind === 'Divisão' ? 'ok' : 'neutral'}">${esc(row.kind)}</span></td>
-            <td class="num">${row.tier ?? '—'}</td>
+            <td class="num">${row.level ?? '—'}</td>
             <td>${esc(row.name)}</td>
-            <td>${esc(row.format)}</td>
+            <td>${esc(row.format ?? '—')}</td>
             <td class="num">${row.clubs}</td>
+            <td class="num">${row.participants}</td>
             <td class="num">${row.rounds ?? '—'}</td>
             <td class="num">${row.matches ?? '—'}</td>
-            <td class="num">${row.promotedIn ?? '—'}</td>
-            <td class="num">${row.relegatedOut ?? '—'}</td>
+            <td class="num">${row.up ?? '—'}</td>
+            <td class="num">${row.down ?? '—'}</td>
             <td class="geo-id">${esc(row.id)}</td>
           </tr>`).join('')}
       </tbody>
     </table>
-    ${rows.length ? '' : '<div class="export-note">Nenhuma divisão nem competição ainda.</div>'}`;
+    ${rows.length ? '' : '<div class="export-note">Nenhuma competição ainda.</div>'}`;
 }
 
 // ------------------------------------------------------------- global search
@@ -2600,7 +2639,7 @@ async function applyClubGen() {
 function divGenHtml() {
   const gen = state.divGen;
   const request = gen.request;
-  const title = `${esc(gen.division.name)} · ${gen.free} vaga(s) livre(s) de ${gen.division.clubCount}`;
+  const title = `${esc(gen.division.name)} · ${gen.free} vaga(s) livre(s) de ${gen.division.clubCount} em ${gen.year}`;
 
   if (!gen.options.countries.includes(gen.countryId)) {
     return `
@@ -2688,14 +2727,16 @@ function renderDivGen() {
 
 async function openDivGen(countryId, divisionId) {
   const entry = state.countries.find((country) => country.country.countryId === countryId);
-  const division = entry.pyramid.divisions.find((d) => d.divisionId === divisionId);
-  const free = division.clubCount - division.clubIds.length;
+  const level = entry.levels.find((l) => l.competition.competitionId === divisionId);
+  const division = level.competition;
+  const free = division.clubCount - level.season.participantClubIds.length;
 
   try {
     const options = await getJson('/api/clubs/generate/options');
     state.divGen = {
       countryId,
       division,
+      year: entry.year,
       free,
       options,
       request: { clubCount: free, band: options.bands[0], strengthMin: null, strengthMax: null, seed: options.seed },
@@ -2735,7 +2776,7 @@ async function sendDivGen(action) {
   gen.busy = true;
   renderDivGen();
   const url = `/api/countries/${encodeURIComponent(gen.countryId)}/divisions/`
-    + `${encodeURIComponent(gen.division.divisionId)}/generate/${action}`;
+    + `${encodeURIComponent(gen.division.competitionId)}/generate/${action}`;
   const result = await postJson(url, gen.request);
   gen.busy = false;
   gen.error = result.ok ? null : result.message;

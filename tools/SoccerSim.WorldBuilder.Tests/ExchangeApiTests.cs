@@ -26,7 +26,8 @@ public sealed class ExchangeApiTests : IClassFixture<WorldBuilderApp>
     {
         JsonArray tabs = (await ManifestAsync())["tabs"]!.AsArray();
 
-        Assert.Equal(12, tabs.Count);
+        // The roadmap's twelve, plus Fases, Temporadas and Transicoes (ADR-0012 §10).
+        Assert.Equal(15, tabs.Count);
 
         JsonNode clubs = tabs.First(tab => tab!["name"]!.GetValue<string>() == "Clubes")!;
         Assert.Equal("Clubes.csv", clubs["fileName"]!.GetValue<string>());

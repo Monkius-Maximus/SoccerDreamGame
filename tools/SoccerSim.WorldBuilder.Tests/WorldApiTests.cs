@@ -175,14 +175,16 @@ public sealed class WorldApiTests : IClassFixture<WorldBuilderApp>
     }
 
     [Fact]
-    public async Task Competition_ReturnsItsFrozenMemberList()
+    public async Task Competition_ReturnsItsDefinition_ItsCurrentSeason_AndWhatDerivesFromThem()
     {
-        JsonNode competition = await GetJsonAsync("/api/competitions/cmp_bra_tier1");
+        JsonNode body = await GetJsonAsync("/api/competitions/cmp_bra_tier1");
 
-        Assert.Equal("National", competition["scope"]!.GetValue<string>());
-        Assert.Equal(38, competition["rounds"]!.GetValue<int>());
-        Assert.Equal(20, competition["memberClubIds"]!.AsArray().Count);
-        Assert.Equal("clb_bra_rio_001", competition["memberClubIds"]![0]!.GetValue<string>());
+        Assert.Equal("National", body["competition"]!["scope"]!.GetValue<string>());
+        Assert.Equal(1, body["competition"]!["level"]!.GetValue<int>());
+        Assert.Equal(20, body["season"]!["participantClubIds"]!.AsArray().Count);
+        Assert.Equal("clb_bra_rio_001", body["season"]!["participantClubIds"]![0]!.GetValue<string>());
+        Assert.Equal(38, body["shape"]!["rounds"]!.GetValue<int>());
+        Assert.Equal(0.86, body["tierFloat"]!.GetValue<double>());
     }
 
     /// <summary>
