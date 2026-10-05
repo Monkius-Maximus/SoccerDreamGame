@@ -262,13 +262,84 @@ trajectories, low decision-switch rates, and tactics measurably changing behavio
 closer defenders in build-up, directness ⇒ longer passes, mentality ⇒ higher anchors, selfishness
 ⇒ shooting over passing).
 
+## Off-pitch life simulation (one system, two career roles)
+
+The life-sim lives in `SoccerSim.Core/LifeSim` with zero Godot dependencies. Its governing
+decision: **a player career and a manager career share one simulation**, not two.
+
+Six needs — `Energy`, `Nutrition`, `Fitness`, `Morale`, `Social`, `Focus` — drain daily for
+whoever the human is. A manager still sleeps, eats and needs company. Exactly two things
+change with [`CareerRole`](../src/SoccerSim.Core/LifeSim/CareerRole.cs):
+
+1. **The tuning.** [`NeedProfile`](../src/SoccerSim.Core/LifeSim/NeedProfile.cs) supplies a
+   per-need decay rate and weight. An athlete's profile weights `Fitness` heaviest; a manager's
+   weights `Focus` and `Social`. Both profiles' weights **sum to 1.0** (enforced at construction,
+   fail-fast) so a wellbeing index of 60 means the same thing in either career.
+2. **Which derived output the consumer reads.** Every field is computed for every role.
+
+Fame/reputation is deliberately **not** a need: it accumulates rather than draining toward a
+deficit, so a bar that can never be topped up by resting would misteach the loop. It belongs with
+the economy/standing systems.
+
+### The needs are not decorative
+
+[`WellbeingSnapshot`](../src/SoccerSim.Core/LifeSim/WellbeingSnapshot.cs) is the single read
+point — nothing outside the life-sim inspects raw gauges. Each field lands in a system that
+**already existed**, with no signature changes:
+
+| Snapshot field | Consumer | Effect |
+| --- | --- | --- |
+| `FormModifier` (−5..+5) | `Player.FormMood` | `EffectiveAttributes` already applies FormMood, so wellbeing reaches the pitch with no match-engine change. Arcade mode (`applyForm: false`) still bypasses it. |
+| `EventProbabilityMultiplier` | `EventRollContext.GlobalProbabilityMultiplier` | `EventManager.RollForDay` already multiplies this into every probability, so a struggling career attracts more life events. Anchored so index 75 ⇒ ×1.0, clamped to ×0.75..×1.75. |
+| `InjuryRisk` | training / match layer (player) | Driven by `Fitness` + `Energy` deficits. |
+| `DecisionQuality`, `BurnoutRisk` | dugout layer (manager) | Driven by `Focus`, `Energy`, `Morale`. |
+
+### Determinism
+
+`LifeSimulator.AdvanceDay` is two ordered passes and takes `IRandom` like the rest of the
+simulation. Decay variance is one draw per need in `Needs.All` order; **cross-effects judge the
+bands captured before any decay was written**, so a bottomed-out need drags its dependent down
+(`Nutrition→Fitness`, `Energy→Focus`, `Social→Morale`) without the result ever depending on
+iteration order. Same seed ⇒ same needs, pinned by `LifeSimTests`.
+
+`ITimeManager` stays unaware of all this: `GameBootstrap` subscribes `DayElapsed` and calls
+`AdvanceDay`. Time drives, the life-sim consumes — the same relationship the LOD manager has.
+
+### Persistence
+
+Migration [`0006_lifesim.sql`](../sql/0006_lifesim.sql) adds `Career.Role` (defaulted to
+`'Player'`, so existing saves migrate) plus `CareerWellbeing` and `LifeActivityLog`, both keyed by
+**career** rather than by player so a manager save uses the same schema. Gauges are stored
+long-form (one row per need) so adding a seventh need is a data change, not a migration. Need keys
+round-trip as enum *names*, so reordering `NeedKind` can never reinterpret a saved gauge. A
+partially-saved state throws rather than letting a missing gauge default to zero and read as a
+critical deficit the human never earned.
+
+## Interface layer
+
+The UI is Godot `Control` nodes plus a theme built in code from
+[`UiTokens`](../game/ui/UiTokens.cs) — see [`docs/UI_DESIGN_SYSTEM.md`](UI_DESIGN_SYSTEM.md) for
+the scales and the reasoning. Three pieces matter architecturally:
+
+- **`HudNode`** hosts the persistent status strip on its own `CanvasLayer`, so it survives
+  `ChangeSceneToFile`. Without that, the human loses the simulation state at every mode switch.
+- **`EventResolutionDialog`** closes the interrupt/resume loop: `AdvanceCalendar` freezes the
+  clock and emits a resume token, and this is where that token is answered. It is hosted on the
+  event bus's own `CanvasLayer` (an interrupt can fire mid-scene-change) and is dismissal-proof
+  (an unanswered event would stall the calendar). `EventChoice.RequiredTraitKey` supplies the
+  trait gate that makes an `EventTier.Medium` event the trait-gated dialogue its tier promises.
+- **`NeedsPanel` / `ActivityBar`** bind to `IWellbeingService` and read the career role from it,
+  so one life-sim scene serves both careers.
+
 ## Verification
 
 - `dotnet test tests/SoccerSim.Core.Tests` exercises the clock multipliers, task skip,
   the calendar advance, the trait-weighted roll, the High-event **interrupt → resume**
   cycle, the Tier 1/2/3 resolvers, the Tier 1 **minute-by-minute `MatchEngine`**
-  (determinism, scoreline/scorer invariants, attribute-weighted finishing), and an
-  end-to-end SQLite migration + LOD write.
+  (determinism, scoreline/scorer invariants, attribute-weighted finishing), the
+  **life-sim** (role-tuned decay, order-independent cross-effects, seeded replay, the
+  snapshot → FormMood → `EffectiveAttributes` chain, and the snapshot →
+  `EventRollContext` chain), and an end-to-end SQLite migration + LOD write.
 - `dotnet build SoccerDreamGame.sln` builds all four projects.
 - Opening `game/` in the Godot 4.6 (.NET) editor and running creates `user://save.db`,
   applies migrations, and prints the bootstrap/autoload log lines.

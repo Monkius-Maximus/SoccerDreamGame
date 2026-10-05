@@ -25,6 +25,9 @@ EventBus="*res://autoload/EventBusNode.cs"
 SaveService="*res://autoload/SaveServiceNode.cs"
 ; GameModeManager owns the active mode + scene lifecycle + time controls (mode state machine).
 GameModeManager="*res://autoload/GameModeManager.cs"
+; HudNode must come AFTER GameModeManager: it subscribes to that autoload's ModeChanged.
+; It hosts the persistent status strip on its own CanvasLayer so the strip survives scene swaps.
+HudNode="*res://autoload/HudNode.cs"
 
 [rendering]
 

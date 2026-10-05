@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using SoccerSim.Core.Domain;
+using SoccerSim.Core.LifeSim;
 using SoccerSim.Core.Persistence;
 
 namespace SoccerSim.Infrastructure.Sqlite;
@@ -20,18 +21,26 @@ public sealed class SqliteCareerService : ICareerService
     public CareerState? GetActiveCareer()
     {
         int humanPlayerId;
+        CareerRole role;
         using (SqliteCommand command = _connection.CreateCommand())
         {
-            command.CommandText = "SELECT HumanPlayerId FROM Career WHERE Id = 1;";
-            object? value = command.ExecuteScalar();
-            if (value is null or DBNull)
+            command.CommandText = "SELECT HumanPlayerId, Role FROM Career WHERE Id = 1;";
+            using SqliteDataReader reader = command.ExecuteReader();
+            if (!reader.Read() || reader.IsDBNull(0))
                 return null;
-            humanPlayerId = Convert.ToInt32(value);
+
+            humanPlayerId = reader.GetInt32(0);
+            string roleText = reader.GetString(1);
+            // Fail fast: an unrecognised role would silently fall back to a Player career and
+            // apply the wrong life-sim profile for the rest of the save.
+            role = Enum.TryParse(roleText, ignoreCase: false, out CareerRole parsed)
+                ? parsed
+                : throw new InvalidOperationException($"Career has an unknown role '{roleText}'.");
         }
 
         int humanTeamId = LoadTeamId(humanPlayerId);
         IReadOnlyDictionary<string, int> traitWeights = PlayerTraitWeights.From(LoadTraits(humanPlayerId));
-        return new CareerState(humanPlayerId, humanTeamId, traitWeights);
+        return new CareerState(humanPlayerId, humanTeamId, traitWeights, role);
     }
 
     private int LoadTeamId(int playerId)

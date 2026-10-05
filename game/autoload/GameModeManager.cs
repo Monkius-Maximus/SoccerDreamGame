@@ -37,12 +37,22 @@ public partial class GameModeManager : Node
 
     public GameMode CurrentMode => _machine.CurrentMode;
 
+    /// <summary>
+    /// Raised after a successful transition with <c>(previous, next)</c>. Re-published from the core
+    /// state machine so persistent UI (the HUD) can react to mode changes without reaching into it.
+    /// </summary>
+    public event Action<GameMode, GameMode>? ModeChanged;
+
     public override void _Ready()
     {
         Instance = this;
         // Keep handling time control while the SceneTree is paused (autoloads survive scene swaps).
         ProcessMode = ProcessModeEnum.Always;
-        _machine.ModeChanged += (from, to) => GD.Print($"[GameMode] {from} -> {to}");
+        _machine.ModeChanged += (from, to) =>
+        {
+            GD.Print($"[GameMode] {from} -> {to}");
+            ModeChanged?.Invoke(from, to);
+        };
         GD.Print("[GameMode] Ready. Active mode: Loading (hub menu).");
     }
 

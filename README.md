@@ -24,7 +24,7 @@ without the engine), and a future multiplayer server can reuse the exact same co
 | src/SoccerSim.Core        |    | src/SoccerSim.Infrastructure  |
 | (no Godot, no deps)       |<---| .Sqlite (Microsoft.Data.Sqlite)|
 |  Time / Events / Sim LOD  |    |  repositories + migrations    |
-|  Domain / Economy         |    |  implement Core's ports       |
+|  Domain / Economy/ LifeSim|    |  implement Core's ports       |
 |  Persistence PORTS (iface)|    +-------------------------------+
 +---------------------------+
             ^
@@ -42,12 +42,14 @@ would be compiled twice. Keeping it in `src/` avoids that.
 
 | Path | Purpose |
 | --- | --- |
-| `src/SoccerSim.Core/` | Engine-agnostic core: `TimeManager`, `EventManager`, `SimulationLODManager`, domain models, persistence interfaces. |
+| `src/SoccerSim.Core/` | Engine-agnostic core: `TimeManager`, `EventManager`, `SimulationLODManager`, the `LifeSim` needs system, domain models, persistence interfaces. |
 | `src/SoccerSim.Infrastructure.Sqlite/` | SQLite implementation of the persistence ports + the migration runner. |
 | `sql/` | Canonical, numbered, ANSI-portable migrations (embedded into the infra assembly). |
 | `game/` | The Godot 4 C# project: autoloads + scenes. |
+| `game/ui/` | The design system (`UiTokens`, `UiTheme`) and shared controls (HUD strip, needs panel, event modal). |
 | `tests/SoccerSim.Core.Tests/` | Headless xUnit tests proving the core runs without the engine. |
 | `docs/ARCHITECTURE.md` | Design notes + the three required design artifacts (interfaces, schema, EventTrigger pseudo-code). |
+| `docs/UI_DESIGN_SYSTEM.md` | Interface tokens, contrast/type rules, and what changed from the UI concept. |
 
 ## Build & run
 
@@ -64,6 +66,22 @@ dotnet build SoccerDreamGame.sln
 #    Import the `game/` folder, then Run. The autoloads create user://save.db,
 #    apply the SQL migrations, and wire the core services on first launch.
 ```
+
+## Off-pitch life simulation
+
+Six needs — Energy, Nutrition, Fitness, Morale, Social, Focus — drain each simulated day for
+whoever the human controls. **A player career and a manager career share one simulation**, not
+two: the needs are identical (a manager still sleeps, eats and needs company) and only the
+`NeedProfile` tuning differs — an athlete's life weights conditioning, a manager's weights
+clarity and the dressing room.
+
+The gauges are load-bearing, not cosmetic. `WellbeingSnapshot` is the single read point, and its
+fields feed systems that already existed: form (and therefore effective attributes) via
+`Player.FormMood`, life-event pressure via `EventRollContext`, plus injury risk for a player and
+decision quality for a manager.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#off-pitch-life-simulation-one-system-two-career-roles)
+for the wiring and [`docs/UI_DESIGN_SYSTEM.md`](docs/UI_DESIGN_SYSTEM.md) for the interface tokens.
 
 ## Persistence & the road to multiplayer
 
