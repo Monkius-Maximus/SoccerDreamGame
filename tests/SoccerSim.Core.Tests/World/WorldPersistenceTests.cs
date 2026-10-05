@@ -1,4 +1,5 @@
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Competitions;
 using SoccerSim.Core.World.Import;
 using SoccerSim.Core.World.Serialization;
 using SoccerSim.Infrastructure.Sqlite;
@@ -21,10 +22,11 @@ public sealed class WorldPersistenceTests
 
         WorldImportReport report = await new WorldImporter(unitOfWork).ImportAsync(WorldFixture.Json);
 
-        Assert.Equal(18, report.GeoNodes);
+        Assert.Equal(75, report.GeoNodes);
         Assert.Equal(20, report.Clubs);
         Assert.Equal(688, report.Characters);
         Assert.Equal(1, report.Competitions);
+        Assert.Equal(1, report.Seasons);
         Assert.Equal(27, report.Sources);
     }
 
@@ -34,7 +36,7 @@ public sealed class WorldPersistenceTests
         await using WorldDatabase database = await WorldDatabase.WithRealWorldImported();
         await using SqliteWorldUnitOfWork unitOfWork = database.OpenUnitOfWork();
 
-        Assert.Equal(18, (await unitOfWork.GeoNodes.ListAsync()).Count);
+        Assert.Equal(75, (await unitOfWork.GeoNodes.ListAsync()).Count);
         Assert.Equal(20, (await unitOfWork.Clubs.ListAsync()).Count);
         Assert.Equal(688, (await unitOfWork.Characters.ListAsync()).Count);
         Assert.Single(await unitOfWork.Competitions.ListAsync());
@@ -153,19 +155,45 @@ public sealed class WorldPersistenceTests
     }
 
     [Fact]
-    public async Task Competition_RoundTrips_WithMembersInOrder()
+    public async Task Competition_RoundTrips_WithItsStageAndRules()
     {
         WorldSnapshot source = WorldJsonReader.Read(WorldFixture.Json);
 
         await using WorldDatabase database = await WorldDatabase.WithRealWorldImported();
         await using SqliteWorldUnitOfWork unitOfWork = database.OpenUnitOfWork();
 
-        Competition expected = source.Competitions.Single();
+        Competition expected = source.Competitions.Single() with
+        {
+            Transitions = [new TransitionRule(17, 20, "cmp_bra_tier1_b")],
+        };
+        await unitOfWork.Competitions.AddAsync(expected with
+        {
+            CompetitionId = "cmp_bra_tier1_b", Name = "Série B", Level = 2, Transitions = [],
+        });
+        await unitOfWork.Competitions.UpdateAsync(expected);
+
         Competition? actual = await unitOfWork.Competitions.GetAsync(expected.CompetitionId);
 
         Assert.NotNull(actual);
-        Assert.Equal(expected with { MemberClubIds = actual!.MemberClubIds }, actual);
-        Assert.Equal(expected.MemberClubIds, actual.MemberClubIds);   // order preserved
+        Assert.Equal(expected with { Stages = actual!.Stages, Transitions = actual.Transitions }, actual);
+        Assert.Equal(expected.Stages, actual.Stages);
+        Assert.Equal(expected.Transitions, actual.Transitions);
+    }
+
+    [Fact]
+    public async Task Season_RoundTrips_WithParticipantsInOrder()
+    {
+        WorldSnapshot source = WorldJsonReader.Read(WorldFixture.Json);
+
+        await using WorldDatabase database = await WorldDatabase.WithRealWorldImported();
+        await using SqliteWorldUnitOfWork unitOfWork = database.OpenUnitOfWork();
+
+        CompetitionSeason expected = source.Seasons.Single();
+        CompetitionSeason actual = Assert.Single(await unitOfWork.Seasons.ListAsync());
+
+        Assert.Equal(expected with { ParticipantClubIds = actual.ParticipantClubIds }, actual);
+        Assert.Equal(expected.ParticipantClubIds, actual.ParticipantClubIds);   // order preserved
+        Assert.Equal("2026", database.Query("SELECT Value FROM WorldSettings WHERE Key = 'currentSeason';").Single());
     }
 
     [Fact]

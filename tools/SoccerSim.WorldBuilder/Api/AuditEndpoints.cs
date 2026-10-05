@@ -50,8 +50,7 @@ internal static class AuditEndpoints
     private static async Task<IResult> GetAuditAsync(IWorldUnitOfWork unitOfWork, CancellationToken cancellationToken)
     {
         WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
-        BatchAuditReport report = BatchAudit.Run(world, await CountriesAsync(unitOfWork, cancellationToken),
-            await PyramidsAsync(unitOfWork, cancellationToken));
+        BatchAuditReport report = BatchAudit.Run(world, await CountriesAsync(unitOfWork, cancellationToken));
 
         var groups = report.Findings
             .GroupBy(finding => finding.Code)
@@ -94,31 +93,10 @@ internal static class AuditEndpoints
         CancellationToken cancellationToken) =>
         unitOfWork.Countries.ListAsync(cancellationToken);
 
-    /// <summary>One pyramid per country that has divisions. A country with none is unfinished,
-    /// not broken, so there is nothing for the rules to say about it yet.</summary>
-    private static async Task<IReadOnlyList<LeaguePyramid>> PyramidsAsync(
-        IWorldUnitOfWork unitOfWork,
-        CancellationToken cancellationToken)
-    {
-        var pyramids = new List<LeaguePyramid>();
-
-        foreach (var group in (await unitOfWork.Divisions.ListAsync(cancellationToken)).Count == 0
-                     ? []
-                     : (await unitOfWork.Countries.ListAsync(cancellationToken)).Select(c => c.CountryId))
-        {
-            LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync(group, cancellationToken);
-            if (pyramid.Divisions.Count > 0)
-                pyramids.Add(pyramid);
-        }
-
-        return pyramids;
-    }
-
     private static async Task<IResult> GetReportAsync(IWorldUnitOfWork unitOfWork, CancellationToken cancellationToken)
     {
         WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
-        BatchAuditReport report = BatchAudit.Run(world, await CountriesAsync(unitOfWork, cancellationToken),
-            await PyramidsAsync(unitOfWork, cancellationToken));
+        BatchAuditReport report = BatchAudit.Run(world, await CountriesAsync(unitOfWork, cancellationToken));
         string markdown = AuditReportWriter.Write(report, world);
 
         return Results.File(Encoding.UTF8.GetBytes(markdown), "text/markdown", AuditReportWriter.FileName);

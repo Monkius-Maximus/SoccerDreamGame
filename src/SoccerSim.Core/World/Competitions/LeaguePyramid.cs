@@ -3,177 +3,260 @@ using SoccerSim.Core.World.Validation;
 namespace SoccerSim.Core.World.Competitions;
 
 /// <summary>
-/// One division of a country's pyramid. Distinct from <see cref="Competition"/>, which is the
-/// FROZEN EDITION of a competition — its member list, its season, its prestige band. A division
-/// is the standing structure the editions hang off: it outlives any one season, and it is what
-/// promotion and relegation actually connect.
+/// One level of a country's pyramid: a national league competition with a <see cref="Competition.Level"/>
+/// and its season of the year the pyramid is drawn for. "Divisão" on the screen (ADR-0012 §2).
 /// </summary>
-public sealed record Division(
-    /// <summary>1 is the top flight. Tiers are contiguous: a gap means clubs fall out of the
-    /// pyramid at the end of a season with nowhere to land.</summary>
-    int Tier,
-    string DivisionId,
-    string Name,
-    CompetitionFormat Format,
-    int ClubCount,
-    /// <summary>How many clubs come UP into this division from the one below.</summary>
-    int PromotedIn,
-    /// <summary>How many clubs go DOWN out of this division into the one below.</summary>
-    int RelegatedOut,
-    /// <summary>The clubs enrolled in this division. A club belongs to exactly one division per
-    /// country.</summary>
-    IReadOnlyList<string> ClubIds)
+public sealed record PyramidLevel(Competition Competition, CompetitionSeason Season)
 {
-    /// <summary>
-    /// Rounds and matches, derived from the format and the field size — never typed.
-    ///
-    /// <para>Null when this field cannot be played at all: a division just created and not yet
-    /// enrolled has no shape, and neither does a group stage over a field that will not divide
-    /// into fours. A number invented for those cases would be a fixture list nobody can build, so
-    /// the screen shows a dash and <see cref="PyramidRules"/> says why.</para>
-    /// </summary>
-    public CompetitionShape? Shape => CompetitionFormats.Unplayable(Format, ClubCount) is null
-        ? CompetitionFormats.Shape(Format, ClubCount)
-        : null;
+    public int Level => Competition.Level
+        ?? throw new InvalidOperationException($"{Competition.CompetitionId} has no pyramid level.");
+
+    /// <summary>Rounds and matches, derived from the stage and the field — null when the
+    /// competition cannot be played as authored (<see cref="CompetitionStages.ShapeOf"/>).</summary>
+    public CompetitionShape? Shape => CompetitionStages.ShapeOf(Competition);
 }
 
-/// <summary>A country's divisions, top to bottom.</summary>
-public sealed record LeaguePyramid(string CountryId, IReadOnlyList<Division> Divisions);
+/// <summary>
+/// A country's pyramid for one season: its levelled national leagues, top to bottom. A view,
+/// computed from the competitions and their seasons and never stored (ADR-0012 §6).
+/// </summary>
+public sealed record LeaguePyramid(string CountryId, int Year, IReadOnlyList<PyramidLevel> Levels)
+{
+    /// <summary>
+    /// Draws the pyramid from the world's competitions. Every levelled competition of the country
+    /// must have a season of <paramref name="year"/>: the pyramid editor, the importer and
+    /// migration 0019 all create it together with the level, so a missing one is corruption and
+    /// throws.
+    /// </summary>
+    public static LeaguePyramid Of(
+        string countryId,
+        int year,
+        IReadOnlyList<Competition> competitions,
+        IReadOnlyList<CompetitionSeason> seasons) =>
+        new(
+            countryId,
+            year,
+            competitions
+                .Where(competition => competition.CountryId == countryId && competition.Level is not null)
+                .OrderBy(competition => competition.Level)
+                .ThenBy(competition => competition.CompetitionId, StringComparer.Ordinal)
+                .Select(competition => new PyramidLevel(
+                    competition,
+                    seasons.SingleOrDefault(season => season.CompetitionId == competition.CompetitionId && season.Year == year)
+                        ?? throw new InvalidOperationException(
+                            $"{competition.CompetitionId} is a level of {countryId}'s pyramid but has no {year} season.")))
+                .ToList());
+
+    public PyramidLevel? Find(string competitionId) =>
+        Levels.FirstOrDefault(level => level.Competition.CompetitionId == competitionId);
+
+    /// <summary>
+    /// How many clubs leave a level each season, by direction: up to a higher level (promotion)
+    /// or down to a lower one (relegation). Derived from the rules and the levels they target —
+    /// which kind of move a rule is is never stored (ADR-0012 §5).
+    /// </summary>
+    public (int Up, int Down) Moves(PyramidLevel level)
+    {
+        int up = 0, down = 0;
+
+        foreach (TransitionRule rule in level.Competition.Transitions)
+        {
+            PyramidLevel? target = Find(rule.TargetCompetitionId);
+            if (target is null)
+                continue;
+
+            if (target.Level < level.Level)
+                up += rule.Count;
+            else if (target.Level > level.Level)
+                down += rule.Count;
+        }
+
+        return (up, down);
+    }
+}
 
 /// <summary>
-/// What has to be true of a pyramid for a season to be playable at all (ROADMAP.md Sprint 9).
-/// These are the failures that only appear once a second division exists, which is why none of
-/// them could be written before now.
+/// What has to be true of a pyramid for a season to be playable at all (ROADMAP.md Sprint 9,
+/// restated over competitions by ADR-0012 §6).
 /// </summary>
 public static class PyramidRules
 {
-    public static IReadOnlyList<Finding> Check(LeaguePyramid pyramid)
+    /// <param name="competitions">Every competition in the world, so a transition rule can be
+    /// checked against a target outside this pyramid.</param>
+    public static IReadOnlyList<Finding> Check(LeaguePyramid pyramid, IReadOnlyList<Competition> competitions)
     {
         var findings = new List<Finding>();
+        List<PyramidLevel> levels = [.. pyramid.Levels.OrderBy(level => level.Level)];
 
-        List<Division> divisions = pyramid.Divisions.OrderBy(division => division.Tier).ToList();
-
-        if (divisions.Count == 0)
+        if (levels.Count == 0)
         {
             findings.Add(new Finding(FindingLevel.Error, "PYRAMID_EMPTY", "Pirâmide vazia",
                 $"{pyramid.CountryId} não tem nenhuma divisão"));
             return findings;
         }
 
-        CheckTiers(findings, divisions);
-        CheckFlow(findings, divisions);
-        CheckEnrolment(findings, pyramid, divisions);
-        CheckFieldSizes(findings, divisions);
+        CheckLevels(findings, levels);
+        CheckStages(findings, levels);
+        CheckTransitions(findings, levels, competitions);
+        CheckFlow(findings, levels);
+        CheckParticipants(findings, levels);
 
         return findings;
     }
 
-    /// <summary>Tiers run 1, 2, 3… with no repeats and no holes. A hole is a division that
+    /// <summary>Levels run 1, 2, 3… with no repeats and no holes. A hole is a league that
     /// relegates clubs into a level that does not exist.</summary>
-    private static void CheckTiers(List<Finding> findings, List<Division> divisions)
+    private static void CheckLevels(List<Finding> findings, List<PyramidLevel> levels)
     {
-        var byTier = divisions.GroupBy(division => division.Tier);
-
-        foreach (var group in byTier.Where(g => g.Count() > 1))
+        foreach (var group in levels.GroupBy(level => level.Level).Where(g => g.Count() > 1))
         {
-            findings.Add(new Finding(FindingLevel.Error, "TIER_DUP", "Tier duplicado",
-                $"tier {group.Key} está em {group.Count()} divisões ({string.Join(", ", group.Select(d => d.DivisionId))})"));
+            findings.Add(new Finding(FindingLevel.Error, "LEVEL_DUP", "Nível duplicado",
+                $"o nível {group.Key} está em {group.Count()} divisões "
+                + $"({string.Join(", ", group.Select(level => level.Competition.CompetitionId))})"));
         }
 
-        var tiers = divisions.Select(division => division.Tier).Distinct().Order().ToList();
+        List<int> numbers = [.. levels.Select(level => level.Level).Distinct().Order()];
 
-        if (tiers[0] != 1)
+        if (numbers[0] != 1)
         {
-            findings.Add(new Finding(FindingLevel.Error, "TIER_GAP", "Pirâmide sem topo",
-                $"o tier mais alto é {tiers[0]}; a pirâmide começa em 1"));
+            findings.Add(new Finding(FindingLevel.Error, "LEVEL_GAP", "Pirâmide sem topo",
+                $"o nível mais alto é {numbers[0]}; a pirâmide começa em 1"));
         }
 
-        for (int i = 1; i < tiers.Count; i++)
+        for (int i = 1; i < numbers.Count; i++)
         {
-            if (tiers[i] != tiers[i - 1] + 1)
+            if (numbers[i] != numbers[i - 1] + 1)
             {
-                findings.Add(new Finding(FindingLevel.Error, "TIER_GAP", "Lacuna de tier",
-                    $"não existe divisão no tier {tiers[i - 1] + 1}, entre {tiers[i - 1]} e {tiers[i]}"));
+                findings.Add(new Finding(FindingLevel.Error, "LEVEL_GAP", "Lacuna de nível",
+                    $"não existe divisão no nível {numbers[i - 1] + 1}, entre {numbers[i - 1]} e {numbers[i]}"));
+            }
+        }
+    }
+
+    /// <summary>One stage, and one its field can play (ADR-0012 §4).</summary>
+    private static void CheckStages(List<Finding> findings, List<PyramidLevel> levels)
+    {
+        foreach (PyramidLevel level in levels)
+        {
+            Competition competition = level.Competition;
+
+            if (competition.Stages.Count != 1)
+            {
+                findings.Add(new Finding(FindingLevel.Error, "STAGE_COUNT", "Fases",
+                    $"{competition.Name} tem {competition.Stages.Count} fase(s); só existe a fase de liga, uma por competição"));
+                continue;
+            }
+
+            if (CompetitionStages.Unplayable(competition.Stages[0], competition.ClubCount) is { } reason)
+            {
+                findings.Add(new Finding(FindingLevel.Error, "STAGE_UNPLAYABLE", "Fase impossível",
+                    $"{competition.Name}: {reason}"));
+            }
+        }
+    }
+
+    /// <summary>Each rule names ranks the competition has, no two rules claim the same rank, and
+    /// the target is another competition that exists.</summary>
+    private static void CheckTransitions(
+        List<Finding> findings,
+        List<PyramidLevel> levels,
+        IReadOnlyList<Competition> competitions)
+    {
+        var known = competitions.Select(competition => competition.CompetitionId).ToHashSet(StringComparer.Ordinal);
+
+        foreach (PyramidLevel level in levels)
+        {
+            Competition competition = level.Competition;
+
+            foreach (TransitionRule rule in competition.Transitions)
+            {
+                if (rule.RankFrom < 1 || rule.RankFrom > rule.RankTo || rule.RankTo > competition.ClubCount)
+                {
+                    findings.Add(new Finding(FindingLevel.Error, "TRANSITION_RANGE", "Faixa de posições",
+                        $"{competition.Name}: {rule.RankFrom}º–{rule.RankTo}º não cabe em 1º–{competition.ClubCount}º"));
+                }
+
+                if (rule.TargetCompetitionId == competition.CompetitionId || !known.Contains(rule.TargetCompetitionId))
+                {
+                    findings.Add(new Finding(FindingLevel.Error, "TRANSITION_TARGET", "Destino da transição",
+                        $"{competition.Name}: {rule.RankFrom}º–{rule.RankTo}º vão para '{rule.TargetCompetitionId}', "
+                        + "que não é outra competição do mundo"));
+                }
+            }
+
+            var claimed = competition.Transitions
+                .SelectMany(rule => Enumerable.Range(rule.RankFrom, Math.Max(0, rule.Count)))
+                .GroupBy(rank => rank)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key)
+                .Order()
+                .ToList();
+
+            if (claimed.Count > 0)
+            {
+                findings.Add(new Finding(FindingLevel.Error, "TRANSITION_OVERLAP", "Posições em duas regras",
+                    $"{competition.Name}: {string.Join(", ", claimed.Select(rank => $"{rank}º"))} "
+                    + "aparecem em mais de uma regra de transição"));
             }
         }
     }
 
     /// <summary>
-    /// The flow balance. For a division, clubs arriving are those relegated out of the division
-    /// above plus those promoted in from the one below; clubs leaving are those promoted into the
-    /// division above plus those relegated out of this one. When the two differ, the division
-    /// changes size every season — silently, and only visibly three seasons later.
+    /// The flow balance (ADR-0007 §3), computed from the rules: clubs arriving in a league each
+    /// season equal clubs leaving it. When they differ, the league changes size every season —
+    /// silently, and only visibly three seasons later.
     /// </summary>
-    private static void CheckFlow(List<Finding> findings, List<Division> divisions)
+    private static void CheckFlow(List<Finding> findings, List<PyramidLevel> levels)
     {
-        for (int i = 0; i < divisions.Count; i++)
+        foreach (PyramidLevel level in levels)
         {
-            Division division = divisions[i];
-            Division? above = i > 0 ? divisions[i - 1] : null;
-            Division? below = i + 1 < divisions.Count ? divisions[i + 1] : null;
+            string id = level.Competition.CompetitionId;
 
-            int arriving = (above?.RelegatedOut ?? 0) + division.PromotedIn;
-            int leaving = (above?.PromotedIn ?? 0) + division.RelegatedOut;
+            int arriving = levels
+                .Where(other => other.Competition.CompetitionId != id)
+                .SelectMany(other => other.Competition.Transitions)
+                .Where(rule => rule.TargetCompetitionId == id)
+                .Sum(rule => rule.Count);
+
+            int leaving = level.Competition.Transitions.Sum(rule => rule.Count);
 
             if (arriving != leaving)
             {
                 findings.Add(new Finding(FindingLevel.Error, "PYRAMID_FLOW", "Fluxo desequilibrado",
-                    $"{division.Name} recebe {arriving} e perde {leaving} por temporada — "
-                    + $"a divisão muda de tamanho ({division.ClubCount} clubes hoje)"));
-            }
-
-            // Nothing is below the bottom division, so nothing can come up into it and nothing
-            // can go down out of it.
-            if (below is null && (division.PromotedIn != 0 || division.RelegatedOut != 0))
-            {
-                findings.Add(new Finding(FindingLevel.Error, "PYRAMID_FLOW", "Base da pirâmide",
-                    $"{division.Name} é a última divisão, mas declara "
-                    + $"{division.PromotedIn} promovidos e {division.RelegatedOut} rebaixados"));
+                    $"{level.Competition.Name} recebe {arriving} e perde {leaving} por temporada — "
+                    + $"a divisão muda de tamanho ({level.Competition.ClubCount} clubes hoje)"));
             }
         }
     }
 
-    /// <summary>A club plays in exactly one division of a country. Two is not a bigger season; it
-    /// is a fixture list that cannot be built.</summary>
-    private static void CheckEnrolment(List<Finding> findings, LeaguePyramid pyramid, List<Division> divisions)
+    /// <summary>A club takes part in one levelled season per country per year, and the season is
+    /// as big as the competition declares.</summary>
+    private static void CheckParticipants(List<Finding> findings, List<PyramidLevel> levels)
     {
-        var seen = new Dictionary<string, List<Division>>();
+        var seen = new Dictionary<string, List<PyramidLevel>>();
 
-        foreach (Division division in divisions)
+        foreach (PyramidLevel level in levels)
         {
-            foreach (string clubId in division.ClubIds)
+            foreach (string clubId in level.Season.ParticipantClubIds)
             {
-                if (!seen.TryGetValue(clubId, out List<Division>? list))
+                if (!seen.TryGetValue(clubId, out List<PyramidLevel>? list))
                     seen[clubId] = list = [];
-                list.Add(division);
+                list.Add(level);
+            }
+
+            int enrolled = level.Season.ParticipantClubIds.Count;
+            if (enrolled != level.Competition.ClubCount)
+            {
+                findings.Add(new Finding(FindingLevel.Warning, "SEASON_UNFILLED", "Temporada incompleta",
+                    $"{level.Competition.Name} declara {level.Competition.ClubCount} clubes e tem {enrolled} na temporada {level.Season.Year}"));
             }
         }
 
-        foreach ((string clubId, List<Division> memberships) in seen.Where(entry => entry.Value.Count > 1))
+        foreach ((string clubId, List<PyramidLevel> memberships) in seen.Where(entry => entry.Value.Count > 1))
         {
-            findings.Add(new Finding(FindingLevel.Error, "CLUB_TWO_DIVISIONS", "Clube em duas divisões",
-                $"{clubId} está em {string.Join(" e ", memberships.Select(d => d.Name))} "
-                + $"— um clube joga uma divisão por país"));
-        }
-    }
-
-    /// <summary>The declared size has to match the enrolment, and the format has to be able to
-    /// use it.</summary>
-    private static void CheckFieldSizes(List<Finding> findings, List<Division> divisions)
-    {
-        foreach (Division division in divisions)
-        {
-            if (division.ClubIds.Count != division.ClubCount)
-            {
-                findings.Add(new Finding(FindingLevel.Warning, "DIVISION_SIZE", "Tamanho da divisão",
-                    $"{division.Name} declara {division.ClubCount} clubes e tem {division.ClubIds.Count} inscritos"));
-            }
-
-            if (CompetitionFormats.Unplayable(division.Format, division.ClubCount) is { } reason)
-            {
-                findings.Add(new Finding(FindingLevel.Error, "FORMAT_UNPLAYABLE", "Formato impossível",
-                    $"{division.Name}: {reason}"));
-            }
+            findings.Add(new Finding(FindingLevel.Error, "CLUB_TWO_LEAGUES", "Clube em duas divisões",
+                $"{clubId} está em {string.Join(" e ", memberships.Select(level => level.Competition.Name))} "
+                + "— um clube joga uma divisão por país e temporada"));
         }
     }
 }

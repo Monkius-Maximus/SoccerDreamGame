@@ -10,11 +10,12 @@ public sealed record WorldImportReport(
     int Clubs,
     int Characters,
     int Competitions,
+    int Seasons,
     int Sources)
 {
     public override string ToString() =>
         $"{GeoNodes} geo nodes, {Clubs} clubs, {Characters} characters, " +
-        $"{Competitions} competitions, {Sources} sources";
+        $"{Competitions} competitions, {Seasons} seasons, {Sources} sources";
 }
 
 /// <summary>
@@ -26,7 +27,7 @@ public sealed record WorldImportReport(
 /// <para>
 /// Order matters and is a foreign-key order: geo nodes before the clubs that sit in them,
 /// calibration before the clubs and characters whose derived fields are computed from it, clubs
-/// before their characters and before the competitions that list them as members. The whole
+/// before their characters and before the seasons that list them as participants. The whole
 /// import runs in one transaction — a failure halfway leaves the database exactly as it was.
 /// </para>
 /// </summary>
@@ -66,6 +67,8 @@ public sealed class WorldImporter
                 WorldMeta.SchemaVersionKey, snapshot.Meta.SchemaVersion, cancellationToken);
             if (snapshot.Meta.SourceFile is { } sourceFile)
                 await _unitOfWork.Settings.SetAsync(WorldMeta.SourceFileKey, sourceFile, cancellationToken);
+            await _unitOfWork.Settings.SetAsync(
+                WorldMeta.CurrentSeasonKey, snapshot.Meta.CurrentSeason.ToString(), cancellationToken);
 
             foreach (ClubIdentity club in snapshot.Clubs)
                 await _unitOfWork.Clubs.AddAsync(club, cancellationToken);
@@ -75,6 +78,9 @@ public sealed class WorldImporter
 
             foreach (Competition competition in snapshot.Competitions)
                 await _unitOfWork.Competitions.AddAsync(competition, cancellationToken);
+
+            foreach (CompetitionSeason season in snapshot.Seasons)
+                await _unitOfWork.Seasons.SaveAsync(season, cancellationToken);
 
             // A country profile per country the batch actually contains. The document has no such
             // block — it predates the idea of a second country — so it is measured from what was
@@ -101,6 +107,7 @@ public sealed class WorldImporter
             snapshot.Clubs.Count,
             snapshot.Characters.Count,
             snapshot.Competitions.Count,
+            snapshot.Seasons.Count,
             snapshot.Sources.Count);
     }
 

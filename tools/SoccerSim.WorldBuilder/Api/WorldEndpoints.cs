@@ -1,5 +1,7 @@
 using SoccerSim.Core.Persistence;
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Competitions;
+using SoccerSim.Core.World.Import;
 using SoccerSim.Core.World.Squad;
 using SoccerSim.Core.World.Validation;
 
@@ -127,13 +129,26 @@ internal static class WorldEndpoints
         CancellationToken cancellationToken) =>
         await unitOfWork.GeoNodes.ListAsync(cancellationToken);
 
+    /// <summary>A competition's definition with its current season and what derives from them:
+    /// rounds and matches from the stage, the tier float from the participants (ADR-0012 §4, §7).</summary>
     private static async Task<IResult> GetCompetitionAsync(
         string competitionId,
         IWorldUnitOfWork unitOfWork,
         CancellationToken cancellationToken)
     {
-        Competition? competition = await unitOfWork.Competitions.GetAsync(competitionId, cancellationToken);
-        return competition is null ? Results.NotFound() : Results.Ok(competition);
+        WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
+        Competition? competition = world.Competitions.FirstOrDefault(c => c.CompetitionId == competitionId);
+        if (competition is null)
+            return Results.NotFound();
+
+        CompetitionSeason? season = world.Seasons.SingleOrDefault(candidate =>
+            candidate.CompetitionId == competitionId && candidate.Year == world.Meta.CurrentSeason);
+
+        return Results.Ok(new CompetitionDto(
+            competition,
+            season,
+            CompetitionStages.ShapeOf(competition),
+            season is null ? null : CompetitionStages.TierFloat(season, world.Clubs.ToDictionary(club => club.ClubId))));
     }
 
     /// <summary>Walks up the geo tree to build the breadcrumb ("Mundo › CONMEBOL › Brasil › … › Cidade").</summary>

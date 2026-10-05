@@ -424,11 +424,16 @@ public static class SquadGenerator
             return (_rng.Pick(_profiles.FirstNames), $"{_rng.Pick(_profiles.LastNames)} {index}");
         }
 
+        /// <summary>
+        /// The club id without its prefix and punctuation. Not truncated: two clubs whose ids share
+        /// a long prefix (<c>clb_bra_saogoncalo_001</c> and <c>_002</c>) would otherwise get the
+        /// same slug and hand out the same player ids. Every pilot club's slug is under twelve
+        /// characters, so their players' ids are unchanged.
+        /// </summary>
         private static string Slug(string clubId)
         {
             string trimmed = clubId.StartsWith("clb_", StringComparison.Ordinal) ? clubId[4..] : clubId;
-            string cleaned = new(trimmed.Where(char.IsLetterOrDigit).ToArray());
-            return cleaned.Length > 12 ? cleaned[..12] : cleaned;
+            return new string(trimmed.Where(char.IsLetterOrDigit).ToArray());
         }
     }
 }

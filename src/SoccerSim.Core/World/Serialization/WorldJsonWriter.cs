@@ -25,12 +25,14 @@ public static class WorldJsonWriter
                 [WorldMeta.MasterSeedKey] = world.Meta.MasterSeed,
                 [WorldMeta.SchemaVersionKey] = world.Meta.SchemaVersion,
                 [WorldMeta.SourceFileKey] = world.Meta.SourceFile,
+                [WorldMeta.CurrentSeasonKey] = world.Meta.CurrentSeason,
             },
             ["calibration"] = Calibration(world.Calibration),
             ["positionWeights"] = PositionWeights(world.Calibration),
             ["geoNodes"] = Array(world.GeoNodes, GeoNode),
             ["sources"] = Array(world.Sources, Source),
             ["competitions"] = Array(world.Competitions, Competition),
+            ["seasons"] = Array(world.Seasons, Season),
             ["clubs"] = Array(world.Clubs, Club),
             ["players"] = Array(world.Characters, Character),
         };
@@ -68,18 +70,29 @@ public static class WorldJsonWriter
         ["name"] = competition.Name,
         ["scope"] = competition.Scope.ToString(),
         ["anchorGeoNodeId"] = competition.AnchorGeoNodeId,
-        ["memberPredicateId"] = competition.MemberPredicateId,
-        ["prestigeBand"] = competition.PrestigeBand.ToString(),
-        ["leagueTierFloat"] = competition.LeagueTierFloat,
-        ["format"] = competition.Format,
+        ["countryId"] = competition.CountryId,
+        ["level"] = competition.Level,
         ["clubCount"] = competition.ClubCount,
-        ["rounds"] = competition.Rounds,
-        ["promotedIn"] = competition.PromotedIn,
-        ["relegatedOut"] = competition.RelegatedOut,
-        ["continentalSlots"] = competition.ContinentalSlots,
-        ["editionId"] = competition.EditionId,
-        ["season"] = competition.Season,
-        ["memberClubIds"] = Array(competition.MemberClubIds, id => (JsonNode)JsonValue.Create(id)!),
+        ["stages"] = Array(competition.Stages, stage => new JsonObject
+        {
+            ["ordinal"] = stage.Ordinal,
+            ["kind"] = stage.Kind.ToString(),
+            ["legs"] = stage.Legs,
+        }),
+        ["transitions"] = Array(competition.Transitions, rule => new JsonObject
+        {
+            ["rankFrom"] = rule.RankFrom,
+            ["rankTo"] = rule.RankTo,
+            ["targetCompetitionId"] = rule.TargetCompetitionId,
+        }),
+    };
+
+    private static JsonNode Season(CompetitionSeason season) => new JsonObject
+    {
+        ["seasonId"] = season.SeasonId,
+        ["competitionId"] = season.CompetitionId,
+        ["year"] = season.Year,
+        ["participants"] = Array(season.ParticipantClubIds, id => (JsonNode)JsonValue.Create(id)!),
     };
 
     private static JsonNode Club(ClubIdentity club) => new JsonObject

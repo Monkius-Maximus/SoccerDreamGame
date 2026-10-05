@@ -6,22 +6,24 @@ using SoccerSim.Core.World.Search;
 
 namespace SoccerSim.WorldBuilder.Api;
 
-/// <summary>One row of the register: every competition and division the world holds, flat.</summary>
+/// <summary>One row of the register: every competition the world holds, flat.</summary>
 public sealed record RegisterRowDto(
     string CountryId,
     string? CountryName,
-    /// <summary>"Divisão" for a standing division of a pyramid, "Competição" for an authored
-    /// edition. The two are different things (docs/adr/0008) and the register says which.</summary>
+    /// <summary>"Divisão" for a national league with a pyramid level, "Competição" for any other.
+    /// One model (ADR-0012 §2); the word is what the screen calls it.</summary>
     string Kind,
-    int? Tier,
+    int? Level,
     string Id,
     string Name,
-    string Format,
+    string? Format,
     int Clubs,
+    int Participants,
     int? Rounds,
     int? Matches,
-    int? PromotedIn,
-    int? RelegatedOut);
+    /// <summary>Clubs that go up out of this league each season, and down.</summary>
+    int? Up,
+    int? Down);
 
 /// <summary>
 /// The global search and the register (ROADMAP.md Sprint 9).
@@ -59,63 +61,43 @@ internal static class SearchEndpoints
         CancellationToken cancellationToken)
     {
         WorldSnapshot world = await WorldStore.LoadAsync(unitOfWork, cancellationToken);
-        IReadOnlyList<CountryProfile> countries = await unitOfWork.Countries.ListAsync(cancellationToken);
-
         IReadOnlyDictionary<string, string> names = CountryProfiles.NamesFrom(world);
         var rows = new List<RegisterRowDto>();
 
-        foreach (CountryProfile country in countries.OrderBy(c => c.CountryId, StringComparer.Ordinal))
+        foreach (Competition competition in world.Competitions
+                     .OrderBy(c => c.CountryId ?? "~", StringComparer.Ordinal)
+                     .ThenBy(c => c.Level ?? int.MaxValue)
+                     .ThenBy(c => c.Name, StringComparer.Ordinal))
         {
-            LeaguePyramid pyramid = await unitOfWork.Divisions.GetPyramidAsync(country.CountryId, cancellationToken);
+            CompetitionSeason? season = world.Seasons.SingleOrDefault(candidate =>
+                candidate.CompetitionId == competition.CompetitionId && candidate.Year == world.Meta.CurrentSeason);
 
-            foreach (Division division in pyramid.Divisions.OrderBy(d => d.Tier))
+            (int Up, int Down)? moves = null;
+            if (competition.Level is not null)
             {
-                rows.Add(new RegisterRowDto(
-                    country.CountryId,
-                    names.GetValueOrDefault(country.CountryId),
-                    "Divisão",
-                    division.Tier,
-                    division.DivisionId,
-                    division.Name,
-                    CompetitionFormats.Label(division.Format),
-                    division.ClubCount,
-                    division.Shape?.Rounds,
-                    division.Shape?.Matches,
-                    division.PromotedIn,
-                    division.RelegatedOut));
+                LeaguePyramid pyramid = LeaguePyramid.Of(
+                    competition.CountryId!, world.Meta.CurrentSeason, world.Competitions, world.Seasons);
+                moves = pyramid.Moves(pyramid.Find(competition.CompetitionId)!);
             }
-        }
 
-        // The authored competitions sit alongside, not inside: a Competition is a frozen edition
-        // and a Division is the standing structure editions hang off. Showing them as one kind
-        // would be the tool asserting they are the same thing.
-        foreach (Competition competition in world.Competitions.OrderBy(c => c.Name, StringComparer.Ordinal))
-        {
-            string countryId = CountryOf(world, competition) ?? "—";
+            CompetitionShape? shape = CompetitionStages.ShapeOf(competition);
 
             rows.Add(new RegisterRowDto(
-                countryId,
-                names.GetValueOrDefault(countryId),
-                "Competição",
-                null,
+                competition.CountryId ?? "—",
+                competition.CountryId is null ? null : names.GetValueOrDefault(competition.CountryId),
+                competition.Level is null ? "Competição" : "Divisão",
+                competition.Level,
                 competition.CompetitionId,
                 competition.Name,
-                competition.Format,
+                competition.Stages.Count == 1 ? CompetitionStages.Label(competition.Stages[0]) : null,
                 competition.ClubCount,
-                competition.Rounds,
-                null,
-                competition.PromotedIn,
-                competition.RelegatedOut));
+                season?.ParticipantClubIds.Count ?? 0,
+                shape?.Rounds,
+                shape?.Matches,
+                moves?.Up,
+                moves?.Down));
         }
 
         return Results.Ok(rows);
     }
-
-    /// <summary>A competition names a geo node, not a country code; the clubs anchored there are
-    /// what connect the two.</summary>
-    private static string? CountryOf(WorldSnapshot world, Competition competition) =>
-        world.Clubs
-            .FirstOrDefault(club => club.Geography.GeoNodeId == competition.AnchorGeoNodeId)
-            ?.Geography.CountryId
-        ?? world.Clubs.FirstOrDefault()?.Geography.CountryId;
 }

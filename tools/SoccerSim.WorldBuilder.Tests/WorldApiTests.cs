@@ -33,7 +33,7 @@ public sealed class WorldApiTests : IClassFixture<WorldBuilderApp>
         Assert.Equal("ClubIdentity v2", world["schemaVersion"]!.GetValue<string>());
         Assert.Equal(20, world["counts"]!["clubs"]!.GetValue<int>());
         Assert.Equal(688, world["counts"]!["characters"]!.GetValue<int>());
-        Assert.Equal(18, world["counts"]!["geoNodes"]!.GetValue<int>());
+        Assert.Equal(75, world["counts"]!["geoNodes"]!.GetValue<int>());
         Assert.Equal(27, world["counts"]!["sources"]!.GetValue<int>());
     }
 
@@ -166,7 +166,7 @@ public sealed class WorldApiTests : IClassFixture<WorldBuilderApp>
     {
         JsonArray geo = (await GetJsonAsync("/api/geo")).AsArray();
 
-        Assert.Equal(18, geo.Count);
+        Assert.Equal(75, geo.Count);
         JsonNode root = geo.Single(node => node!["geoNodeId"]!.GetValue<string>() == "geo_world")!;
         Assert.Equal("World", root["kind"]!.GetValue<string>());
 
@@ -175,14 +175,16 @@ public sealed class WorldApiTests : IClassFixture<WorldBuilderApp>
     }
 
     [Fact]
-    public async Task Competition_ReturnsItsFrozenMemberList()
+    public async Task Competition_ReturnsItsDefinition_ItsCurrentSeason_AndWhatDerivesFromThem()
     {
-        JsonNode competition = await GetJsonAsync("/api/competitions/cmp_bra_tier1");
+        JsonNode body = await GetJsonAsync("/api/competitions/cmp_bra_tier1");
 
-        Assert.Equal("National", competition["scope"]!.GetValue<string>());
-        Assert.Equal(38, competition["rounds"]!.GetValue<int>());
-        Assert.Equal(20, competition["memberClubIds"]!.AsArray().Count);
-        Assert.Equal("clb_bra_rio_001", competition["memberClubIds"]![0]!.GetValue<string>());
+        Assert.Equal("National", body["competition"]!["scope"]!.GetValue<string>());
+        Assert.Equal(1, body["competition"]!["level"]!.GetValue<int>());
+        Assert.Equal(20, body["season"]!["participantClubIds"]!.AsArray().Count);
+        Assert.Equal("clb_bra_rio_001", body["season"]!["participantClubIds"]![0]!.GetValue<string>());
+        Assert.Equal(38, body["shape"]!["rounds"]!.GetValue<int>());
+        Assert.Equal(0.86, body["tierFloat"]!.GetValue<double>());
     }
 
     /// <summary>

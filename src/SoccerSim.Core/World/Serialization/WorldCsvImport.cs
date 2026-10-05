@@ -1,3 +1,5 @@
+using SoccerSim.Core.World.Competitions;
+
 namespace SoccerSim.Core.World.Serialization;
 
 /// <summary>One uploaded file: which tab it is and what is in it.</summary>
@@ -25,8 +27,9 @@ public sealed record WorldImportPlan(
 /// full, with one message per cell, and nothing is written.
 ///
 /// <para><b>Primary and auxiliary tabs.</b> A tab that carries an entity's identity — Competicao,
-/// Clubes, Jogadores, GeoNodes, Fontes — decides which rows EXIST: a row missing from it is a
-/// removal. The rest (Kits_Estadio, Audit_Clubes, Audit_Jogadores) describe part of an entity and
+/// Fases, Temporadas, Transicoes, Clubes, Jogadores, GeoNodes, Fontes — decides which rows EXIST:
+/// a row missing from it is a removal. Fases and Transicoes are lists per competition: when one is
+/// imported it states every stage (or rule) of every competition. The rest (Kits_Estadio, Audit_Clubes, Audit_Jogadores) describe part of an entity and
 /// can only update rows that exist in the result. So adding a club means importing Clubes,
 /// Kits_Estadio and Audit_Clubes together; importing Clubes alone with a new id is refused by
 /// name rather than half-built out of defaults.</para>
@@ -34,7 +37,8 @@ public sealed record WorldImportPlan(
 public static class WorldCsvImport
 {
     /// <summary>Tabs that decide which rows exist, and therefore which rows are gone.</summary>
-    public static readonly string[] PrimaryTabs = ["Competicao", "Clubes", "Jogadores", "GeoNodes", "Fontes"];
+    public static readonly string[] PrimaryTabs =
+        ["Competicao", "Fases", "Temporadas", "Transicoes", "Clubes", "Jogadores", "GeoNodes", "Fontes"];
 
     public static WorldImportPlan Plan(WorldSnapshot current, IReadOnlyList<CsvTabFile> files)
     {
@@ -138,9 +142,11 @@ public static class WorldCsvImport
             ? Collect(sourceRows, errors, ReadSource)
             : current.Sources;
 
-        IReadOnlyList<Competition> competitions = tabs.TryGetValue("Competicao", out IReadOnlyList<CsvRow>? compRows)
-            ? Collect(compRows, errors, ReadCompetition)
-            : current.Competitions;
+        IReadOnlyList<Competition> competitions = BuildCompetitions(current, tabs, errors);
+
+        IReadOnlyList<CompetitionSeason> seasons = tabs.TryGetValue("Temporadas", out IReadOnlyList<CsvRow>? seasonRows)
+            ? Collect(seasonRows, errors, ReadSeason)
+            : current.Seasons;
 
         IReadOnlyList<ClubIdentity> clubs = BuildClubs(current, tabs, errors);
 
@@ -151,7 +157,85 @@ public static class WorldCsvImport
             ? current.Characters
             : BuildCharacters(current, clubs, tabs, errors);
 
-        return new WorldSnapshot(geoNodes, current.Calibration, clubs, characters, competitions, sources, current.Meta);
+        // The structure the competitions must have is checked once the whole result exists, the
+        // same check the JSON reader runs (ADR-0012), and only when every row parsed: a club that
+        // failed to read would otherwise surface again as a participant that is not a club.
+        if (errors.Count == 0)
+        {
+            errors.AddRange(CompetitionIntegrity.Check(
+                competitions, seasons, current.Meta.CurrentSeason, clubs.Select(club => club.ClubId).ToHashSet(StringComparer.Ordinal)));
+        }
+
+        return new WorldSnapshot(geoNodes, current.Calibration, clubs, characters, competitions, seasons, sources, current.Meta);
+    }
+
+    /// <summary>
+    /// Competitions with their stages and rules. Without <c>Competicao</c> the definitions are the
+    /// loaded ones; without <c>Fases</c> or <c>Transicoes</c> each competition keeps its own, and a
+    /// new competition then has none — which the integrity check refuses by name rather than this
+    /// method inventing a stage.
+    /// </summary>
+    private static IReadOnlyList<Competition> BuildCompetitions(
+        WorldSnapshot current,
+        IReadOnlyDictionary<string, IReadOnlyList<CsvRow>> tabs,
+        List<string> errors)
+    {
+        Dictionary<string, Competition> existing = current.Competitions.ToDictionary(competition => competition.CompetitionId);
+
+        IReadOnlyList<Competition> definitions = tabs.TryGetValue("Competicao", out IReadOnlyList<CsvRow>? rows)
+            ? Collect(rows, errors, row => ReadCompetition(row) with
+            {
+                Stages = existing.GetValueOrDefault(row.String("competitionId"))?.Stages ?? [],
+                Transitions = existing.GetValueOrDefault(row.String("competitionId"))?.Transitions ?? [],
+            })
+            : current.Competitions;
+
+        var known = definitions.Select(competition => competition.CompetitionId).ToHashSet(StringComparer.Ordinal);
+
+        ILookup<string, CompetitionStage>? stages = tabs.TryGetValue("Fases", out IReadOnlyList<CsvRow>? stageRows)
+            ? GroupByCompetition(stageRows, known, errors, ReadStage)
+            : null;
+
+        ILookup<string, TransitionRule>? rules = tabs.TryGetValue("Transicoes", out IReadOnlyList<CsvRow>? ruleRows)
+            ? GroupByCompetition(ruleRows, known, errors, ReadTransition)
+            : null;
+
+        return definitions
+            .Select(competition => competition with
+            {
+                Stages = stages is null ? competition.Stages : [.. stages[competition.CompetitionId].OrderBy(stage => stage.Ordinal)],
+                Transitions = rules is null ? competition.Transitions : [.. rules[competition.CompetitionId].OrderBy(rule => rule.RankFrom)],
+            })
+            .ToList();
+    }
+
+    /// <summary>Rows of a per-competition list, grouped by the competition they belong to. A row
+    /// naming a competition the result does not have is refused on its own line.</summary>
+    private static ILookup<string, T> GroupByCompetition<T>(
+        IReadOnlyList<CsvRow> rows,
+        HashSet<string> known,
+        List<string> errors,
+        Func<CsvRow, T> read)
+    {
+        var items = new List<(string CompetitionId, T Item)>();
+
+        foreach (CsvRow row in rows)
+        {
+            try
+            {
+                string competitionId = row.String("competitionId");
+                if (!known.Contains(competitionId))
+                    throw new WorldFieldException(row.Where("competitionId"), $"'{competitionId}' is not a competition of the result");
+
+                items.Add((competitionId, read(row)));
+            }
+            catch (WorldFieldException ex)
+            {
+                errors.Add(ex.Message);
+            }
+        }
+
+        return items.ToLookup(entry => entry.CompetitionId, entry => entry.Item);
     }
 
     private static IReadOnlyList<T> Collect<T>(
@@ -378,18 +462,27 @@ public static class WorldCsvImport
         row.String("name"),
         row.Enum<CompetitionScope>("scope"),
         row.String("anchorGeoNodeId"),
-        row.String("memberPredicateId"),
-        row.Enum<PrestigeBand>("prestigeBand"),
-        row.Double("leagueTierFloat"),
-        row.String("format"),
+        row.OptionalString("countryId"),
+        row.OptionalInt("level"),
         row.Int("clubCount"),
-        row.Int("rounds"),
-        row.Int("promotedIn"),
-        row.Int("relegatedOut"),
-        row.String("continentalSlots"),
-        row.String("editionId"),
-        row.Int("season"),
-        row.StringList("memberClubIds"));
+        Stages: [],
+        Transitions: []);
+
+    private static CompetitionStage ReadStage(CsvRow row) => new(
+        row.Int("ordinal"),
+        row.Enum<StageKind>("kind"),
+        row.Int("legs"));
+
+    private static TransitionRule ReadTransition(CsvRow row) => new(
+        row.Int("rankFrom"),
+        row.Int("rankTo"),
+        row.String("targetCompetitionId"));
+
+    private static CompetitionSeason ReadSeason(CsvRow row) => new(
+        row.String("seasonId"),
+        row.String("competitionId"),
+        row.Int("year"),
+        row.StringList("participantes"));
 
     private static ClubIdentity ApplyClub(ClubIdentity club, CsvRow row) => club with
     {

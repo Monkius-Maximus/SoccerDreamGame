@@ -107,6 +107,54 @@ internal sealed class JsonCursor
 
     public int Int(string name) => Value<int>(Required(name), $"{Path}.{name}", "an integer");
 
+    /// <summary>Whether the key is present at all, null or not — for telling one shape of the
+    /// document from another.</summary>
+    public bool Has(string name) => _node.ContainsKey(name);
+
+    /// <summary>A string whose key must be present but whose value may be JSON <c>null</c>, like
+    /// <see cref="NullableObject"/>: "none" has to be said out loud.</summary>
+    public string? NullableString(string name)
+    {
+        if (!_node.ContainsKey(name))
+            throw new WorldFieldException($"{Path}.{name}", "missing required field (write null for none)");
+
+        return _node[name] is null ? null : String(name);
+    }
+
+    /// <summary>An integer whose key must be present but whose value may be JSON <c>null</c>.</summary>
+    public int? NullableInt(string name)
+    {
+        if (!_node.ContainsKey(name))
+            throw new WorldFieldException($"{Path}.{name}", "missing required field (write null for none)");
+
+        return _node[name] is null ? null : Int(name);
+    }
+
+    /// <summary>An array of non-empty strings, which may be empty.</summary>
+    public IReadOnlyList<string> StringList(string name)
+    {
+        JsonArray array = Array(name);
+        var values = new List<string>(array.Count);
+
+        for (int i = 0; i < array.Count; i++)
+        {
+            string? value = array[i] is null ? null : Value<string>(array[i]!, $"{Path}.{name}[{i}]", "a string");
+            if (string.IsNullOrWhiteSpace(value))
+                throw new WorldFieldException($"{Path}.{name}[{i}]", "must not be empty");
+            values.Add(value);
+        }
+
+        return values;
+    }
+
+    /// <summary>The objects of an array, each as a cursor that knows its path.</summary>
+    public IEnumerable<JsonCursor> Objects(string name)
+    {
+        JsonArray array = Array(name);
+        for (int i = 0; i < array.Count; i++)
+            yield return ForObject(array[i], $"{Path}.{name}[{i}]");
+    }
+
     public double Double(string name) => Value<double>(Required(name), $"{Path}.{name}", "a number");
 
     public double? OptionalDouble(string name)

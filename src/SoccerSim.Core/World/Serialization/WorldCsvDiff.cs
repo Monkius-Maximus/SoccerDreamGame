@@ -27,11 +27,16 @@ public sealed record WorldChange(
 /// </summary>
 public static class WorldCsvDiff
 {
-    /// <summary>The column that identifies a row, per tab. <c>Fontes</c> has none — it is a list
-    /// of citations, not keyed records — so a source is identified by its whole row.</summary>
+    /// <summary>The column that identifies a row, per tab. <c>Fontes</c>, <c>Fases</c> and
+    /// <c>Transicoes</c> have none — they are lists, not keyed records — so a row is identified by
+    /// its whole content.</summary>
     private static readonly IReadOnlyDictionary<string, string?> KeyColumns = new Dictionary<string, string?>
     {
         ["Competicao"] = "competitionId",
+        // A stage and a rule have no id of their own: like a citation, each is its whole row.
+        ["Fases"] = null,
+        ["Temporadas"] = "seasonId",
+        ["Transicoes"] = null,
         ["Clubes"] = "clubId",
         ["Kits_Estadio"] = "clubId",
         ["Jogadores"] = "playerId",
@@ -46,6 +51,9 @@ public static class WorldCsvDiff
     private static readonly IReadOnlyDictionary<string, string> LabelColumns = new Dictionary<string, string>
     {
         ["Competicao"] = "name",
+        ["Fases"] = "competitionId",
+        ["Temporadas"] = "competitionId",
+        ["Transicoes"] = "competitionId",
         ["Clubes"] = "shortName",
         ["Kits_Estadio"] = "shortName",
         ["Jogadores"] = "lastName",

@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-11
 - Depends on: ADR-0002 (coexistence, and the promise that this mapping would be explicit)
+- Amended by: ADR-0012 (§5 — leagues come from the current season of national leagues)
 - Applies to: `src/SoccerSim.Core/World/Projection/`,
   `src/SoccerSim.Infrastructure.Sqlite/LegacyProjectionWriter.cs`
 
@@ -89,6 +90,12 @@ test asserts the whole batch lands inside it.
   a simulated match" true rather than nominal.
 
 ### 5. Only national competitions become leagues
+
+> **Amended by ADR-0012 §8.** A league is projected for each competition with `Scope = National`
+> **and a pyramid level**, and its teams are the participants of the competition's **current
+> season**, not the members of a flat competition record. `Tier` comes from the season's derived
+> tier float (ADR-0012 §7) through the thresholds of §4, which do not change. The refusal of a
+> club in no league or in two, and the calendar-year season span, stand.
 
 `Leagues` own `Seasons` and fixtures, and a `Team` plays in exactly one. A continental cup is a
 competition but not that, so only `Scope = National` projects. A club that belongs to no national

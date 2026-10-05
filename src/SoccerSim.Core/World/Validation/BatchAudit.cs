@@ -97,23 +97,29 @@ public static class BatchAudit
     ];
 
     /// <summary>
-    /// The sweep over the world, plus whatever country and pyramid data exists beside it. The
-    /// country profiles and divisions live in their own tables rather than in the world document,
-    /// so they are passed in rather than read off the snapshot.
+    /// The sweep over the world, plus the country profiles beside it and the pyramid of every
+    /// country that has levelled leagues. The profiles live outside the world document, so they
+    /// are passed in; the pyramids are drawn from the world's competitions (ADR-0012 §6). A
+    /// country with no levels is unfinished, not broken, so the rules have nothing to say about it.
     /// </summary>
-    public static BatchAuditReport Run(
-        WorldSnapshot world,
-        IReadOnlyList<CountryProfile> countries,
-        IReadOnlyList<LeaguePyramid> pyramids)
+    public static BatchAuditReport Run(WorldSnapshot world, IReadOnlyList<CountryProfile> countries)
     {
         BatchAuditReport report = Run(world);
         var findings = report.Findings.ToList();
 
         AuditCountries(findings, world, countries);
 
-        foreach (LeaguePyramid pyramid in pyramids)
+        IEnumerable<string> pyramidCountries = world.Competitions
+            .Where(competition => competition.Level is not null)
+            .Select(competition => competition.CountryId!)
+            .Distinct()
+            .Order(StringComparer.Ordinal);
+
+        foreach (string countryId in pyramidCountries)
         {
-            foreach (Finding finding in PyramidRules.Check(pyramid))
+            LeaguePyramid pyramid = LeaguePyramid.Of(countryId, world.Meta.CurrentSeason, world.Competitions, world.Seasons);
+
+            foreach (Finding finding in PyramidRules.Check(pyramid, world.Competitions))
             {
                 findings.Add(new BatchFinding(finding.Level, finding.Code, finding.Label, finding.Detail,
                     FindingScope.World, pyramid.CountryId, pyramid.CountryId));

@@ -22,13 +22,20 @@ internal sealed class WorldDatabase : IAsyncDisposable
 
     public SqliteConnectionFactory Factory { get; }
 
-    public static WorldDatabase Migrated()
+    public static WorldDatabase Migrated() => MigratedThrough(int.MaxValue);
+
+    /// <summary>A database stopped after <paramref name="version"/>, as a migration that converts
+    /// data meets it. <see cref="Migrate"/> then runs the rest.</summary>
+    public static WorldDatabase MigratedThrough(int version)
     {
         var factory = SqliteConnectionFactory.InMemoryShared($"world-{Guid.NewGuid():N}");
         SqliteConnection keepAlive = factory.Open();
-        new MigrationRunner(factory).Migrate();
+        new MigrationRunner(factory).Migrate(throughVersion: version);
         return new WorldDatabase(factory, keepAlive);
     }
+
+    /// <summary>Applies every migration not yet applied.</summary>
+    public void Migrate() => new MigrationRunner(Factory).Migrate();
 
     /// <summary>A migrated database with the real 20-club/688-player batch already imported.</summary>
     public static async Task<WorldDatabase> WithRealWorldImported()

@@ -1,6 +1,7 @@
 using SoccerSim.Core.Domain;
 using SoccerSim.Core.Simulation;
 using SoccerSim.Core.World;
+using SoccerSim.Core.World.Competitions;
 using SoccerSim.Core.World.Projection;
 using SoccerSim.Core.World.Serialization;
 using Xunit;
@@ -19,7 +20,14 @@ public sealed class ProjectionTests
     private static LegacyWorld Project()
     {
         WorldSnapshot world = Snapshot.Value;
-        return WorldToLegacyProjection.Project(world.Clubs, world.Characters, world.Competitions, world.GeoNodes);
+        return Project(world.Competitions, world.Seasons);
+    }
+
+    private static LegacyWorld Project(IReadOnlyList<Competition> competitions, IReadOnlyList<CompetitionSeason> seasons)
+    {
+        WorldSnapshot world = Snapshot.Value;
+        return WorldToLegacyProjection.Project(
+            world.Clubs, world.Characters, competitions, seasons, world.GeoNodes, world.Meta.CurrentSeason);
     }
 
     [Fact]
@@ -241,11 +249,12 @@ public sealed class ProjectionTests
         Assert.Equal(expected, WorldToLegacyProjection.TierFor(tierFloat));
 
     [Fact]
-    public void TheBatchsCompetition_ProjectsAsATierOneLeague()
+    public void TheBatchsLeague_ProjectsAsATierOneLeague()
     {
         League league = Project().Leagues.Single();
 
-        // 0.86 — the mean club strength of its twenty members — earns the minute-by-minute engine.
+        // 0.86 — the derived mean club strength of its twenty participants — earns the
+        // minute-by-minute engine (ADR-0012 §7).
         Assert.Equal(SimulationTier.ActiveHuman, league.Tier);
         Assert.Equal("Campeonato Nacional Brasileiro — Primeira Divisão", league.Name);
         // The country is the anchor geo node's name, not its id.
@@ -253,7 +262,7 @@ public sealed class ProjectionTests
     }
 
     [Fact]
-    public void TheSeason_IsTheEditionsCalendarYear_AndTheLeaguePointsAtIt()
+    public void TheSeason_IsTheCurrentSeasonsCalendarYear_AndTheLeaguePointsAtIt()
     {
         LegacyWorld legacy = Project();
         Season season = legacy.Seasons.Single();
@@ -265,36 +274,62 @@ public sealed class ProjectionTests
         Assert.Equal(season.Id, league.CurrentSeasonId);
     }
 
+    /// <summary>Legacy Tier is a level of simulation detail, not a pyramid level (ADR-0012 §8): a
+    /// second division whose clubs average 0.71 projects by its quality.</summary>
+    [Fact]
+    public void ALowerLeague_ProjectsByItsQuality_NotItsLevel()
+    {
+        WorldSnapshot world = Snapshot.Value;
+        CompetitionSeason pilot = world.Seasons.Single();
+        Competition top = world.Competitions.Single();
+
+        // The weakest ten of the pilot move to a level-2 league of their own.
+        var byStrength = pilot.ParticipantClubIds
+            .OrderByDescending(id => world.Clubs.Single(club => club.ClubId == id).World.ClubStrength)
+            .ToList();
+        Competition second = top with { CompetitionId = "cmp_bra_tier2", Name = "Série B", Level = 2 };
+
+        LegacyWorld legacy = Project(
+            [top, second],
+            [pilot with { ParticipantClubIds = byStrength.Take(10).ToList() },
+             new CompetitionSeason("edt_bra_tier2_2026", "cmp_bra_tier2", 2026, byStrength.Skip(10).ToList())]);
+
+        Assert.Equal(2, legacy.Leagues.Count);
+        Assert.Equal(20, legacy.Teams.Count);
+        Assert.Equal(
+            WorldToLegacyProjection.TierFor(CompetitionStages.TierFloat(
+                new CompetitionSeason("s", "cmp_bra_tier2", 2026, byStrength.Skip(10).ToList()),
+                world.Clubs.ToDictionary(club => club.ClubId))!.Value),
+            legacy.Leagues.Single(league => league.Name == "Série B").Tier);
+    }
+
     // ------------------------------------------------------------------- refusals
 
     [Fact]
-    public void AClubInNoCompetition_IsRefusedByName()
+    public void AClubInNoLeague_IsRefusedByName()
     {
         WorldSnapshot world = Snapshot.Value;
-        Competition competition = world.Competitions.Single();
-        string dropped = competition.MemberClubIds[0];
+        CompetitionSeason season = world.Seasons.Single();
+        string dropped = season.ParticipantClubIds[0];
 
-        var exception = Assert.Throws<ProjectionException>(() => WorldToLegacyProjection.Project(
-            world.Clubs,
-            world.Characters,
-            [competition with { MemberClubIds = competition.MemberClubIds.Skip(1).ToList() }],
-            world.GeoNodes));
+        var exception = Assert.Throws<ProjectionException>(() => Project(
+            world.Competitions,
+            [season with { ParticipantClubIds = season.ParticipantClubIds.Skip(1).ToList() }]));
 
         Assert.Contains(dropped, exception.Message);
         Assert.Single(exception.Problems);
     }
 
     [Fact]
-    public void AClubInTwoNationalCompetitions_IsRefused()
+    public void AClubInTwoNationalLeagues_IsRefused()
     {
         WorldSnapshot world = Snapshot.Value;
         Competition competition = world.Competitions.Single();
+        CompetitionSeason season = world.Seasons.Single();
 
-        var exception = Assert.Throws<ProjectionException>(() => WorldToLegacyProjection.Project(
-            world.Clubs,
-            world.Characters,
-            [competition, competition with { CompetitionId = "cmp_bra_tier1_copy" }],
-            world.GeoNodes));
+        var exception = Assert.Throws<ProjectionException>(() => Project(
+            [competition, competition with { CompetitionId = "cmp_bra_tier1_copy", Level = 2 }],
+            [season, season with { SeasonId = "edt_copy", CompetitionId = "cmp_bra_tier1_copy" }]));
 
         // Every affected club is named, not just the first one found.
         Assert.Equal(world.Clubs.Count, exception.Problems.Count);
@@ -302,16 +337,30 @@ public sealed class ProjectionTests
     }
 
     [Fact]
-    public void AContinentalCompetition_IsNotALeague()
+    public void ALeagueWithNoParticipants_HasNoTier_AndIsRefused()
+    {
+        WorldSnapshot world = Snapshot.Value;
+        Competition competition = world.Competitions.Single();
+
+        var exception = Assert.Throws<ProjectionException>(() => Project(
+            [.. world.Competitions, competition with { CompetitionId = "cmp_bra_tier2", Level = 2 }],
+            [.. world.Seasons, new CompetitionSeason("edt_bra_tier2_2026", "cmp_bra_tier2", 2026, [])]));
+
+        Assert.Contains("cmp_bra_tier2 has no participants in 2026", Assert.Single(exception.Problems));
+    }
+
+    [Fact]
+    public void ACompetitionWithoutALevel_IsNotALeague()
     {
         WorldSnapshot world = Snapshot.Value;
         Competition national = world.Competitions.Single();
 
-        LegacyWorld legacy = WorldToLegacyProjection.Project(
-            world.Clubs,
-            world.Characters,
-            [national, national with { CompetitionId = "cmp_conmebol", Scope = CompetitionScope.Continental }],
-            world.GeoNodes);
+        LegacyWorld legacy = Project(
+            [national, national with
+            {
+                CompetitionId = "cmp_conmebol", Scope = CompetitionScope.Continental, CountryId = null, Level = null,
+            }],
+            world.Seasons);
 
         // Leagues own seasons and fixtures; a continental cup is a competition but not that.
         Assert.Single(legacy.Leagues);

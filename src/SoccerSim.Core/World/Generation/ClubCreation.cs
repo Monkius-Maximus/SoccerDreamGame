@@ -8,7 +8,7 @@ namespace SoccerSim.Core.World.Generation;
 /// the HTTP endpoints both call this, so "generate a club" means one thing wherever it is asked.
 ///
 /// <para>The club is not enrolled in any division: that is the pyramid's decision, taken with the
-/// enrol action that already exists (ADR-0011 §6 moves it into the batch in Sprint 11).</para>
+/// enrol action that already exists. A whole division, enrolled, is <see cref="DivisionCreation"/>.</para>
 /// </summary>
 public static class ClubCreation
 {
@@ -22,22 +22,39 @@ public static class ClubCreation
         ClubGenerationRequest request,
         CancellationToken cancellationToken = default)
     {
-        ClubProfiles profiles = await unitOfWork.ClubProfiles.GetAsync(request.CountryId, cancellationToken)
-            ?? throw new InvalidOperationException(
-                $"{request.CountryId} has no club profiles; run `worldbuilder import-club-profiles <file>` first.");
-
-        WorldCalibration calibration = await unitOfWork.Calibration.GetAsync(cancellationToken)
-            ?? throw new InvalidOperationException("No calibration is loaded; run `worldbuilder import <file>` first.");
-
-        string seed = await unitOfWork.Settings.GetAsync(WorldMeta.MasterSeedKey, cancellationToken)
-            ?? throw new InvalidOperationException("The world has no master seed; run `worldbuilder import <file>` first.");
+        ClubProfiles profiles = await LoadClubProfilesAsync(unitOfWork, request.CountryId, cancellationToken);
+        WorldCalibration calibration = await LoadCalibrationAsync(unitOfWork, cancellationToken);
+        long masterSeed = await LoadMasterSeedAsync(unitOfWork, cancellationToken);
 
         IReadOnlyList<GeoNode> geoNodes = await unitOfWork.GeoNodes.ListAsync(cancellationToken);
         IReadOnlyList<ClubIdentity> clubs = await unitOfWork.Clubs.ListAsync(cancellationToken);
 
         return ClubGenerator.Generate(
-            request, profiles, geoNodes, calibration, ClubGenerationContext.From(clubs), long.Parse(seed));
+            request, profiles, geoNodes, calibration, ClubGenerationContext.From(clubs), masterSeed);
     }
+
+    // The three things every club generation needs from the stored world. Shared with
+    // DivisionCreation so a missing one is reported the same way, with the same remedy.
+
+    internal static async Task<ClubProfiles> LoadClubProfilesAsync(
+        IWorldUnitOfWork unitOfWork,
+        string countryId,
+        CancellationToken cancellationToken) =>
+        await unitOfWork.ClubProfiles.GetAsync(countryId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"{countryId} has no club profiles; run `worldbuilder import-club-profiles <file>` first.");
+
+    internal static async Task<WorldCalibration> LoadCalibrationAsync(
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken) =>
+        await unitOfWork.Calibration.GetAsync(cancellationToken)
+            ?? throw new InvalidOperationException("No calibration is loaded; run `worldbuilder import <file>` first.");
+
+    internal static async Task<long> LoadMasterSeedAsync(
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken) =>
+        long.Parse(await unitOfWork.Settings.GetAsync(WorldMeta.MasterSeedKey, cancellationToken)
+            ?? throw new InvalidOperationException("The world has no master seed; run `worldbuilder import <file>` first."));
 
     /// <summary>
     /// Generates the club and writes it, with a history entry taken first so undo removes it, and

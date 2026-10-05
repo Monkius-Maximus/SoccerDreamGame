@@ -3,6 +3,7 @@
 Status: accepted
 Date: 2026-09-12
 Supersedes nothing. Completes the items ADR-0007 listed as not yet built.
+Amended by: ADR-0012 (§1, §2 and §4 — divisions become competitions in the world document)
 
 ## Context
 
@@ -20,6 +21,10 @@ edit would have restored nothing at all while the button reported success.
 
 ### 1. A snapshot is two documents, not one wider one
 
+> **Amended by ADR-0012 §10.** Divisions are now competitions, and competitions are in
+> `Document`. `Scale` keeps the countries only. Snapshots taken before migration 0019 are deleted
+> by it, since they are in a shape the reader no longer reads.
+
 `WorldHistory` rows gained a `Scale` column (migration 0016) holding countries and divisions as
 their own small JSON shape. `Document` stays exactly the export format.
 
@@ -35,6 +40,9 @@ country-and-pyramid write paths, in the same shape as the theory `UndoTests` alr
 world's eight.
 
 ### 2. Divisions enter at the bottom, and removing one closes the gap
+
+> **Amended by ADR-0012 §6.** Same rule, over competitions with a pyramid level: `TIER_DUP` and
+> `TIER_GAP` are now `LEVEL_DUP` and `LEVEL_GAP`.
 
 `PyramidEditor` offers four operations and no fifth. A new division always takes tier n+1;
 removing one pulls everything below it up. Inserting a level in the middle is not offered.
@@ -61,6 +69,10 @@ clubs or divisions — the same rule the geography tree already applies to a nod
 it. Withdrawing is a decision; a cascade would be a side effect.
 
 ### 4. A shape that cannot be played is null, not an exception
+
+> **Amended by ADR-0012 §4.** The shape is derived from the competition's stage, not from a
+> `CompetitionFormat`; `FORMAT_UNPLAYABLE` is now `STAGE_UNPLAYABLE`. The null-not-throw rule for
+> the screens stands.
 
 `Division.Shape` used to call `CompetitionFormats.Shape`, which throws. That was invisible while
 every division came from a seed and had a playable field — and it became a 500 the moment a screen

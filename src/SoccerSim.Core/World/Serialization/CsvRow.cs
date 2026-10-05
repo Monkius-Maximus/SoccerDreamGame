@@ -76,6 +76,8 @@ public sealed class CsvRow
 
     public double? OptionalDouble(string column) => Raw(column) is null ? null : Double(column);
 
+    public int? OptionalInt(string column) => Raw(column) is null ? null : Int(column);
+
     public bool Flag(string column)
     {
         string raw = String(column);

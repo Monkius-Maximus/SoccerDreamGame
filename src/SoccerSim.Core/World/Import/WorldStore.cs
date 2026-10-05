@@ -26,12 +26,23 @@ public static class WorldStore
             await unitOfWork.Clubs.ListAsync(cancellationToken),
             await unitOfWork.Characters.ListAsync(cancellationToken),
             await unitOfWork.Competitions.ListAsync(cancellationToken),
+            await unitOfWork.Seasons.ListAsync(cancellationToken),
             await unitOfWork.Sources.ListAsync(cancellationToken),
             new WorldMeta(
                 seed is null ? 0 : long.Parse(seed),
                 schema ?? "unknown",
-                await unitOfWork.Settings.GetAsync(WorldMeta.SourceFileKey, cancellationToken)));
+                await unitOfWork.Settings.GetAsync(WorldMeta.SourceFileKey, cancellationToken),
+                await CurrentSeasonAsync(unitOfWork, cancellationToken)));
     }
+
+    /// <summary>The one season the tool authors (ADR-0012 §3). Set on import, or by migration
+    /// 0019 for a world that predates it; a world without it was never imported.</summary>
+    public static async Task<int> CurrentSeasonAsync(
+        IWorldUnitOfWork unitOfWork,
+        CancellationToken cancellationToken = default) =>
+        int.Parse(await unitOfWork.Settings.GetAsync(WorldMeta.CurrentSeasonKey, cancellationToken)
+            ?? throw new InvalidOperationException(
+                "The world has no current season; run `worldbuilder import <file>` first."));
 
     /// <summary>
     /// Replaces the stored world with this one, in a single transaction. Deletes first and in
@@ -57,6 +68,7 @@ public static class WorldStore
             foreach (CharacterRecord character in characters)
                 await unitOfWork.Characters.DeleteAsync(character.PlayerId, cancellationToken);
 
+            // A competition takes its stages, rules and seasons with it.
             foreach (Competition competition in competitions)
                 await unitOfWork.Competitions.DeleteAsync(competition.CompetitionId, cancellationToken);
 
@@ -80,6 +92,9 @@ public static class WorldStore
 
             foreach (Competition competition in world.Competitions)
                 await unitOfWork.Competitions.AddAsync(competition, cancellationToken);
+
+            foreach (CompetitionSeason season in world.Seasons)
+                await unitOfWork.Seasons.SaveAsync(season, cancellationToken);
 
             await unitOfWork.Sources.ReplaceAllAsync(world.Sources, cancellationToken);
 

@@ -6,21 +6,26 @@
     },
     "authored": {
       "description": "Autorado para a Sprint 10 (ADR-0011): pools inventados e genéricos, sem fonte externa e sem referência a clubes reais. PROVISÓRIO — revisar antes do lote."
+    },
+    "ibge2022": {
+      "description": "IBGE, Censo Demográfico 2022: população residente por município (lida do pacote npm municipios-br 3.2.1, que reempacota o Censo; as 20 maiores conferidas com a lista publicada do Censo)."
     }
   },
   "cities": {
     "source": [
+      "ibge2022",
       "pilot20",
       "authored"
     ],
-    "note": "weight e districts medidos no piloto; preposition e maxClubs autorados. Só as 11 cidades que já existem na árvore geográfica — a Sprint 11 precisa de mais cidades.",
+    "note": "Regra de seleção (autorada): todas as 27 capitais + todo município com 400 mil habitantes ou mais no Censo 2022. population2022 = população residente no Censo 2022 (ibge2022); weight = √population2022, arredondado (transformação autorada: com o peso linear, São Paulo levava um quarto de qualquer divisão). Bairros: medidos no piloto para as 11 cidades do piloto (pilot20); para as demais, regra autorada (WorkingClass 3, HistoricCenter 2, Outskirts 2, Affluent 2 nas capitais e 1 no interior, University 1; Coastal 2 nas cidades à beira-mar; Docklands 1 nas cidades portuárias). maxClubs (autorado) pela população: ≥5 mi → 8, ≥2 mi → 6, ≥1 mi → 4, ≥400 mil → 3, abaixo → 2. preposition autorada ('do' Rio de Janeiro/Recife, 'da' Serra, 'de' nas demais).",
     "items": [
       {
         "geoNodeId": "geo_city_rio",
         "uf": "RJ",
         "preposition": "do",
-        "weight": 4,
-        "maxClubs": 6,
+        "population2022": 6211223,
+        "weight": 2492,
+        "maxClubs": 8,
         "districts": {
           "Affluent": 3,
           "WorkingClass": 1
@@ -30,8 +35,9 @@
         "geoNodeId": "geo_city_sao",
         "uf": "SP",
         "preposition": "de",
-        "weight": 3,
-        "maxClubs": 6,
+        "population2022": 11451999,
+        "weight": 3384,
+        "maxClubs": 8,
         "districts": {
           "WorkingClass": 2,
           "Affluent": 1
@@ -41,8 +47,9 @@
         "geoNodeId": "geo_city_bhz",
         "uf": "MG",
         "preposition": "de",
-        "weight": 2,
-        "maxClubs": 4,
+        "population2022": 2315560,
+        "weight": 1522,
+        "maxClubs": 6,
         "districts": {
           "Affluent": 1,
           "HistoricCenter": 1
@@ -52,7 +59,8 @@
         "geoNodeId": "geo_city_cwb",
         "uf": "PR",
         "preposition": "de",
-        "weight": 2,
+        "population2022": 1773718,
+        "weight": 1332,
         "maxClubs": 4,
         "districts": {
           "Affluent": 2
@@ -62,7 +70,8 @@
         "geoNodeId": "geo_city_poa",
         "uf": "RS",
         "preposition": "de",
-        "weight": 2,
+        "population2022": 1332845,
+        "weight": 1154,
         "maxClubs": 4,
         "districts": {
           "Affluent": 1,
@@ -73,8 +82,9 @@
         "geoNodeId": "geo_city_ssa",
         "uf": "BA",
         "preposition": "de",
-        "weight": 2,
-        "maxClubs": 4,
+        "population2022": 2417678,
+        "weight": 1555,
+        "maxClubs": 6,
         "districts": {
           "HistoricCenter": 1,
           "Outskirts": 1
@@ -84,7 +94,8 @@
         "geoNodeId": "geo_city_bel",
         "uf": "PA",
         "preposition": "de",
-        "weight": 1,
+        "population2022": 1303403,
+        "weight": 1142,
         "maxClubs": 4,
         "districts": {
           "Affluent": 1
@@ -94,8 +105,9 @@
         "geoNodeId": "geo_city_bra",
         "uf": "SP",
         "preposition": "de",
-        "weight": 1,
-        "maxClubs": 4,
+        "population2022": 176811,
+        "weight": 420,
+        "maxClubs": 2,
         "districts": {
           "HistoricCenter": 1
         }
@@ -104,8 +116,9 @@
         "geoNodeId": "geo_city_cha",
         "uf": "SC",
         "preposition": "de",
-        "weight": 1,
-        "maxClubs": 4,
+        "population2022": 254785,
+        "weight": 505,
+        "maxClubs": 2,
         "districts": {
           "HistoricCenter": 1
         }
@@ -114,8 +127,9 @@
         "geoNodeId": "geo_city_mir",
         "uf": "SP",
         "preposition": "de",
-        "weight": 1,
-        "maxClubs": 4,
+        "population2022": 63337,
+        "weight": 252,
+        "maxClubs": 2,
         "districts": {
           "HistoricCenter": 1
         }
@@ -124,10 +138,870 @@
         "geoNodeId": "geo_city_san",
         "uf": "SP",
         "preposition": "de",
-        "weight": 1,
-        "maxClubs": 4,
+        "population2022": 418608,
+        "weight": 647,
+        "maxClubs": 3,
         "districts": {
           "Coastal": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_brasilia",
+        "uf": "DF",
+        "preposition": "de",
+        "population2022": 2817381,
+        "weight": 1679,
+        "maxClubs": 6,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_fortaleza",
+        "uf": "CE",
+        "preposition": "de",
+        "population2022": 2428708,
+        "weight": 1558,
+        "maxClubs": 6,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Coastal": 2,
+          "Docklands": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_manaus",
+        "uf": "AM",
+        "preposition": "de",
+        "population2022": 2063689,
+        "weight": 1437,
+        "maxClubs": 6,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Docklands": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_recife",
+        "uf": "PE",
+        "preposition": "do",
+        "population2022": 1488920,
+        "weight": 1220,
+        "maxClubs": 4,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Coastal": 2,
+          "Docklands": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_goiania",
+        "uf": "GO",
+        "preposition": "de",
+        "population2022": 1437366,
+        "weight": 1199,
+        "maxClubs": 4,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_guarulhos",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 1291771,
+        "weight": 1137,
+        "maxClubs": 4,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_campinas",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 1139047,
+        "weight": 1067,
+        "maxClubs": 4,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_saoluis",
+        "uf": "MA",
+        "preposition": "de",
+        "population2022": 1037775,
+        "weight": 1019,
+        "maxClubs": 4,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Coastal": 2,
+          "Docklands": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_maceio",
+        "uf": "AL",
+        "preposition": "de",
+        "population2022": 957916,
+        "weight": 979,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Coastal": 2,
+          "Docklands": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_campogrande",
+        "uf": "MS",
+        "preposition": "de",
+        "population2022": 898100,
+        "weight": 948,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_saogoncalo",
+        "uf": "RJ",
+        "preposition": "de",
+        "population2022": 896744,
+        "weight": 947,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_teresina",
+        "uf": "PI",
+        "preposition": "de",
+        "population2022": 866300,
+        "weight": 931,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_joaopessoa",
+        "uf": "PB",
+        "preposition": "de",
+        "population2022": 833932,
+        "weight": 913,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Coastal": 2
+        }
+      },
+      {
+        "geoNodeId": "geo_city_saobernardodocampo",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 810729,
+        "weight": 900,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_duquedecaxias",
+        "uf": "RJ",
+        "preposition": "de",
+        "population2022": 808161,
+        "weight": 899,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_novaiguacu",
+        "uf": "RJ",
+        "preposition": "de",
+        "population2022": 785867,
+        "weight": 886,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_natal",
+        "uf": "RN",
+        "preposition": "de",
+        "population2022": 751300,
+        "weight": 867,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Coastal": 2
+        }
+      },
+      {
+        "geoNodeId": "geo_city_santoandre",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 748919,
+        "weight": 865,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_osasco",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 728615,
+        "weight": 854,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_sorocaba",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 723682,
+        "weight": 851,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_uberlandia",
+        "uf": "MG",
+        "preposition": "de",
+        "population2022": 713224,
+        "weight": 845,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_ribeiraopreto",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 698642,
+        "weight": 836,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_saojosedoscampos",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 697054,
+        "weight": 835,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_cuiaba",
+        "uf": "MT",
+        "preposition": "de",
+        "population2022": 650877,
+        "weight": 807,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_jaboataodosguararapes",
+        "uf": "PE",
+        "preposition": "de",
+        "population2022": 644037,
+        "weight": 803,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1,
+          "Coastal": 2
+        }
+      },
+      {
+        "geoNodeId": "geo_city_contagem",
+        "uf": "MG",
+        "preposition": "de",
+        "population2022": 621863,
+        "weight": 789,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_joinville",
+        "uf": "SC",
+        "preposition": "de",
+        "population2022": 616317,
+        "weight": 785,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_feiradesantana",
+        "uf": "BA",
+        "preposition": "de",
+        "population2022": 616272,
+        "weight": 785,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_aracaju",
+        "uf": "SE",
+        "preposition": "de",
+        "population2022": 602757,
+        "weight": 776,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Coastal": 2
+        }
+      },
+      {
+        "geoNodeId": "geo_city_londrina",
+        "uf": "PR",
+        "preposition": "de",
+        "population2022": 555965,
+        "weight": 746,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_juizdefora",
+        "uf": "MG",
+        "preposition": "de",
+        "population2022": 540756,
+        "weight": 735,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_florianopolis",
+        "uf": "SC",
+        "preposition": "de",
+        "population2022": 537211,
+        "weight": 733,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Coastal": 2
+        }
+      },
+      {
+        "geoNodeId": "geo_city_aparecidadegoiania",
+        "uf": "GO",
+        "preposition": "de",
+        "population2022": 527796,
+        "weight": 726,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_serra",
+        "uf": "ES",
+        "preposition": "da",
+        "population2022": 520653,
+        "weight": 722,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1,
+          "Coastal": 2
+        }
+      },
+      {
+        "geoNodeId": "geo_city_camposdosgoytacazes",
+        "uf": "RJ",
+        "preposition": "de",
+        "population2022": 483540,
+        "weight": 695,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_belfordroxo",
+        "uf": "RJ",
+        "preposition": "de",
+        "population2022": 483087,
+        "weight": 695,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_niteroi",
+        "uf": "RJ",
+        "preposition": "de",
+        "population2022": 481749,
+        "weight": 694,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1,
+          "Coastal": 2
+        }
+      },
+      {
+        "geoNodeId": "geo_city_saojosedoriopreto",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 480393,
+        "weight": 693,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_ananindeua",
+        "uf": "PA",
+        "preposition": "de",
+        "population2022": 478778,
+        "weight": 692,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_vilavelha",
+        "uf": "ES",
+        "preposition": "de",
+        "population2022": 467722,
+        "weight": 684,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1,
+          "Coastal": 2
+        }
+      },
+      {
+        "geoNodeId": "geo_city_caxiasdosul",
+        "uf": "RS",
+        "preposition": "de",
+        "population2022": 463501,
+        "weight": 681,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_portovelho",
+        "uf": "RO",
+        "preposition": "de",
+        "population2022": 460434,
+        "weight": 679,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_mogidascruzes",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 451505,
+        "weight": 672,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_jundiai",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 443221,
+        "weight": 666,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_macapa",
+        "uf": "AP",
+        "preposition": "de",
+        "population2022": 442933,
+        "weight": 666,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_saojoaodemeriti",
+        "uf": "RJ",
+        "preposition": "de",
+        "population2022": 440962,
+        "weight": 664,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_piracicaba",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 423323,
+        "weight": 651,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_campinagrande",
+        "uf": "PB",
+        "preposition": "de",
+        "population2022": 419379,
+        "weight": 648,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_maua",
+        "uf": "SP",
+        "preposition": "de",
+        "population2022": 418261,
+        "weight": 647,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_montesclaros",
+        "uf": "MG",
+        "preposition": "de",
+        "population2022": 414240,
+        "weight": 644,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_boavista",
+        "uf": "RR",
+        "preposition": "de",
+        "population2022": 413486,
+        "weight": 643,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_betim",
+        "uf": "MG",
+        "preposition": "de",
+        "population2022": 411846,
+        "weight": 642,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_maringa",
+        "uf": "PR",
+        "preposition": "de",
+        "population2022": 409657,
+        "weight": 640,
+        "maxClubs": 3,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 1,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_riobranco",
+        "uf": "AC",
+        "preposition": "de",
+        "population2022": 364756,
+        "weight": 604,
+        "maxClubs": 2,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_vitoria",
+        "uf": "ES",
+        "preposition": "de",
+        "population2022": 322869,
+        "weight": 568,
+        "maxClubs": 2,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1,
+          "Coastal": 2,
+          "Docklands": 1
+        }
+      },
+      {
+        "geoNodeId": "geo_city_palmas",
+        "uf": "TO",
+        "preposition": "de",
+        "population2022": 302692,
+        "weight": 550,
+        "maxClubs": 2,
+        "districts": {
+          "WorkingClass": 3,
+          "HistoricCenter": 2,
+          "Outskirts": 2,
+          "Affluent": 2,
+          "University": 1
         }
       }
     ]
@@ -193,7 +1067,7 @@
     "source": [
       "authored"
     ],
-    "note": "Nomes curtos de clubes reais conhecidos que um clube gerado não pode usar como nome curto (higiene de IP). Lista inicial autorada a partir de conhecimento geral das Séries A e B — revisar e ampliar.",
+    "note": "Nomes curtos de clubes reais conhecidos que um clube gerado não pode usar como nome curto (higiene de IP). Inclui os clubes homônimos das cidades da expansão de 2026-10. Lista autorada a partir de conhecimento geral — revisar e ampliar.",
     "items": [
       "São Paulo",
       "Santos",
@@ -242,7 +1116,51 @@
       "Botafogo-SP",
       "Novorizontino",
       "Ituano",
-      "Tombense"
+      "Tombense",
+      "Joinville",
+      "Uberlândia",
+      "Maringá",
+      "Manaus",
+      "Brasília",
+      "Palmas",
+      "Goiânia",
+      "Caxias",
+      "Santo André",
+      "São Bernardo",
+      "Nova Iguaçu",
+      "Duque de Caxias",
+      "Serra",
+      "São José",
+      "Betim",
+      "Aparecidense",
+      "Rio Branco",
+      "Porto Velho",
+      "Audax",
+      "Tupi",
+      "XV de Piracicaba",
+      "Paulista",
+      "Botafogo-PB",
+      "Treze",
+      "Campinense",
+      "Moto Club",
+      "Sampaio Corrêa",
+      "River",
+      "Altos",
+      "Confiança",
+      "Sergipe",
+      "Rio Branco-ES",
+      "Desportiva Ferroviária",
+      "Brasiliense",
+      "Gama",
+      "Operário-MS",
+      "Comercial-MS",
+      "Luverdense",
+      "Galvez",
+      "Trem",
+      "Ypiranga",
+      "São Raimundo",
+      "Nacional",
+      "Manauara"
     ]
   },
   "colorFamilies": {

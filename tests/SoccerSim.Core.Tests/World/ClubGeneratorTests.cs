@@ -217,8 +217,7 @@ public sealed class ClubGeneratorTests
         var reserved = Profiles.ReservedNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
         ClubGenerationContext taken = ClubGenerationContext.From(World.Clubs);
 
-        // 25 is close to what the eleven profile cities still hold after the pilot's twenty.
-        foreach (long seed in Enumerable.Range(1, 25))
+        foreach (long seed in Enumerable.Range(1, 60))
         {
             ClubIdentity club = Generate(seed: seed, taken: taken);
             Assert.DoesNotContain(club.Identity.ShortName, reserved);
@@ -314,7 +313,12 @@ public sealed class ClubGeneratorTests
     [Fact]
     public void WhenEveryCityIsFull_GenerationStopsAndSaysSo()
     {
-        ClubProfiles full = Profiles with { Cities = [.. Profiles.Cities.Select(city => city with { MaxClubs = 1 })] };
+        // Only the cities that already hold a pilot club, each capped at one: all full.
+        var occupied = World.Clubs.Select(club => club.Geography.GeoNodeId).ToHashSet();
+        ClubProfiles full = Profiles with
+        {
+            Cities = [.. Profiles.Cities.Where(city => occupied.Contains(city.GeoNodeId)).Select(city => city with { MaxClubs = 1 })],
+        };
 
         var ex = Assert.Throws<InvalidOperationException>(() => Generate(profiles: full));
 

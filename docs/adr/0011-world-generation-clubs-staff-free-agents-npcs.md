@@ -1,7 +1,7 @@
 # ADR-0011 — Generating the world: clubs from scratch, staff, free agents and career NPCs
 
-- Status: Accepted (Sprint 10 implemented: Core, SQLite, CLI, API and UI)
-- Date: 2026-09-25, amended 2026-09-26
+- Status: Accepted (Sprints 10 and 11 implemented: Core, SQLite, CLI, API and UI)
+- Date: 2026-09-25, amended 2026-09-26 and 2026-10-03
 - Applies to: `src/SoccerSim.Core/World/Generation/`, `src/SoccerSim.Core/World/`,
   `sql/`, `tools/SoccerSim.WorldBuilder/`, and (NPCs only) the career save schema
 - Plan: `docs/ROADMAP-GENERATION.md` (Sprints 10–14)
@@ -183,4 +183,32 @@ until they matter:
 - Existing tests that assume `ClubId` is non-null must be updated deliberately, not relaxed.
 - Name pools (108 first names and 338 last names today) are too small for several divisions.
   Pools per nationality become a data prerequisite of Sprint 11, with the source recorded.
+  *(Superseded by the amendment of 2026-10-03: no longer a prerequisite of Sprint 11.)*
 - Open for later ADRs: contracts and expiry dates, and transfers of free agents in-game.
+
+## Amendment (2026-10-03, Sprint 11)
+
+Two points of the original text met the code during Sprint 11, and the owner decided both.
+
+### Name pools per nationality are not a prerequisite of Sprint 11
+
+The Consequences listed them as a data prerequisite. They are not one: 108 first names and 338
+last names give about 36,000 combinations, and a 20-club division does not run out of names.
+What the single pool lacks is realism (an Uruguayan named "João Silva"), and fixing that needs
+sourced pools per nationality plus a `GenerationProfiles` change that touches persistence. It
+becomes its own step after Sprint 11 and before the staff (Sprint 12), which will reuse the
+same pools.
+
+### Projecting a generated division is not part of Sprint 11
+
+> **Resolved by ADR-0012.** A division becomes a national league competition with a level, and
+> the projection reads its current season (ADR-0012 §8–§9). Implemented in Sprint 11c.
+
+The roadmap expected `worldbuilder project` to succeed after a division is generated. The
+legacy projection builds its leagues from national **competitions** (ADR-0005 §5), and a
+division is not a competition (ADR-0007 §1). A generated club is enrolled in a division only,
+so the projection refuses the world and names that club. A club from `generate-club` was already
+in the same position. Sprint 11 keeps that refusal and pins it in a test, rather than writing a
+`Competition` edition with invented authored fields (season, tier float, edition id) or
+teaching the projection to read the pyramid. How a division reaches the game tables is a
+separate decision, with its own ADR, because it changes ADR-0005.

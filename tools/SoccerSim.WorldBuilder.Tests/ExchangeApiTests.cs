@@ -26,7 +26,8 @@ public sealed class ExchangeApiTests : IClassFixture<WorldBuilderApp>
     {
         JsonArray tabs = (await ManifestAsync())["tabs"]!.AsArray();
 
-        Assert.Equal(12, tabs.Count);
+        // The roadmap's twelve, plus Fases, Temporadas and Transicoes (ADR-0012 §10).
+        Assert.Equal(15, tabs.Count);
 
         JsonNode clubs = tabs.First(tab => tab!["name"]!.GetValue<string>() == "Clubes")!;
         Assert.Equal("Clubes.csv", clubs["fileName"]!.GetValue<string>());
@@ -74,7 +75,7 @@ public sealed class ExchangeApiTests : IClassFixture<WorldBuilderApp>
         Assert.Contains("terraparalela_base_de_mundo.json", response.Content.Headers.ContentDisposition!.ToString());
         Assert.Equal(20, document["clubs"]!.AsArray().Count);
         Assert.Equal(688, document["players"]!.AsArray().Count);
-        Assert.Equal(18, document["geoNodes"]!.AsArray().Count);
+        Assert.Equal(75, document["geoNodes"]!.AsArray().Count);
         Assert.NotNull(document["calibration"]);
         Assert.NotNull(document["positionWeights"]);
     }

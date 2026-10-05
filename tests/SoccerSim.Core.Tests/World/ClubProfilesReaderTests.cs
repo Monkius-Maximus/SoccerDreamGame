@@ -28,7 +28,7 @@ public sealed class ClubProfilesReaderTests
         ClubProfiles profiles = ClubProfilesReader.Read(Json);
 
         Assert.Equal("BRA", profiles.CountryId);
-        Assert.Equal(11, profiles.Cities.Count);
+        Assert.Equal(67, profiles.Cities.Count);
         Assert.Equal(Enum.GetValues<DistrictArchetype>().Length, profiles.Qualifiers.Count);
         Assert.Equal(Enum.GetValues<PrestigeBand>().Length, profiles.SquadSizeByBand.Count);
         Assert.Equal(500, profiles.CapacityStep);
