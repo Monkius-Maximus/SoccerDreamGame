@@ -27,8 +27,11 @@ Two things share one C#/.NET 8 codebase:
 | `tools/SoccerSim.WorldBuilder/` | ASP.NET Core Minimal API (`Api/*Endpoints.cs`) + static UI in `wwwroot/` (`index.html`, `app.js`, `app.css`, vanilla JS). |
 | `tests/SoccerSim.Core.Tests/` | Headless xUnit for core + infra. `TestData/world.json` and `gen_profiles.json` are the canonical world and generation profiles. |
 | `tools/SoccerSim.WorldBuilder.Tests/` | xUnit + `WebApplicationFactory` API tests and a shallow front-end smoke test. |
-| `docs/adr/` | One ADR per decision (0001–0012). Read the relevant one before changing behaviour. |
-| `docs/ROADMAP-GENERATION.md` | Current work: Sprints 10–14 (generating clubs, divisions, staff, free agents, career NPCs), per ADR-0011, with Sprint 11c (competitions as composition) per ADR-0012. |
+| `docs/adr/` | One ADR per decision (0001–0016). Read the relevant one before changing behaviour. |
+| `docs/TERMS.csv` | The term base: one row per concept, its code symbols and its player-facing labels (ADR-0015). Names follow it. |
+| `docs/RENAMES-0020.md` | The renames Sprint 11d applies with migration 0020. |
+| `docs/decisions/LEGACY-IDS.md` | How to cite a pre-ADR decision (`GEO-D53`, `CAL-D38`…), ADR-0016. |
+| `docs/ROADMAP-GENERATION.md` | Current work: Sprints 10–14 (generating clubs, divisions, staff, free agents, career NPCs), per ADR-0011, with Sprint 11c (competitions as composition) per ADR-0012, Sprint 11d (ids and names) per ADR-0013/0015/0016 and Sprint 11e (league strength) per ADR-0014. |
 
 ## Hard rules
 
@@ -109,7 +112,11 @@ run on startup, but data never does: a fresh checkout serves an empty world unti
   intentionally shallow.
 - Keep changes small and surgical. No fallbacks and no silent coercion: throw when a
   precondition fails.
-- Code, comments and ADRs are in English. The UI and user-facing strings are in pt-BR.
+- Language (ADR-0015): everything in the repository is English, including enum values, data
+  keys, CSV tabs and columns. Player-facing text goes through translation tables only. The World
+  Builder's screens are pt-BR. One term per concept: check `docs/TERMS.csv` before naming
+  something, and add the term there in the same commit.
+- Cite pre-ADR decisions with their register prefix (`CAL-D38`, never a bare `D-38`), ADR-0016.
 - Commit subjects follow the history, e.g. `World Builder Sprint 7: export and import — …`.
 
 ## Reference docs not yet in the repo
