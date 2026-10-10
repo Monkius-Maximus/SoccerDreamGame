@@ -1,7 +1,10 @@
 # Roadmap — World generation (Sprints 10–14)
 
 Implements [ADR-0011](adr/0011-world-generation-clubs-staff-free-agents-npcs.md) and, from
-Sprint 11c, [ADR-0012](adr/0012-competitions-as-composition.md). This picks
+Sprint 11c, [ADR-0012](adr/0012-competitions-as-composition.md). Sprint 11d implements
+[ADR-0013](adr/0013-identifier-convention.md), [ADR-0015](adr/0015-language-and-terminology.md)
+and [ADR-0016](adr/0016-decision-identifiers-and-legacy-registers.md); Sprint 11e implements
+[ADR-0014](adr/0014-league-strength-model.md). This picks
 up where the World Builder's Sprints 0–9 ended. Every sprint ends with both test suites green
 and a commit titled `World Builder Sprint N: …`.
 
@@ -210,6 +213,76 @@ and 338 surnames (~36,000 combinations) a 20-club division does not run out of n
 missing is realism: an Uruguayan named "João Silva". That needs sourced pools per nationality
 and a `GenerationProfiles` change that touches persistence (a new migration, 0020 or later). It is its own step,
 after Sprint 11 and before the staff (Sprint 12), which will reuse the same pools.
+
+## Sprint 11d — One id convention and one vocabulary (ADR-0013, ADR-0015, ADR-0016)
+
+Ids and names change together because both rewrite stored data. One migration, 0020, converts
+every stored id (ADR-0013) and every renamed value, key, column and table (ADR-0015) at once.
+The exact list is [`docs/RENAMES-0020.md`](RENAMES-0020.md); every new name is already in
+[`docs/TERMS.csv`](TERMS.csv). Commit title: `World Builder Sprint 11d: …`.
+
+**Delivers:** one id shape for every entity, built and checked in one module; English names
+for every stored value; and the confederation moved out of the geographic tree (`GEO-D53`).
+
+- **Core:**
+  - `World/Ids.cs` builds, parses and checks every id (ADR-0013 §4). The generators, the pyramid
+    editor and the readers call it, and no id is built by string interpolation anywhere else.
+    `Ids.Check` runs wherever `CompetitionIntegrity` already runs.
+  - Code renames: `RENAMES-0020.md` §A (types and members behind the stored values) and §B
+    (code-only names).
+  - `GEO-D53`:
+    - `GeoNodeKind.Confederation` becomes `Continent`;
+    - a new `FootballConfederation` enum becomes a field of the country;
+    - the parent rules in `GeoTree` and `BatchAudit` follow.
+- **Persistence:** `sql/0020_identifier_convention.sql`:
+  - the id rename map of ADR-0013 §5;
+  - the value, column and table renames of `RENAMES-0020.md` §A;
+  - `Countries.FootballConfederation` (`BRA` = `CONMEBOL`).
+
+  A row the rename map does not cover aborts the migration with a named `CHECK`, using the
+  guard-table technique from 0019. Columns with a `CHECK` are renamed by rebuilding the table,
+  as 0019 did. Undo snapshots are cleared.
+- **Exchange:**
+  - JSON keys, CSV tab names and CSV columns follow `RENAMES-0020.md` §A4–§A8.
+  - A document in the old shape (for example one with `prestigeBand`, `Titular`, `tema` or a
+    `Clubes` tab) is refused by name.
+  - The fixtures (`world.json`, `gen_profiles.json`, `club_profiles.json`) are converted once,
+    in the same commit.
+- **UI:**
+  - The tool text that names a renamed concept changes (`RENAMES-0020.md` §C).
+  - The "Nova divisão" form loses its id field (ADR-0013 §3).
+- **Docs:** every unprefixed `D-NN` citation in code and ADRs is rewritten (`RENAMES-0020.md`
+  §D, ADR-0016 §5). `CLAUDE.md`'s rules that name a renamed symbol are updated too: Anchored vs
+  Regen, the `generate-division` example, and the CSV tab names in the IP-hygiene rule.
+- **Tests:**
+  - Every shape in ADR-0013 §3 round-trips through `Ids`. A malformed id is refused, and the
+    message names the id and ADR-0013.
+  - Migration 0020, over a database with the pilot and a generated division, converts every id
+    and value. A row outside the rename map aborts the migration and writes nothing.
+  - Old-shape JSON and CSV are refused by name.
+  - The golden gate still holds after conversion: 688/688 players with the same overall, market
+    value and salary. Renaming must not move a number.
+  - Determinism: `SquadGenerator` and `ClubGenerator` keep their output, because they are keyed
+    by club id and country code. `DivisionGenerator` is keyed by `CompetitionId`, which changes
+    (`cmp_bra_tier2` → `cmp_bra_00N`), so a generated division moves. Re-pin those tests and
+    name them in the commit.
+  - `FrontEndSmokeTests` keeps its anchors.
+
+**Not in 11d:**
+- moving the tool's strings out of `app.js` and Core (ADR-0015 §5, its own sprint);
+- the findings in `RENAMES-0020.md` §E;
+- ADR-0014 (Sprint 11e);
+- importing the legacy registers into `docs/legacy/`, which the owner supplies.
+
+**After applying 0020 to an existing `world.db`:** re-export. An export written before 0020
+cannot be imported.
+
+## Sprint 11e — League strength (ADR-0014)
+
+Generating a division asks only for the competition, the count and the seed. Strengths come from
+a measured profile through the Opta bridge, and a generated club's reputation is derived from
+its strength. **Blocked by the strength pack** (`strength_profiles.json`), which needs the owner's
+captures of the Opta Power Rankings.
 
 ## Sprint 12 — Staff (coach first)
 

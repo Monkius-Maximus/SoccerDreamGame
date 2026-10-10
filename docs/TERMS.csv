@@ -1,0 +1,68 @@
+TermId,Definition,Domain,CodeSymbols,PlayerVisible,LabelPtBr,LabelEnUs,ForbiddenSynonyms,Status
+Terra,"The fictional world of the game: real nations and cities, fictional clubs and players.",Project,,no,,,Terra Paralela (as a name),keep
+SoccerDreamGame,The repository and codebase of this football game.,Project,SoccerDreamGame.sln,no,,,Dream Soccer Game (in writing); dreamsoccergame,keep
+SoccerSim,Prefix of the C# namespaces. Never used in prose or on screen.,Project,SoccerSim.Core; SoccerSim.Infrastructure.Sqlite; SoccerSim.WorldBuilder,no,,,,keep
+WorldBuilder,The authoring tool that edits the world data; source of truth for it (WBH-D03).,Tooling,tools/SoccerSim.WorldBuilder,no,Ferramenta de Mundo (tool screen only),World Builder,Base de Mundo (for the tool),keep
+WorldData,"The data set the World Builder edits: clubs, players, geography, competitions, calibration.",Tooling,world.json; world.db,no,Base de Mundo (tool screen only),World data,,keep
+SimCore,A pure C# library from the shared-core design (namespace SimCore). Not part of this repository; this repository's core is SoccerSim.Core.,Project,SimCore.cs (design documents only),no,,,SoccerSim.Core (as a synonym),decide
+VersaoB,Archived 3D-hybrid variant (Project Zomboid style). Lives in docs/legacy/versao-b/.,Project,,no,,,,keep
+ADR,A numbered architecture decision record in docs/adr/; the only global decision id from ADR-0016.,Process,docs/adr/00NN-*.md,no,,,D-NN (for new decisions),keep
+LegacyDecisionId,"A decision from a pre-ADR register, cited as <PREFIX>-D<NN> (ADR-0016).",Process,docs/decisions/LEGACY-IDS.md,no,,,unprefixed D-NN,keep
+Competition,"The definition of a competition: name, scope, country, level, stages, transition rules. Outlives seasons (ADR-0012).",Competition,Competition; Competitions; cmp_,yes,Competição,Competition,league (as the generic word); championship,keep
+CompetitionSeason,"One competition in one year, with its participants (ADR-0012).",Competition,CompetitionSeason; CompetitionSeasons; SeasonParticipant; edt_ (ssn_ from ADR-0013),yes,Temporada,Season,edition; edição; CompetitionEdition; edt_,keep
+Season,The world's current year.,Competition,CurrentSeason; currentSeason,yes,Temporada,Season,,keep
+Division,"A role, not a type: a national competition that has a Level in its country's pyramid.",Competition,DivisionGenerator; DivisionCreation; generate-division,yes,{n}ª Divisão,Division {n},Tier {n}; Série (as the generic word),keep
+Level,Position in a country's pyramid; 1 is the top flight.,Competition,Competition.Level; Level,yes,{n}ª Divisão,Division {n},tier,keep
+Pyramid,The calculated view of a country's national competitions ordered by Level.,Competition,LeaguePyramid; PyramidEditor,yes,Pirâmide,Pyramid,,keep
+Stage,"One phase of a competition, run in order.",Competition,CompetitionStage; StageKind,yes,Fase,Stage,,keep
+LeagueStage,A stage played as a round-robin table. The only sense of 'league' in the new core.,Competition,StageKind.League,yes,Pontos corridos,League stage,,keep
+TransitionRule,"Promotion, relegation or qualification between competitions at season end (ADR-0012).",Competition,TransitionRule; TransitionRules,yes,Acesso / Rebaixamento / Classificação,Promotion / Relegation / Qualification,,keep
+CompetitionScope,Geographic reach of a competition.,Competition,CompetitionScope { SubNational; National; SubContinentalZonal; Continental; Intercontinental },yes,Regional · Nacional · Zonal · Continental · Intercontinental,Regional · National · Zonal · Continental · Intercontinental,,keep
+LegacyLeague,The legacy game-side league and season tables used by MatchEngine (ADR-0002).,Legacy,League; Leagues; Seasons,no,,,,keep
+ClubStrength,A club's sporting strength on the world's own scale; read by the projection and the squad generator.,Strength,ClubStrength; clubStrength,no,,,tier,keep
+CompetitionStrength,Mean ClubStrength of a season's participants; the difficulty target of the fit curve (ARCH-D31).,Strength,CompetitionStages.TierFloat; TierFloat; leagueTierFloat (design: leagueTier; difficultyTarget; club_tier),no,,,tier float; league tier; difficulty target,rename
+OptaBridge,The fitted conversion from an Opta Power Ranking rating to ClubStrength; never extrapolates (ADR-0014).,Strength,(Sprint 11e),no,,,,keep
+StrengthProfile,Quantiles of real club ratings for one country and level (ADR-0014).,Strength,strength_profiles.json,no,,,,keep
+RatingClass,"A class derived by thresholds from a continuous value: overall for a player, strength for a club or league. Never authored or stored. Not yet in code; thresholds are calibration data (ARCH-D43).",Strength,(new),yes,"Carta Bronze/Prata/Ouro (jogador); ½–5 estrelas (clube, liga)","Bronze/Silver/Gold card (player); ½–5 stars (club, league)",band; tier; quality band,keep
+ClubReputation,"A club's standing and size (history, crowd, market), separate from strength. Authored with a source for an anchored club (CAL-D38, CAL-D51); derived from strength for a generated club (ADR-0014 §6). Drives market-value multiplier, stadium shift and squad size.",Reputation,PrestigeBand { B1..B6 }; prestigeBand; PrestigeBandCalibration; CalibrationPrestigeBands; SquadSizeByBand,yes,Reputação: Mundial · Continental · Nacional · Regional · Local · Modesta,Reputation: World · Continental · National · Regional · Local · Modest,band; prestige band; banda; B1–B6,rename
+CompetitionReputation,A competition's derived reputation (RC-03). Deferred until something reads it.,Reputation,,no,,,competition band,decide
+QualityBand,Content Workbench input class of a generated player (WorldClass…Prospect). Belongs to the sibling project's pipeline.,Generation,(sibling pipeline: qualityBand),no,,,band,decide
+SimulationTier,"The simulation's level of detail for one match: Tier 1 full, Tier 1.5 structured resolver, Tier 2 statistical, Tier 3 aggregate. The only meaning of 'tier'.",Simulation,SimulationTier { ActiveHuman; MajorForeign; Minor }; Leagues.Tier,no,,,LOD level (in prose: use 'tier'),rename
+StructuredMatchResolver,The Tier 1.5 resolver: situation-conditioned sampling for the player's simulated matches (SMR-D30).,Simulation,(design),no,,,Tier 1.5 (as a system name),keep
+MatchReceipt,"The causal explanation of a match result, same schema at Tier 1 and 1.5 (SMR-D34).",Simulation,(design),yes,Relatório da partida,Match report,,keep
+EventStakes,"How much a life event is worth: high (mini-game), medium (dialogue choice), low (notification).",Life,EventTier { High; Medium; Low },no,,,event tier,rename
+GenerationSeed,A static seed that produces an artifact once (GEO-D35).,Determinism,DeterministicRng; StableHash,no,,,,keep
+SimulationSeed,"A time-indexed seed stream for background matches (GEO-D35, GEO-D36).",Determinism,(design),no,,,,keep
+Anchored,"A club or player derived from a real one, with a deviation audit that never reaches a game build.",Provenance,Provenance.Anchored,no,,,,keep
+Generated,A club or player generated with no real anchor.,Provenance,Provenance.Regen,no,,,Regen,rename
+ReferenceAnchor,The real club or player a fictional one is derived from. Authoring only.,Provenance,ReferenceAnchor; audit.anchorClubName; audit.anchorCityName,no,,,,keep
+FieldProvenance,"Where a field's value comes from: Authored, Derived, Sampled, Calculated.",Provenance,FieldProvenance,no,,,,keep
+SourceSeal,"Whether a calibration constant is Sourced, Unsourced or Provisional.",Calibration,SourceSeal { Anchored; Unsourced; Provisional },no,,,Anchored (for a constant),rename
+Source,A citation behind a number in the world data.,Calibration,WorldSource(Tema; Numero; Fonte; Url); WorldSources; tema; numero; fonte,no,,,fonte; tema; numero,rename
+SquadRole,A player's role in the squad.,Squad,SquadRole { Titular; Rotacao; Reserva; Promessa },yes,Titular · Rotação · Reserva · Promessa,Starter · Rotation · Backup · Prospect,,rename
+Phase,"A player's age phase: Prospect 15–20, Breakthrough 21–26, Prime 27–32, Veteran 33–38, Twilight 39–46 (T-08).",Lifecycle,Phase,yes,Formação · Afirmação · Auge · Veterano · Fim de carreira,Development · Breakthrough · Prime · Veteran · Twilight,Promessa (for the phase),keep
+Position,One of eight on-pitch positions; the abbreviation is English in every language.,Squad,Position { GK; CB; FB; DM; CM; AM; WG; ST },yes,GK Goleiro · CB Zagueiro · FB Lateral · DM Volante · CM Meio-campista · AM Meia · WG Ponta · ST Centroavante,GK Goalkeeper · CB Centre-back · FB Full-back · DM Defensive midfielder · CM Central midfielder · AM Attacking midfielder · WG Winger · ST Striker,GOL; ZAG; VOL (as abbreviations),keep
+Overall,"Weighted sum of attributes by position (CAL-D40 rounding). Derived, never stored as truth.",Squad,Overall; overall,yes,Geral,Overall,OVR (in prose),keep
+SquadSize,"Number of players in a club's squad, derived from reputation.",Squad,squadSize,yes,Tamanho do elenco,Squad size,,keep
+PlayerTrait,An on-pitch trait generated by threshold over attributes.,Squad,PlayerTrait,yes,(per trait),(per trait),LifeTrait,keep
+LifeTrait,A character trait chosen at creation or earned by events; never touches on-pitch execution (T-03).,Lifecycle,(design) LifeTrait,yes,"(per trait, e.g. Joia Rara)",(per trait),PlayerTrait,keep
+TraitGrade,"Grade of a trait: Emerging, Established, Signature (ARCH-D40).",Squad,TraitTier (design),yes,Latente · Consolidado · Assinatura,Emerging · Established · Signature,trait tier,rename
+CareerDepth,"Depth mode of the career simulation, fixed per save (ARCH-D54).",Life,(design: Basico; Padrao; Profundo),yes,Básico · Padrão · Profundo,Basic · Standard · Deep,,rename
+Attribute,"One of the twelve canonical attributes, 1–99 (WORLD-D27).",Attribute,Attr (AttributeId in design documents),yes,Finalização · Passe · Drible · Desarme · Velocidade · Força · Fôlego · Posicionamento · Visão de jogo · Frieza · Reflexos · Firmeza,Finishing · Passing · Dribbling · Tackling · Pace · Strength · Stamina · Positioning · Vision · Composure · Reflexes · Handling,,keep
+AttributeGroup,Partition of the twelve attributes (CAL-D52).,Attribute,ATTR_GROUP (authoring pipeline),yes,Técnico · Físico · Mental · Goleiro,Technical · Physical · Mental · Goalkeeping,,keep
+LivingLegendRange,"Reserved attribute range 100–120, blocked for normal creation and development.",Attribute,,no,,,Living Legend band,keep
+TacticalStyle,A club AI's default tactical preset.,Tactics,TacticalStyle,yes,Posse de bola · Contra-ataque · Pressão alta · Bloco baixo · Controle · Jogo direto,Possession · Counter-attack · High press · Low block · Controlled · Direct,,keep
+AtmosphereArchetype,The character of a stadium's crowd; drives homeAdvantageModifier only (CAL-D42).,Stadium,AtmosphereArchetype,yes,Caldeirão · Tradicional · Corporativa · Hostil · Apática,Cauldron · Traditional · Corporate · Hostile · Apathetic,,keep
+Nickname,A club's popular nickname.,Club,identity.nickname,yes,Apelido,Nickname,Alcunha,keep
+Motto,The motto on a club's crest.,Club,crest.motto,yes,Lema,Motto,Mote,keep
+GeoNode,"A node of the physical geography tree: World, Continent, SubRegion, Country, Region, City (GEO-D53).",Geography,GeoNode; GeoNodeKind,no,,,,keep
+Continent,Physical continent; replaces Confederation as a tree level (GEO-D53).,Geography,GeoNodeKind.Confederation,yes,Continente,Continent,Confederation (as a geo level),rename
+FootballConfederation,"A country's football confederation, a field of the country, never a tree node (GEO-D53).",Geography,(new) Countries.FootballConfederation,yes,Confederação,Confederation,,rename
+CountryId,Upper-case FIFA trigram of a country (ADR-0013).,Geography,CountryId,no,,,ISO code,keep
+RegionCode,Code of a country's first-level region (a Brazilian UF).,Geography,Uf; geography.uf,no,,,UF (in identifiers),rename
+SettlementSize,A city's size class (GEO-D54).,Geography,settlementTier (design),no,,,settlement tier,rename
+Gazetteer,"The authoring catalogue of every city that exists, active or not (GEO-D55).",Geography,tp_gazetteer.py,no,,,,keep
+MarketValue,A player's market value in EUR. Derived.,Economy,marketValueEUR,yes,Valor de mercado,Market value,,rename
+Salary,A player's monthly salary in local currency. Derived.,Economy,salaryMonthlyBRL; SalaryMonthlyBrl,yes,Salário,Salary,,rename
+CalibrationConstant,"A number formulas depend on, stored as data with its source (WBH-D04).",Calibration,WorldCalibration; CalibrationConstant,no,,,,keep
+WorldEdit,One recorded change to the world data in the tool's history.,Tooling,WorldEdits; WorldHistory,no,Alteração (tool screen),Edit,Edição (for an edit),rename
