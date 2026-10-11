@@ -16,7 +16,7 @@ Brazilian Portuguese, and are read-only (ADR-0016 §3). Do not edit them.
 
 | File | Prefix | Status |
 | --- | --- | --- |
-| `Terra_Paralela_Registro_Decisoes_Camada_Autoria_Mundo.md` | `WORLD` | Living register |
+| `Terra_Paralela_Registro_Decisoes_Camada_Autoria_Mundo.md` | `WORLD` | Living register. `WORLD-D20` is superseded by ADR-0017 |
 | `Terra_Paralela_Registro_Decisoes_SimCore.md` | `SIM` | Living register. Its "SimCore" is a staging library that is not in this repository (`docs/TERMS.csv`, `SimCore`) |
 | `Terra_Paralela_Registro_Decisoes_Arbitragem.md` | `REF` | Living register. Design only, behind `CORE-D07` |
 | `Terra_Paralela_Fisica_Ambiental_Etapa2.md` | `PHYS` | Living register. Design only, behind `CORE-D07` |
@@ -24,7 +24,7 @@ Brazilian Portuguese, and are read-only (ADR-0016 §3). Do not edit them.
 | `Terra_Paralela_Registro_Decisoes_Pivo2D_Personagem.md` | `APPR` | Living register |
 | `Terra_Paralela_Registro_Decisoes_Tier_1_5.md` | `SMR` | Living register. Waits for the situation-taxonomy research |
 | `Terra_Paralela_Registro_Decisoes_Arquetipos_Coesao_Vida.md` | `ARCH` | Living register |
-| `Terra_Paralela_Registro_Decisoes_Calibracao_Autoria.md` | `CAL` | Living register. `CAL-D38` is amended by ADR-0015 §4 (band → reputation) |
+| `Terra_Paralela_Registro_Decisoes_Calibracao_Autoria.md` | `CAL` | Living register. `CAL-D38` is amended by ADR-0015 §4 (band → reputation); `CAL-D39`'s reference is amended by ADR-0018 |
 | `Terra_Paralela_Registro_Decisoes_Geografia_Competicoes.md` | `GEO` | Living register |
 | `Terra_Paralela_Registro_Decisoes_Regras_e_Competicoes.md` | `RC` | Living register. `RC-03` (competition reputation) is deferred by ADR-0015 §4 |
 | `Terra_Paralela_Criacao_Personagem_e_Ciclo_de_Vida.md` | `T` | Living register and design document |
@@ -34,7 +34,7 @@ Brazilian Portuguese, and are read-only (ADR-0016 §3). Do not edit them.
 | File | Status |
 | --- | --- |
 | `Game_Design_Document_2D_Soccer_Life_Simulator.md` † | Founding GDD. §5 (static LOD tiers) is amended by `GEO-D32`/`GEO-D33` |
-| `Terra_Paralela_Geracao_Identidade_Clube_v2.md` | Current club-identity design. §9.1 and `WORLD-D20` disagree on `displayCode` scope (`docs/RENAMES-0020.md` §E) |
+| `Terra_Paralela_Geracao_Identidade_Clube_v2.md` | Current club-identity design. Its §9.1 (`displayCode` unique worldwide) won over `WORLD-D20` (ADR-0017) |
 | `Sistema_de_Prestigio_de_Competicoes.md` † | Research report. Its league classes B1–B6 are reference sets for calibration, not a field (ADR-0014, ADR-0015) |
 | `Terra_Paralela_Tactics_to_Behavior.md` | Design for Tier 1 player decisions (steering + utility AI). The first code is in `src/SoccerSim.Core/Ai/` and `src/SoccerSim.Core/Pitch/`. Its header still reads "D1 = Opção B"; the 2D track applies (`CORE-D01`, refined by `RND-01`–`06`) |
 | `Research_Prompt_Taxonomia_Situacoes_Estado_Tatico.md` | Research prompt for Tier 1.5. Amended by `SMR` §7 |

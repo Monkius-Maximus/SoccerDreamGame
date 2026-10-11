@@ -3,7 +3,9 @@
 Implements [ADR-0011](adr/0011-world-generation-clubs-staff-free-agents-npcs.md) and, from
 Sprint 11c, [ADR-0012](adr/0012-competitions-as-composition.md). Sprint 11d implements
 [ADR-0013](adr/0013-identifier-convention.md), [ADR-0015](adr/0015-language-and-terminology.md)
-and [ADR-0016](adr/0016-decision-identifiers-and-legacy-registers.md); Sprint 11e implements
+and [ADR-0016](adr/0016-decision-identifiers-and-legacy-registers.md); Sprint 11f implements
+[ADR-0018](adr/0018-stadium-capacity-of-a-generated-club.md) and
+[ADR-0019](adr/0019-determinism-in-the-core.md); Sprint 11e implements
 [ADR-0014](adr/0014-league-strength-model.md). This picks
 up where the World Builder's Sprints 0–9 ended. Every sprint ends with both test suites green
 and a commit titled `World Builder Sprint N: …`.
@@ -276,6 +278,41 @@ for every stored value; and the confederation moved out of the geographic tree (
 
 **After applying 0020 to an existing `world.db`:** re-export. An export written before 0020
 cannot be imported.
+
+## Sprint 11f — Determinism and stadium capacity (ADR-0018, ADR-0019)
+
+Runs right after 11d, and before 11e because 11e waits for data. Both changes move every
+generated draw, so the generation tests are re-pinned once, in one commit titled
+`World Builder Sprint 11f: …`.
+
+- **Core:**
+  - `IDeterministicRandom.NextGaussian` becomes Irwin-Hall: twelve uniforms minus 6
+    (ADR-0019 §1). Box-Muller is removed.
+  - `Vec2.Rotated` uses the small-angle polynomials and renormalises the vector. It throws above
+    0.2 rad (ADR-0019 §2).
+  - Life event ids are derived from player, definition and date (ADR-0019 §3).
+  - `ClubGenerator.Capacity` follows ADR-0018:
+    - the country's profile, shifted by `(median rank of the country's clubs, the request
+      included) − rank of the club`, times 0.45 deviation;
+    - a rejection-truncated draw on the same stream;
+    - a throw after 1,000 rejections;
+    - no clamp.
+  - The reputation calibration's `CapMean`/`CapSd` stop feeding generation.
+- **Tests:**
+  - `NextGaussian`'s mean and deviation over a fixed seed;
+  - its bounds stay inside ±6;
+  - rotation angle error below 10⁻⁷ up to 0.2 rad, and length preserved exactly;
+  - rotation throws above 0.2 rad;
+  - two event rolls with the same seed give equal ids;
+  - capacity:
+    - the shift direction (a club above the country median gets a bigger mean);
+    - no value outside the profile;
+    - the empty-country case shifts by 0;
+    - an impossible profile throws.
+  - The pilot fixture's golden gate (688/688) is unchanged. Generated outputs are re-pinned and
+    named in the commit.
+- **Not in 11f:** the Elo resolvers' `Math.Pow`, and the World Builder's colour and economy
+  formulas (ADR-0019 §4).
 
 ## Sprint 11e — League strength (ADR-0014)
 
