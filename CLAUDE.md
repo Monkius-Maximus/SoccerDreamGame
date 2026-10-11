@@ -27,13 +27,13 @@ Two things share one C#/.NET 8 codebase:
 | `tools/SoccerSim.WorldBuilder/` | ASP.NET Core Minimal API (`Api/*Endpoints.cs`) + static UI in `wwwroot/` (`index.html`, `app.js`, `app.css`, vanilla JS). |
 | `tests/SoccerSim.Core.Tests/` | Headless xUnit for core + infra. `TestData/world.json` and `gen_profiles.json` are the canonical world and generation profiles. |
 | `tools/SoccerSim.WorldBuilder.Tests/` | xUnit + `WebApplicationFactory` API tests and a shallow front-end smoke test. |
-| `docs/adr/` | One ADR per decision (0001–0016). Read the relevant one before changing behaviour. |
+| `docs/adr/` | One ADR per decision (0001–0019). Read the relevant one before changing behaviour. |
 | `docs/TERMS.csv` | The term base: one row per concept, its code symbols and its player-facing labels (ADR-0015). Names follow it. |
 | `docs/RENAMES-0020.md` | The renames Sprint 11d applies with migration 0020. |
 | `docs/decisions/LEGACY-IDS.md` | How to cite a pre-ADR decision (`GEO-D53`, `CAL-D38`…), ADR-0016. |
 | `docs/legacy/` | The pre-ADR design documents and decision registers, pt-BR, frozen. Index and status in its `README.md`. |
 | `START-HERE.md` | Orientation for newcomers: where each kind of truth lives, and the known divergences between design and code. |
-| `docs/ROADMAP-GENERATION.md` | Current work: Sprints 10–14 (generating clubs, divisions, staff, free agents, career NPCs), per ADR-0011, with Sprint 11c (competitions as composition) per ADR-0012, Sprint 11d (ids and names) per ADR-0013/0015/0016 and Sprint 11e (league strength) per ADR-0014. |
+| `docs/ROADMAP-GENERATION.md` | Current work: Sprints 10–14 (generating clubs, divisions, staff, free agents, career NPCs), per ADR-0011, with Sprint 11c (competitions as composition) per ADR-0012, Sprint 11d (ids and names) per ADR-0013/0015/0016, Sprint 11f (determinism and stadium capacity) per ADR-0018/0019 and Sprint 11e (league strength) per ADR-0014. |
 
 ## Hard rules
 

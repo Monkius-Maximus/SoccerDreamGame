@@ -199,9 +199,8 @@ Moving every tool string out of `app.js` and Core is **not** part of 11d (ADR-00
 Each needs its own decision or sprint.
 
 1. **`CAL-D39`.** The club generator still draws stadium capacity from the band's
-   `CapMean`/`CapSd`. The decision is the country's stadium profile, shifted by reputation.
-2. **`displayCode` uniqueness.** `WORLD-D20` says per country, the club-identity document (§9.1)
-   says global, and SQL implements global.
+   `CapMean`/`CapSd`. Decided in ADR-0018, scheduled for Sprint 11f.
+2. **`displayCode` uniqueness.** Decided in ADR-0017: unique worldwide, as SQL already does.
 3. **`RegionCode`.** It repeats what the geo tree already knows (the club's city node has a
    region parent). Removing it is a separate decision.
 4. **`SimCore`.** `SimCore.cs` in the design documents is not this repository's core. Ownership

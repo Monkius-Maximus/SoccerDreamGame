@@ -29,7 +29,7 @@ other football projects exist; their relationship to this one is still to be map
 | You want… | Look in | Language |
 | --- | --- | --- |
 | How things work now | The code | English |
-| A decision made since August 2026 | `docs/adr/` (ADR-0001 to ADR-0016) | English |
+| A decision made since August 2026 | `docs/adr/` (ADR-0001 to ADR-0019) | English |
 | The name of a concept, and what the player sees for it | `docs/TERMS.csv` | English, with pt-BR and en-US labels |
 | A decision made before the ADRs (`GEO-D53`, `CAL-D38`…) | `docs/decisions/LEGACY-IDS.md` → `docs/legacy/` | pt-BR, frozen |
 | What is being built next | `docs/ROADMAP-GENERATION.md` | English |
@@ -55,7 +55,7 @@ other football projects exist; their relationship to this one is still to be map
 
 | Area | State |
 | --- | --- |
-| World Builder: clubs, squads, geography, competitions, generation, export | **Code**, Sprints 0–11c. Next: 11d (ids and names), then 11e (league strength) |
+| World Builder: clubs, squads, geography, competitions, generation, export | **Code**, Sprints 0–11c. Next: 11d (ids and names), 11f (determinism and stadium capacity), 11e (league strength, waits for data) |
 | Background simulation: calendar, LOD tiers, Elo resolvers, SQLite saves | **Code**, the original core (legacy schema, ADR-0002) |
 | 2D pitch: steering and utility AI | **First code** in `src/SoccerSim.Core/Ai/` and `Pitch/` |
 | Godot scenes: menu, calendar, match, life sim | **Shells** with thin autoloads |
@@ -68,13 +68,12 @@ Each of these is either scheduled or waits for a decision. None should be "fixed
 | What | Design says | Code does | Where it is handled |
 | --- | --- | --- | --- |
 | Football confederation | A field of the country, not a geographic level (`GEO-D53`) | `GeoNodeKind.Confederation` is a tree level | Sprint 11d |
-| Stadium capacity | Country stadium profile, shifted by reputation (`CAL-D39`) | Drawn from the band's mean and spread | Open, `docs/RENAMES-0020.md` §E |
-| `displayCode` uniqueness | Per country (`WORLD-D20`) vs. global (club identity v2 §9.1) | Global (`UNIQUE`) | Open, needs a decision |
+| Stadium capacity | Country stadium profile, shifted against the median reputation of the country's clubs, truly truncated (ADR-0018) | Drawn from the band's mean and spread, then clamped | Sprint 11f |
 | LOD tier assignment | Dynamic, per match, by competitive distance (`GEO-D32`/`GEO-D33`) | Static per league (`SimulationTier`) | Not scheduled |
 | Background match resolution | Double Poisson | Elo → goals (`EloResolverBase`) | Not scheduled |
-| Gaussian draws | Irwin-Hall, no transcendental functions (`SIM-D34`) | Box-Muller with `Math.Log`/`Math.Cos` (`IDeterministicRandom.NextGaussian`) | Not scheduled |
-| Ball deflection | No `Math.Sin`/`Math.Cos` in the hot path (`PHYS-D42`) | `Vec2.Rotated` uses them, called from `PitchSimulation` | Not scheduled |
-| Deterministic ids | No `Guid.NewGuid()` in simulation | Used in `EventManager` and `TimeManager` | Not scheduled |
+| Gaussian draws | Irwin-Hall, no transcendental functions (`SIM-D34`, ADR-0019) | Box-Muller with `Math.Log`/`Math.Cos` (`IDeterministicRandom.NextGaussian`) | Sprint 11f |
+| Pass and shot angle error | No `Math.Sin`/`Math.Cos` in the hot path (`PHYS-D42`, ADR-0019) | `Vec2.Rotated` uses them, called from `PitchSimulation` | Sprint 11f |
+| Life event ids | Derived from player, event and date (ADR-0019) | `Guid.NewGuid()` in `EventManager` | Sprint 11f |
 
 ## Things that are not in this repository yet
 
