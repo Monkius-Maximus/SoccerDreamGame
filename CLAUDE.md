@@ -31,6 +31,8 @@ Two things share one C#/.NET 8 codebase:
 | `docs/TERMS.csv` | The term base: one row per concept, its code symbols and its player-facing labels (ADR-0015). Names follow it. |
 | `docs/RENAMES-0020.md` | The renames Sprint 11d applies with migration 0020. |
 | `docs/decisions/LEGACY-IDS.md` | How to cite a pre-ADR decision (`GEO-D53`, `CAL-D38`…), ADR-0016. |
+| `docs/legacy/` | The pre-ADR design documents and decision registers, pt-BR, frozen. Index and status in its `README.md`. |
+| `START-HERE.md` | Orientation for newcomers: where each kind of truth lives, and the known divergences between design and code. |
 | `docs/ROADMAP-GENERATION.md` | Current work: Sprints 10–14 (generating clubs, divisions, staff, free agents, career NPCs), per ADR-0011, with Sprint 11c (competitions as composition) per ADR-0012, Sprint 11d (ids and names) per ADR-0013/0015/0016 and Sprint 11e (league strength) per ADR-0014. |
 
 ## Hard rules

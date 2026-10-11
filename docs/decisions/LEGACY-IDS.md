@@ -7,8 +7,8 @@ of its decisions is a new ADR that names the legacy id it supersedes.
 
 | Prefix | Register (pt-BR title) | Range | File |
 | --- | --- | --- | --- |
-| `CORE` | Ledger canônico (reconstruído) | D-01–D-09 | `docs/decisions/` (patch F0-A) |
-| `WBH` | Handoff da Ferramenta de Mundo — `ROADMAP.md` | D-01–D-04 | `docs/legacy/design_handoff_ferramenta_de_mundo/` |
+| `CORE` | Ledger canônico (reconstruído) | D-01–D-09 | Not in the repository yet (patch F0-A) |
+| `WBH` | Handoff da Ferramenta de Mundo — `ROADMAP.md` | D-01–D-04 | Not in the repository yet (`design_handoff_ferramenta_de_mundo/`); to land in `docs/legacy/` |
 | `WORLD` | Registro de Decisões — Camada de Autoria de Mundo | D-10–D-29 | `docs/legacy/Terra_Paralela_Registro_Decisoes_Camada_Autoria_Mundo.md` |
 | `SIM` | Registro de Decisões — SimCore | D-30–D-39 | `docs/legacy/Terra_Paralela_Registro_Decisoes_SimCore.md` |
 | `REF` | Registro de Decisões — Arbitragem | D-30–D-38 | `docs/legacy/Terra_Paralela_Registro_Decisoes_Arbitragem.md` |
@@ -21,9 +21,11 @@ of its decisions is a new ADR that names the legacy id it supersedes.
 | `GEO` | Registro de Decisões — Geografia e Escopo de Competições | D-30–D-37, D-53–D-57 | `docs/legacy/Terra_Paralela_Registro_Decisoes_Geografia_Competicoes.md` |
 | `RC` | Registro de Decisões — Regras e Competições | RC-01–RC-07 | `docs/legacy/Terra_Paralela_Registro_Decisoes_Regras_e_Competicoes.md` |
 | `T` | Criação de Personagem e Ciclo de Vida | T-01–T-14 | `docs/legacy/Terra_Paralela_Criacao_Personagem_e_Ciclo_de_Vida.md` |
-| `RND`, `LED` | Direção de arte / gramática de maturidade | RND-01–06, LED-01–05 | `docs/decisions/` (patch F0-A) |
+| `RND`, `LED` | Direção de arte / gramática de maturidade | RND-01–06, LED-01–05 | Not in the repository yet (patch F0-A) |
 
 `RC`, `T`, `RND` and `LED` were already unique and are cited without a further prefix.
+
+Every file in `docs/legacy/` is listed, with its status, in `docs/legacy/README.md`.
 
 Archived material:
 - `docs/legacy/versao-b/` holds the VersaoB 3D-hybrid variant, until it gets a repository of its
