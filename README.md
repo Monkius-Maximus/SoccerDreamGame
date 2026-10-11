@@ -1,5 +1,7 @@
 # Soccer Dream Game
 
+> New to the project? Read [`START-HERE.md`](START-HERE.md) first.
+
 A **2D Soccer Life Simulator** that separates the action of a soccer match from an
 off-pitch life simulation. Built on **Godot 4 (C#/.NET 8)** with an **engine-agnostic
 simulation core** and **SQLite** persistence.
