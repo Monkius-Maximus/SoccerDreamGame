@@ -13,7 +13,7 @@ one holds the truth.
 
 | Repository | What it holds |
 | --- | --- |
-| `Monkius-Maximus/SoccerDreamGame` (this one) | The 2D game, the World Builder and its world data, the design (`docs/legacy/`), the term base, ADR-0001 to ADR-0020. All work since September 2026 is here. |
+| `Monkius-Maximus/SoccerDreamGame` (this one) | The 2D game, the World Builder and its world data, the design (`docs/legacy/`), the term base, ADR-0001 to ADR-0020. The World Builder work since September 2026 is here. |
 | `Monkius-Maximus/new-soccer-world` | Another football game: Godot 4.7.1, .NET 10, a deterministic match core. Last commit on 2026-09-03. |
 | `Monkius-Maximus/testingclaude` | "FootballGame": a 3D football game in Godot 4.3. A skeleton with no scenes, from June 2026. |
 | `Monkius-Maximus/SDG-AUTODOING` | Work packages for autonomous data agents. The first one asks for the strength pack and the name pools that the World Builder imports. Not a game. |
