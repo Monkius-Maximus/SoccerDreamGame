@@ -328,7 +328,7 @@ staffProfiles, calibration, masterSeed, seed)`.
 
 - Confirm the `StaffAttr` list with the owner at kickoff (ADR-0011 §4 proposes 14).
 - Data: `staffShape` (count per role), attribute distributions per role (provisional), the
-  role-weight matrix, and the salary curve by role and band.
+  role-weight matrix, and the salary curve by role and reputation.
   `worldbuilder import-staff-profiles <file> [db]`.
 - Coaches get `PreferredTacticalStyle`, biased toward the club's `DefaultTacticalStyle`, and a
   `PreferredFormation`.
@@ -354,7 +354,8 @@ staffProfiles, calibration, masterSeed, seed)`.
 `ClubId` on `StaffRecord`, and `FreeAgentGenerator`.
 
 - Invariant: those three fields are all null or all set. `WorldDerivations` prices free agents
-  with `freeAgentPrestigeBand` (calibration, provisional).
+  with `freeAgentReputation` (calibration, provisional; ADR-0011 calls it
+  `freeAgentPrestigeBand`).
 - Pool: `DivisionGenerator` adds `round(clubCount × squadSize × freeAgentPoolRatio)` free
   players plus free staff.
 - On demand: `FreeAgentGenerator.Generate(filter{position, ageMin, ageMax, ovrMin, ovrMax,

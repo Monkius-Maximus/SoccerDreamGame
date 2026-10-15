@@ -20,16 +20,28 @@ The repository holds two things:
    source of truth for the world's clubs, squads, geography and competitions. Most recent work
    is here.
 
-**Sibling projects.** Le Grand Strategos (LGE) is a separate grand-strategy game in Unreal
-Engine 5. It shares the *idea* of a world builder used to set up game modes, but no code. Two
-other football projects exist; their relationship to this one is still to be mapped.
+## Other repositories
+
+This repository is the canonical one (ADR-0020). The others relate to it like this:
+
+| Repository | What it is | Relation to this one |
+| --- | --- | --- |
+| `new-soccer-world` | Another football game (Godot 4.7.1, .NET 10) | A sibling game over the same world. It reads the world; it does not author it. Its README and its ADR-0006 still call itself canonical: that is superseded |
+| `testingclaude` | "FootballGame", a 3D prototype in Godot 4.3 (a skeleton) | A sibling game, same rule |
+| `SDG-AUTODOING` | Work packages for autonomous data agents | Produces data files that enter the world only through the World Builder's importers |
+| `LeGrandStrategos` | Le Grand Strategos (LGE), a grand-strategy game in Unreal Engine 5 | Separate. It shares the *idea* of a world builder used to set up game modes, but no code |
+
+- **ADR numbers belong to their repository.** Cite another one's as "new-soccer-world ADR-0006".
+- **"World Builder" means the tool in this repository.** new-soccer-world also has a
+  `tools/SoccerSim.WorldBuilder`, but it is a different program: it builds a template database
+  from SQL seeds.
 
 ## Where each kind of truth lives
 
 | You want… | Look in | Language |
 | --- | --- | --- |
 | How things work now | The code | English |
-| A decision made since August 2026 | `docs/adr/` (ADR-0001 to ADR-0019) | English |
+| A decision made since August 2026 | `docs/adr/` (ADR-0001 to ADR-0020) | English |
 | The name of a concept, and what the player sees for it | `docs/TERMS.csv` | English, with pt-BR and en-US labels |
 | A decision made before the ADRs (`GEO-D53`, `CAL-D38`…) | `docs/decisions/LEGACY-IDS.md` → `docs/legacy/` | pt-BR, frozen |
 | What is being built next | `docs/ROADMAP-GENERATION.md` | English |

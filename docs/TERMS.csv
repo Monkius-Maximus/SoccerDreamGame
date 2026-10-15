@@ -2,10 +2,14 @@ TermId,Definition,Domain,CodeSymbols,PlayerVisible,LabelPtBr,LabelEnUs,Forbidden
 Terra,"The fictional world of the game: real nations and cities, fictional clubs and players.",Project,,no,,,Terra Paralela (as a name),keep
 SoccerDreamGame,The repository and codebase of this football game.,Project,SoccerDreamGame.sln,no,,,Dream Soccer Game (in writing); dreamsoccergame,keep
 SoccerSim,Prefix of the C# namespaces. Never used in prose or on screen.,Project,SoccerSim.Core; SoccerSim.Infrastructure.Sqlite; SoccerSim.WorldBuilder,no,,,,keep
-WorldBuilder,The authoring tool that edits the world data; source of truth for it (WBH-D03).,Tooling,tools/SoccerSim.WorldBuilder,no,Ferramenta de Mundo (tool screen only),World Builder,Base de Mundo (for the tool),keep
+WorldBuilder,"The authoring tool that edits the world data; source of truth for it (WBH-D03). new-soccer-world's tools/SoccerSim.WorldBuilder is a different program (ADR-0020).",Tooling,tools/SoccerSim.WorldBuilder,no,Ferramenta de Mundo (tool screen only),World Builder,Base de Mundo (for the tool),keep
 WorldData,"The data set the World Builder edits: clubs, players, geography, competitions, calibration.",Tooling,world.json; world.db,no,Base de Mundo (tool screen only),World data,,keep
 SimCore,A pure C# library from the shared-core design (namespace SimCore). Not part of this repository; this repository's core is SoccerSim.Core.,Project,SimCore.cs (design documents only),no,,,SoccerSim.Core (as a synonym),decide
 VersaoB,Archived 3D-hybrid variant (Project Zomboid style). Lives in docs/legacy/versao-b/.,Project,,no,,,,keep
+new-soccer-world,"A sibling football game repository. It reads Terra's world and does not author it; its claim to be canonical is superseded (ADR-0020).",Project,Monkius-Maximus/new-soccer-world,no,,,SoccerDreamGame (for that repository),keep
+testingclaude,"A sibling football game repository: a 3D prototype in Godot 4.3, titled FootballGame (ADR-0020).",Project,Monkius-Maximus/testingclaude,no,,,,keep
+SDG-AUTODOING,Work packages for autonomous data agents. Their output enters the world only through the World Builder's importers (ADR-0020).,Tooling,Monkius-Maximus/SDG-AUTODOING,no,,,,keep
+LeGrandStrategos,"Le Grand Strategos (LGE), a separate grand-strategy game in Unreal Engine 5. Shares the idea of a world builder, no code (ADR-0020).",Project,Monkius-Maximus/LeGrandStrategos,no,,,,keep
 ADR,A numbered architecture decision record in docs/adr/; the only global decision id from ADR-0016.,Process,docs/adr/00NN-*.md,no,,,D-NN (for new decisions),keep
 LegacyDecisionId,"A decision from a pre-ADR register, cited as <PREFIX>-D<NN> (ADR-0016).",Process,docs/decisions/LEGACY-IDS.md,no,,,unprefixed D-NN,keep
 Competition,"The definition of a competition: name, scope, country, level, stages, transition rules. Outlives seasons (ADR-0012).",Competition,Competition; Competitions; cmp_,yes,Competição,Competition,league (as the generic word); championship,keep

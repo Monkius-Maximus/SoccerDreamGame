@@ -10,10 +10,14 @@ Two things share one C#/.NET 8 codebase:
 1. **The game** — a 2D soccer life simulator in Godot 4.6 (.NET), with an engine-agnostic
    simulation core and SQLite persistence. See `README.md` and `docs/ARCHITECTURE.md`.
 2. **The World Builder** (`tools/SoccerSim.WorldBuilder`, "Ferramenta de Mundo") — the
-   authoring tool for the Terra Paralela world: clubs (ClubIdentity v2), squads
+   authoring tool for the world, Terra: clubs (ClubIdentity v2), squads
    (CharacterRecord), geography (GeoNode), competitions, pyramids, calibration. It replaced
-   an 11-tab spreadsheet and **is the source of truth for world data** (ADR-0001 D-03). The
+   an 11-tab spreadsheet and **is the source of truth for world data** (ADR-0001, `WBH-D03`). The
    spreadsheet/CSV is an export (and a guest import with a diff first, ADR-0006).
+
+This repository is the canonical one (ADR-0020). Sibling games (`new-soccer-world`, `testingclaude`)
+read the world and never author it. Agent work packages (`SDG-AUTODOING`) feed it through the
+importers. Cite another repository's ADR with its name ("new-soccer-world ADR-0006").
 
 ## Layout
 
@@ -27,7 +31,7 @@ Two things share one C#/.NET 8 codebase:
 | `tools/SoccerSim.WorldBuilder/` | ASP.NET Core Minimal API (`Api/*Endpoints.cs`) + static UI in `wwwroot/` (`index.html`, `app.js`, `app.css`, vanilla JS). |
 | `tests/SoccerSim.Core.Tests/` | Headless xUnit for core + infra. `TestData/world.json` and `gen_profiles.json` are the canonical world and generation profiles. |
 | `tools/SoccerSim.WorldBuilder.Tests/` | xUnit + `WebApplicationFactory` API tests and a shallow front-end smoke test. |
-| `docs/adr/` | One ADR per decision (0001–0019). Read the relevant one before changing behaviour. |
+| `docs/adr/` | One ADR per decision (0001–0020). Read the relevant one before changing behaviour. |
 | `docs/TERMS.csv` | The term base: one row per concept, its code symbols and its player-facing labels (ADR-0015). Names follow it. |
 | `docs/RENAMES-0020.md` | The renames Sprint 11d applies with migration 0020. |
 | `docs/decisions/LEGACY-IDS.md` | How to cite a pre-ADR decision (`GEO-D53`, `CAL-D38`…), ADR-0016. |
